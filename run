@@ -1,0 +1,418 @@
+#!/usr/bin/env bash
+# Colors and formatting
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# Symbols
+CHECK_MARK="${GREEN}✓${RESET}"
+CROSS_MARK="${RED}✗${RESET}"
+ARROW="${CYAN}→${RESET}"
+INFO="${BLUE}ℹ${RESET}"
+WARNING="${YELLOW}⚠${RESET}"
+
+# Log file
+LOG_DIR="blackarch_logs"
+MAIN_LOG="$LOG_DIR/installation.log"
+BACKUP_DIR="$LOG_DIR/backups"
+
+# Function to display a styled header
+print_header() {
+    local text="$1"
+    local width=70
+    local padding=$(( (width - ${#text}) / 2 ))
+    
+    echo -e "\n${BOLD}${PURPLE}"
+    printf "%$(($width))s\n" | tr ' ' '═'
+    printf "%${padding}s${text}%${padding}s\n"
+    printf "%$(($width))s\n" | tr ' ' '═'
+    echo -e "${RESET}"
+}
+
+# Function to display a step heading with spinner
+print_step() {
+    local step="$1"
+    local description="$2"
+    local spinner=('\|' '/' '-' '\')
+    local i=0
+    
+    echo -ne "\n${BOLD}${BLUE}[$step]${RESET} ${BOLD}$description${RESET} "
+    for ((j=0; j<10; j++)); do
+        echo -ne "${YELLOW}${spinner[$i]}${RESET}"
+        sleep 0.1
+        echo -ne "\b"
+        i=$(( (i + 1) % 4 ))
+    done
+    echo -e "\n"
+}
+
+# Function to display progress
+print_progress() {
+    local current="$1"
+    local total="$2"
+    local percentage=$(( current * 100 / total ))
+    local completed=$(( percentage / 2 ))
+    local remaining=$(( 50 - completed ))
+    
+    printf "${BOLD}[${GREEN}"
+    printf "%0.s█" $(seq 1 $completed)
+    printf "${YELLOW}"
+    printf "%0.s▒" $(seq 1 $remaining)
+    printf "${RESET}${BOLD}] ${percentage}%%${RESET} ($current/$total)\n"
+}
+
+# Function to log messages (reduced console output)
+log_message() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    mkdir -p "$LOG_DIR"
+    echo "[$timestamp] [$level] $message" >> "$MAIN_LOG"
+    
+    case "$level" in
+        "SUCCESS") echo -e "${CHECK_MARK} $message" ;;
+        "WARNING") echo -e "${WARNING} $message" ;;
+        "ERROR") echo -e "${CROSS_MARK} $message" ;;
+        *) ;; # INFO and others are logged to file only
+    esac
+}
+
+# Function to check if running as root
+check_root() {
+    if [ "$EUID" -ne 0 ]; then
+        log_message "ERROR" "Please run this script as root"
+        exit 1
+    fi
+}
+
+# Function to add BlackArch repository
+add_blackarch_repo() {
+    print_step "REPO" "Setting up BlackArch Repository"
+    
+    if ! grep -q "\[blackarch\]" /etc/pacman.conf; then
+        log_message "INFO" "Adding BlackArch repository..."
+        echo -e "\n[blackarch]\nServer = https://www.blackarch.org/blackarch/\$repo/os/\$arch" >> /etc/pacman.conf
+        log_message "INFO" "Downloading and installing BlackArch keyring..."
+        curl -O https://www.blackarch.org/blackarch-keyring.pkg.tar.xz
+        pacman -U --noconfirm blackarch-keyring.pkg.tar.xz
+        rm blackarch-keyring.pkg.tar.xz
+        log_message "SUCCESS" "BlackArch repository successfully added"
+    else
+        log_message "INFO" "BlackArch repository is already added"
+    fi
+}
+
+# Function to update package databases
+update_databases() {
+    print_step "UPDATE" "Updating Package Databases"
+    log_message "INFO" "Synchronizing package databases..."
+    pacman -Sy
+    log_message "SUCCESS" "Package databases updated successfully"
+}
+
+# Function to get BlackArch packages
+get_blackarch_packages() {
+    print_step "PACKAGES" "Retrieving BlackArch Package List"
+    log_message "INFO" "Getting list of BlackArch packages..."
+    pacman -Slq blackarch > blackarch_packages.txt
+    local total=$(wc -l < blackarch_packages.txt)
+    log_message "SUCCESS" "Found ${BOLD}$total${RESET} BlackArch packages"
+}
+
+# Function to handle file conflicts
+handle_file_conflicts() {
+    local package="$1"
+    local error_msg="$2"
+    
+    log_message "WARNING" "Attempting to resolve file conflicts for $package..."
+    mkdir -p "$BACKUP_DIR/$package"
+    local conflicting_files=$(echo "$error_msg" | grep "exists in filesystem" | sed -E 's/.*: (\/.*) exists in filesystem.*/\1/')
+    
+    [ -z "$conflicting_files" ] && { log_message "ERROR" "Could not identify conflicting files."; return 1; }
+    
+    echo "$conflicting_files" | while read -r file; do
+        [ -n "$file" ] || continue
+        log_message "WARNING" "Conflicting file detected: $file"
+        local owner=$(pacman -Qo "$file" 2>/dev/null | awk '{print $NF}')
+        
+        if [ -n "$owner" ]; then
+            log_message "INFO" "File is owned by package: $owner"
+            if [[ "$owner" == *"-git"* ]] || [[ "$owner" != *"$package"* ]]; then
+                log_message "WARNING" "Removing conflicting package: $owner"
+                pacman -R --noconfirm "$owner" && log_message "SUCCESS" "Removed $owner" || {
+                    log_message "WARNING" "Failed to remove $owner. Backing up file..."
+                    stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta"
+                    cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)"
+                    mv "$file" "${file}.backup"
+                }
+            else
+                log_message "INFO" "Backing up conflicting file..."
+                stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta"
+                cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)"
+                mv "$file" "${file}.backup"
+            fi
+        else
+            log_message "INFO" "File not owned by any package, backing up..."
+            stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta" 2>/dev/null
+            cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)" 2>/dev/null
+            mv "$file" "${file}.backup"
+        fi
+    done
+    return 0
+}
+
+# Function to handle dependency issues
+handle_dependency_issues() {
+    local package="$1"
+    local error_msg="$2"
+    
+    log_message "WARNING" "Resolving dependency issues for $package..."
+    log_message "INFO" "Trying --overwrite flag..."
+    pacman -S --noconfirm --overwrite="*" "$package" && { log_message "SUCCESS" "Installed with --overwrite"; return 0; }
+    
+    log_message "INFO" "Trying --needed flag..."
+    pacman -S --noconfirm --needed "$package" && { log_message "SUCCESS" "Installed with --needed"; return 0; }
+    
+    local missing_deps=$(echo "$error_msg" | grep -o "dependency.*required" | sed -E 's/dependency (.*) is required.*/\1/')
+    if [ -n "$missing_deps" ]; then
+        log_message "INFO" "Installing missing dependencies: $missing_deps"
+        for dep in $missing_deps; do
+            pacman -S --noconfirm --needed "$dep"
+        done
+        log_message "INFO" "Retrying $package installation..."
+        pacman -S --noconfirm --needed "$package" && { log_message "SUCCESS" "Installed after resolving dependencies"; return 0; }
+    fi
+    return 1
+}
+
+# Function to clean up backups
+cleanup_backups() {
+    print_step "CLEANUP" "Managing Backup Files"
+    local backup_count=$(find / -name "*.backup" 2>/dev/null | wc -l)
+    
+    if [ "$backup_count" -gt 0 ]; then
+        log_message "INFO" "Found $backup_count backup files"
+        echo -e "${YELLOW}${BOLD}Options:${RESET}\n  ${CYAN}1${RESET}. Keep backups\n  ${CYAN}2${RESET}. Move to $BACKUP_DIR/system_backups\n  ${CYAN}3${RESET}. Remove all"
+        echo -ne "${BOLD}Choose [1-3]:${RESET} "
+        read -r choice
+        
+        case $choice in
+            2)
+                log_message "INFO" "Moving backups..."
+                mkdir -p "$BACKUP_DIR/system_backups"
+                find / -name "*.backup" 2>/dev/null | while read -r file; do
+                    mkdir -p "$BACKUP_DIR/system_backups/$(dirname "${file#/}")"
+                    mv "$file" "$BACKUP_DIR/system_backups/${file#/}"
+                    log_message "INFO" "Moved: $file"
+                done
+                log_message "SUCCESS" "Backups centralized to $BACKUP_DIR/system_backups"
+                ;;
+            3)
+                log_message "WARNING" "Removing backups..."
+                find / -name "*.backup" 2>/dev/null -delete
+                log_message "SUCCESS" "All backups removed"
+                ;;
+            *) log_message "INFO" "Keeping backups in place" ;;
+        esac
+    else
+        log_message "INFO" "No backups found"
+    fi
+}
+
+# Function to install packages with enhanced visuals
+install_packages() {
+    print_step "INSTALL" "Installing BlackArch Packages"
+    local start_time=$(date +%s)
+    local total=$(wc -l < blackarch_packages.txt)
+    local current=0 successful=0 failed=0 skipped=0
+    local failed_packages="" skipped_packages=""
+    local max_retries=2
+    
+    mkdir -p "$LOG_DIR/package_logs"
+    echo -e "${CYAN}${BOLD}┌───────────────────────────────────────────────────────┐${RESET}"
+    echo -e "${CYAN}${BOLD}│         Starting BlackArch Package Installation       │${RESET}"
+    echo -e "${CYAN}${BOLD}└───────────────────────────────────────────────────────┘${RESET}\n"
+    
+    while read -r package; do
+        current=$((current + 1))
+        echo -e "\n${YELLOW}${BOLD}╭───────────────────────────────────────────────────────╮${RESET}"
+        printf "${YELLOW}${BOLD}│ %-51s │${RESET}\n" "PACKAGE: $package"
+        echo -e "${YELLOW}${BOLD}╰───────────────────────────────────────────────────────╯${RESET}"
+        print_progress $current $total
+        
+        if pacman -Q "$package" &>/dev/null; then
+            echo -e "${YELLOW}⚠ Package $package is already installed, skipping...${RESET}"
+            log_message "INFO" "Package $package is already installed, skipping..."
+            skipped=$((skipped + 1))
+            skipped_packages="$skipped_packages$package (already installed)\n"
+            continue
+        fi
+        
+        local retry=0 installed=false error_output=""
+        while [ $retry -lt $max_retries ] && [ "$installed" = false ]; do
+            retry=$((retry + 1))
+            echo -ne "Attempt $retry of $max_retries: Installing..."
+            error_output=$(pacman -S --noconfirm "$package" 2>&1)
+            if [ $? -eq 0 ]; then
+                tput cuu1; tput el
+                echo -e "Attempt $retry: ${GREEN}✓ Success${RESET}"
+                log_message "SUCCESS" "Installed $package on attempt $retry"
+                successful=$((successful + 1))
+                installed=true
+            else
+                tput cuu1; tput el
+                echo -e "Attempt $retry: ${RED}✗ Failed${RESET}"
+                log_message "ERROR" "Failed $package on attempt $retry. Analyzing..."
+                echo "$error_output" > "$LOG_DIR/package_logs/${package}_error.log"
+                
+                if echo "$error_output" | grep -q "conflicting files"; then
+                    handle_file_conflicts "$package" "$error_output"
+                elif echo "$error_output" | grep -q "dependency"; then
+                    handle_dependency_issues "$package" "$error_output"
+                else
+                    log_message "ERROR" "Unknown error. See $LOG_DIR/package_logs/${package}_error.log"
+                fi
+            fi
+            sleep 2
+        done
+        
+        if [ "$installed" = false ]; then
+            log_message "ERROR" "Failed $package after $max_retries retries"
+            failed=$((failed + 1))
+            failed_packages="$failed_packages$package\n"
+        fi
+        sleep 1
+    done < blackarch_packages.txt
+    
+    local end_time=$(date +%s)
+    local elapsed=$((end_time - start_time))
+    local hours=$((elapsed / 3600)) minutes=$(((elapsed % 3600) / 60)) seconds=$((elapsed % 60))
+    
+    print_step "SUMMARY" "Installation Results"
+    echo -e "${BOLD}${GREEN}Success:${RESET} $successful packages"
+    echo -e "${BOLD}${RED}Failed:${RESET} $failed packages"
+    echo -e "${BOLD}${YELLOW}Skipped:${RESET} $skipped packages"
+    echo -e "${BOLD}Time taken:${RESET} ${hours}h ${minutes}m ${seconds}s"
+    
+    [ $failed -gt 0 ] && {
+        echo -e "\n${BOLD}${RED}Failed packages:${RESET}\n$failed_packages"
+        echo -e "$failed_packages" > "$LOG_DIR/failed_packages.txt"
+    }
+    [ $skipped -gt 0 ] && {
+        echo -e "\n${BOLD}${YELLOW}Skipped packages:${RESET}\n$skipped_packages"
+        echo -e "$skipped_packages" > "$LOG_DIR/skipped_packages.txt"
+    }
+}
+
+# Function to offer selective install
+offer_selective_install() {
+    print_step "SELECTION" "Package Selection Method"
+    echo -e "${BOLD}Options:${RESET}\n  ${CYAN}1${RESET}. All packages\n  ${CYAN}2${RESET}. Specific group\n  ${CYAN}3${RESET}. Custom list"
+    echo -ne "${BOLD}Choose [1-3]:${RESET} "
+    read -r choice
+    
+    case $choice in
+        1) log_message "INFO" "Full installation selected" ;;
+        2)
+            echo -e "\n${BOLD}${BLUE}Groups:${RESET}"
+            pacman -Sg | grep blackarch | sort | column
+            echo -ne "\n${BOLD}Group name:${RESET} "
+            read -r group_name
+            pacman -Sgq "$group_name" > blackarch_packages.txt
+            log_message "SUCCESS" "Found $(wc -l < blackarch_packages.txt) packages in $group_name"
+            ;;
+        3)
+            echo -ne "\n${BOLD}Path to list:${RESET} "
+            read -r custom_list
+            [ -f "$custom_list" ] && cp "$custom_list" blackarch_packages.txt || { log_message "ERROR" "File not found"; exit 1; }
+            log_message "SUCCESS" "Using list with $(wc -l < blackarch_packages.txt) packages"
+            ;;
+        *) log_message "ERROR" "Invalid choice"; exit 1 ;;
+    esac
+}
+
+# Function to clean package cache
+clean_package_cache() {
+    print_step "CACHE" "Package Cache Management"
+    local cache_size=$(du -sh /var/cache/pacman/pkg/ | cut -f1)
+    echo -e "${BOLD}${BLUE}Cache size:${RESET} $cache_size"
+    echo -ne "${BOLD}Clean cache? [y/n]:${RESET} "
+    read -r answer
+    
+    [[ "$answer" =~ ^[Yy]$ ]] && {
+        log_message "INFO" "Cleaning cache..."
+        pacman -Sc --noconfirm
+        log_message "SUCCESS" "Cache cleaned. New size: $(du -sh /var/cache/pacman/pkg/ | cut -f1)"
+    } || log_message "INFO" "Cache cleanup skipped"
+}
+
+# Function to display banner
+show_banner() {
+    clear
+    echo -e "${BOLD}${PURPLE}"
+    echo "  ██████  ██       █████   ██████ ██   ██  █████  ██████   ██████ ██   ██"
+    echo "  ██   ██ ██      ██   ██ ██      ██  ██  ██   ██ ██   ██ ██      ██   ██"
+    echo "  ██████  ██      ███████ ██      █████   ███████ ██████  ██      ███████"
+    echo "  ██   ██ ██      ██   ██ ██      ██  ██  ██   ██ ██   ██ ██      ██   ██"
+    echo "  ██████  ███████ ██   ██  ██████ ██   ██ ██   ██ ██   ██  ██████ ██   ██"
+    echo -e "${RESET}"
+    echo -e "${BOLD}${BLUE}                     ARCH PENTESTING-TUNER      ${RESET}"
+    echo -e "${YELLOW}         Engineered by 0xb0rn3 | github.com/0xb0rn3${RESET}\n"
+}
+
+# Function to handle interruptions
+handle_interrupt() {
+    echo -e "\n${BOLD}${RED}Interrupted!${RESET}"
+    echo -ne "${BOLD}Run backup cleanup? [y/n]:${RESET} "
+    read -r answer
+    [[ "$answer" =~ ^[Yy]$ ]] && cleanup_backups
+    exit 1
+}
+
+trap handle_interrupt SIGINT SIGTERM
+
+# Main execution
+main() {
+    show_banner
+    mkdir -p "$LOG_DIR"
+    touch "$MAIN_LOG"
+    
+    check_root
+    add_blackarch_repo
+    update_databases
+    get_blackarch_packages
+    offer_selective_install
+    
+    local total_packages=$(wc -l < blackarch_packages.txt)
+    local est_time_min=$(( total_packages * 2 / 60 ))
+    local est_time_hour=$(( est_time_min / 60 ))
+    est_time_min=$(( est_time_min % 60 ))
+    
+    echo -e "\n${BOLD}${BLUE}Ready to install.${RESET}"
+    echo -e "${YELLOW}Estimated time: ${BOLD}$est_time_hour hours $est_time_min minutes${RESET}"
+    echo -ne "${BOLD}Proceed? [y/n]:${RESET} "
+    read -r answer
+    
+    if [[ "$answer" =~ ^[Yy]$ ]]; then
+        install_packages
+        cleanup_backups
+        clean_package_cache
+        echo -e "\n${BOLD}${GREEN}┌──────────────────────────────┐${RESET}"
+        echo -e "${BOLD}${GREEN}│ Installation Complete!       │${RESET}"
+        echo -e "${BOLD}${GREEN}└──────────────────────────────┘${RESET}"
+        echo -e "${BOLD}${BLUE}• Log:${RESET} $MAIN_LOG"
+        echo -e "${BOLD}${BLUE}• Package logs:${RESET} $LOG_DIR/package_logs/"
+        echo -e "${BOLD}${BLUE}• Backups:${RESET} $BACKUP_DIR\n"
+    else
+        log_message "INFO" "Installation canceled"
+        exit 0
+    fi
+}
+
+main
