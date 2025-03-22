@@ -97,18 +97,18 @@ check_root() {
 
 # Function to add BlackArch repository
 add_blackarch_repo() {
-    print_step "REPO" "Setting up BlackArch Repository"
+    print_step "REPO" "Setting up Repos"
     
     if ! grep -q "\[blackarch\]" /etc/pacman.conf; then
-        log_message "INFO" "Adding BlackArch repository..."
+        log_message "INFO" "Adding Repository..."
         echo -e "\n[blackarch]\nServer = https://www.blackarch.org/blackarch/\$repo/os/\$arch" >> /etc/pacman.conf
         log_message "INFO" "Downloading and installing BlackArch keyring..."
         curl -O https://www.blackarch.org/blackarch-keyring.pkg.tar.xz
         pacman -U --noconfirm blackarch-keyring.pkg.tar.xz
         rm blackarch-keyring.pkg.tar.xz
-        log_message "SUCCESS" "BlackArch repository successfully added"
+        log_message "SUCCESS" "Repos successfully added"
     else
-        log_message "INFO" "BlackArch repository is already added"
+        log_message "INFO" "Repo is already added"
     fi
 }
 
@@ -477,6 +477,31 @@ main() {
         log_message "INFO" "Installation canceled"
         exit 0
     fi
+    echo "TRYING FINAL FIXES FOR SOME FAILED PACKAGES PLEASE BE PATIENT"
+    # Loop over each package in archres.txt
+    while IFS= read -r pkg || [ -n "$pkg" ]; do
+        echo "Installing $pkg..."
+    # Check if package exists in official repositories
+    if pacman -Si "$pkg" > dev/null/ 2>&1; then
+        sudo pacman -S --noconfirm "$pkg" 
+    else
+        # Fallback to AUR installation with yay
+        yay -S --noconfirm "$pkg" > 
+    fi
+    done < /home/$USER/blackarch_packages.txt
 }
 
+
+echo "TRYING FINAL FIXES FOR SOME FAILED PACKAGES PLEASE BE PATIENT"
+# Loop over each package in archres.txt
+while IFS= read -r pkg || [ -n "$pkg" ]; do
+    echo "Installing $pkg..."
+    # Check if package exists in official repositories
+    if pacman -Si "$pkg" > dev/null/ 2>&1; then
+        sudo pacman -Sy --noconfirm "$pkg" 
+    else
+        # Fallback to AUR installation with yay
+        yay -Sy --noconfirm "$pkg" > 
+    fi
+done < /home/$USER/blackarch_packages.txt
 main
