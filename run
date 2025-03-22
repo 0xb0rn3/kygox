@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-
-# BlackArch package installer for Arch Linux
-# Enhanced with AUR support, dependency management, and retry mechanism
-
 ORIGINAL_USER=$SUDO_USER  # Capture the original user for yay
 
 # Colors and formatting
