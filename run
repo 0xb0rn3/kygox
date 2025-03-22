@@ -1,7 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # BlackArch package installer for Arch Linux
-# Enhanced with AUR support and dependency management
+# Enhanced with AUR support, dependency management, and retry mechanism
+
+ORIGINAL_USER=$SUDO_USER  # Capture the original user for yay
 
 # Colors and formatting
 RED='\033[0;31m'
@@ -20,7 +22,7 @@ ARROW="${CYAN}→${RESET}"
 INFO="${BLUE}ℹ${RESET}"
 WARNING="${YELLOW}⚠${RESET}"
 
-# Log file
+# Log and backup directories
 LOG_DIR="blackarch_logs"
 MAIN_LOG="$LOG_DIR/installation.log"
 BACKUP_DIR="$LOG_DIR/backups"
@@ -90,25 +92,29 @@ log_message() {
 # Function to check if running as root
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        log_message "ERROR" "Please run this script as root"
+        log_message "ERROR" "Please run this script as root with sudo"
+        exit 1
+    fi
+    if [ -z "$ORIGINAL_USER" ]; then
+        log_message "ERROR" "Cannot determine original user. Please run with sudo."
         exit 1
     fi
 }
 
 # Function to add BlackArch repository
 add_blackarch_repo() {
-    print_step "REPO" "Setting up Repos"
+    print_step "REPO" "Setting up BlackArch Repository"
     
     if ! grep -q "\[blackarch\]" /etc/pacman.conf; then
-        log_message "INFO" "Adding Repository..."
+        log_message "INFO" "Adding BlackArch repository..."
         echo -e "\n[blackarch]\nServer = https://www.blackarch.org/blackarch/\$repo/os/\$arch" >> /etc/pacman.conf
         log_message "INFO" "Downloading and installing BlackArch keyring..."
         curl -O https://www.blackarch.org/blackarch-keyring.pkg.tar.xz
         pacman -U --noconfirm blackarch-keyring.pkg.tar.xz
         rm blackarch-keyring.pkg.tar.xz
-        log_message "SUCCESS" "Repos successfully added"
+        log_message "SUCCESS" "BlackArch repository added successfully"
     else
-        log_message "INFO" "Repo is already added"
+        log_message "INFO" "BlackArch repository already added"
     fi
 }
 
@@ -116,19 +122,19 @@ add_blackarch_repo() {
 update_databases() {
     print_step "UPDATE" "Updating Package Databases"
     log_message "INFO" "Synchronizing package databases..."
-    pacman -Sy
+    pacman -Sy > /dev/null 2>&1
     log_message "SUCCESS" "Package databases updated successfully"
 }
 
 # Function to install yay (AUR helper)
 install_yay() {
-    print_step "AUR" "Checking and Installing yay (AUR Helper)"
+    print_step "AUR" "Installing yay (AUR Helper)"
     if ! command -v yay &> /dev/null; then
         log_message "INFO" "Installing yay..."
-        pacman -S --noconfirm --needed git base-devel
-        git clone https://aur.archlinux.org/yay.git /tmp/yay
+        pacman -S --noconfirm --needed git base-devel > /dev/null 2>&1
+        git clone https://aur.archlinux.org/yay.git /tmp/yay > /dev/null 2>&1
         cd /tmp/yay
-        makepkg -si --noconfirm
+        makepkg -si --noconfirm > /dev/null 2>&1
         cd /tmp
         rm -rf yay
         if [ $? -eq 0 ]; then
@@ -147,7 +153,7 @@ install_dependencies() {
     print_step "DEPS" "Installing Required Dependencies"
     local dependencies=("base-devel" "libnl" "openssl" "ethtool" "util-linux" "zlib" "libpcap" "sqlite" "pcre2" "hwloc" "cmocka" "hostapd" "wpa_supplicant" "tcpdump" "screen" "iw" "usbutils" "pciutils" "expect")
     log_message "INFO" "Installing dependencies: ${dependencies[*]}"
-    pacman -S --noconfirm --needed "${dependencies[@]}"
+    pacman -S --noconfirm --needed "${dependencies[@]}" > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         log_message "SUCCESS" "Dependencies installed successfully"
     else
@@ -162,14 +168,14 @@ install_aur_packages() {
     log_message "INFO" "Installing AUR packages: ${aur_packages[*]}"
     for package in "${aur_packages[@]}"; do
         if ! pacman -Q "$package" &>/dev/null; then
-            yay -S --noconfirm "$package"
+            sudo -u "$ORIGINAL_USER" yay -S --noconfirm "$package" > /dev/null 2>&1
             if [ $? -eq 0 ]; then
                 log_message "SUCCESS" "Installed AUR package: $package"
             else
                 log_message "ERROR" "Failed to install AUR package: $package"
             fi
         else
-            log_message "INFO" "AUR package $package is already installed"
+            log_message "INFO" "AUR package $package already installed"
         fi
     done
 }
@@ -181,7 +187,7 @@ get_blackarch_packages() {
     pacman -Slq blackarch > blackarch_packages.txt
     echo "android-apktool" >> blackarch_packages.txt  # Ensure android-apktool is included
     local total=$(wc -l < blackarch_packages.txt)
-    log_message "SUCCESS" "Found ${BOLD}$total${RESET} BlackArch packages"
+    log_message "SUCCESS" "Found ${total} BlackArch packages"
 }
 
 # Function to handle file conflicts
@@ -189,7 +195,7 @@ handle_file_conflicts() {
     local package="$1"
     local error_msg="$2"
     
-    log_message "WARNING" "Attempting to resolve file conflicts for $package..."
+    log_message "WARNING" "Resolving file conflicts for $package..."
     mkdir -p "$BACKUP_DIR/$package"
     local conflicting_files=$(echo "$error_msg" | grep "exists in filesystem" | sed -E 's/.*: (\/.*) exists in filesystem.*/\1/')
     
@@ -201,26 +207,26 @@ handle_file_conflicts() {
         local owner=$(pacman -Qo "$file" 2>/dev/null | awk '{print $NF}')
         
         if [ -n "$owner" ]; then
-            log_message "INFO" "File is owned by package: $owner"
+            log_message "INFO" "File owned by package: $owner"
             if [[ "$owner" == *"-git"* ]] || [[ "$owner" != *"$package"* ]]; then
                 log_message "WARNING" "Removing conflicting package: $owner"
-                pacman -R --noconfirm "$owner" && log_message "SUCCESS" "Removed $owner" || {
+                pacman -R --noconfirm "$owner" > /dev/null 2>&1 && log_message "SUCCESS" "Removed $owner" || {
                     log_message "WARNING" "Failed to remove $owner. Backing up file..."
-                    stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta"
-                    cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)"
-                    mv "$file" "${file}.backup"
+                    stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta" 2>/dev/null
+                    cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)" 2>/dev/null
+                    mv "$file" "${file}.backup" 2>/dev/null
                 }
             else
                 log_message "INFO" "Backing up conflicting file..."
-                stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta"
-                cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)"
-                mv "$file" "${file}.backup"
+                stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta" 2>/dev/null
+                cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)" 2>/dev/null
+                mv "$file" "${file}.backup" 2>/dev/null
             fi
         else
-            log_message "INFO" "File not owned by any package, backing up..."
+            log_message "INFO" "File not owned, backing up..."
             stat -c "%a %u %g" "$file" > "$BACKUP_DIR/$package/$(basename "$file").meta" 2>/dev/null
             cp "$file" "$BACKUP_DIR/$package/$(basename "$file").$(date +%Y%m%d%H%M%S)" 2>/dev/null
-            mv "$file" "${file}.backup"
+            mv "$file" "${file}.backup" 2>/dev/null
         fi
     done
     return 0
@@ -233,19 +239,19 @@ handle_dependency_issues() {
     
     log_message "WARNING" "Resolving dependency issues for $package..."
     log_message "INFO" "Trying --overwrite flag..."
-    pacman -S --noconfirm --overwrite="*" "$package" && { log_message "SUCCESS" "Installed with --overwrite"; return 0; }
+    pacman -S --noconfirm --overwrite="*" "$package" > /dev/null 2>&1 && { log_message "SUCCESS" "Installed with --overwrite"; return 0; }
     
     log_message "INFO" "Trying --needed flag..."
-    pacman -S --noconfirm --needed "$package" && { log_message "SUCCESS" "Installed with --needed"; return 0; }
+    pacman -S --noconfirm --needed "$package" > /dev/null 2>&1 && { log_message "SUCCESS" "Installed with --needed"; return 0; }
     
     local missing_deps=$(echo "$error_msg" | grep -o "dependency.*required" | sed -E 's/dependency (.*) is required.*/\1/')
     if [ -n "$missing_deps" ]; then
         log_message "INFO" "Installing missing dependencies: $missing_deps"
         for dep in $missing_deps; do
-            pacman -S --noconfirm --needed "$dep"
+            pacman -S --noconfirm --needed "$dep" > /dev/null 2>&1
         done
         log_message "INFO" "Retrying $package installation..."
-        pacman -S --noconfirm --needed "$package" && { log_message "SUCCESS" "Installed after resolving dependencies"; return 0; }
+        pacman -S --noconfirm --needed "$package" > /dev/null 2>&1 && { log_message "SUCCESS" "Installed after resolving dependencies"; return 0; }
     fi
     return 1
 }
@@ -267,10 +273,10 @@ cleanup_backups() {
                 mkdir -p "$BACKUP_DIR/system_backups"
                 find / -name "*.backup" 2>/dev/null | while read -r file; do
                     mkdir -p "$BACKUP_DIR/system_backups/$(dirname "${file#/}")"
-                    mv "$file" "$BACKUP_DIR/system_backups/${file#/}"
+                    mv "$file" "$BACKUP_DIR/system_backups/${file#/}" 2>/dev/null
                     log_message "INFO" "Moved: $file"
                 done
-                log_message "SUCCESS" "Backups centralized to $BACKUP_DIR/system_backups"
+                log_message "SUCCESS" "Backups moved to $BACKUP_DIR/system_backups"
                 ;;
             3)
                 log_message "WARNING" "Removing backups..."
@@ -306,8 +312,8 @@ install_packages() {
         print_progress $current $total
         
         if pacman -Q "$package" &>/dev/null; then
-            echo -e "${YELLOW}⚠ Package $package is already installed, skipping...${RESET}"
-            log_message "INFO" "Package $package is already installed, skipping..."
+            echo -e "${YELLOW}⚠ Package $package already installed, skipping...${RESET}"
+            log_message "INFO" "Package $package already installed, skipping..."
             skipped=$((skipped + 1))
             skipped_packages="$skipped_packages$package (already installed)\n"
             continue
@@ -361,11 +367,11 @@ install_packages() {
     
     [ $failed -gt 0 ] && {
         echo -e "\n${BOLD}${RED}Failed packages:${RESET}\n$failed_packages"
-        echo -e "$failed_packages" > "$LOG_DIR/failed_packages.txt"
+        echo -e "$failed_packages" | sed '/^$/d' > "$LOG_DIR/failed_packages.txt"
     }
     [ $skipped -gt 0 ] && {
         echo -e "\n${BOLD}${YELLOW}Skipped packages:${RESET}\n$skipped_packages"
-        echo -e "$skipped_packages" > "$LOG_DIR/skipped_packages.txt"
+        echo -e "$skipped_packages" | sed '/^$/d' > "$LOG_DIR/skipped_packages.txt"
     }
 }
 
@@ -408,7 +414,7 @@ clean_package_cache() {
     
     [[ "$answer" =~ ^[Yy]$ ]] && {
         log_message "INFO" "Cleaning cache..."
-        pacman -Sc --noconfirm
+        pacman -Sc --noconfirm > /dev/null 2>&1
         log_message "SUCCESS" "Cache cleaned. New size: $(du -sh /var/cache/pacman/pkg/ | cut -f1)"
     } || log_message "INFO" "Cache cleanup skipped"
 }
@@ -447,9 +453,9 @@ main() {
     check_root
     add_blackarch_repo
     update_databases
-    install_yay           # Install yay for AUR support
-    install_dependencies  # Install required dependencies
-    install_aur_packages  # Install AUR packages like apkid
+    install_yay
+    install_dependencies
+    install_aur_packages
     get_blackarch_packages
     offer_selective_install
     
@@ -465,6 +471,28 @@ main() {
     
     if [[ "$answer" =~ ^[Yy]$ ]]; then
         install_packages
+        
+        # Retry failed packages with yay
+        if [ -s "$LOG_DIR/failed_packages.txt" ]; then
+            print_step "RETRY" "Retrying Failed Packages"
+            echo -e "${BOLD}${RED}Some packages failed to install.${RESET}"
+            echo -e "${BOLD}Retry with yay as user $ORIGINAL_USER? [y/n]:${RESET} "
+            read -r retry_answer
+            if [[ "$retry_answer" =~ ^[Yy]$ ]]; then
+                while IFS= read -r pkg || [ -n "$pkg" ]; do
+                    echo "Attempting to install $pkg with yay as $ORIGINAL_USER..."
+                    sudo -u "$ORIGINAL_USER" yay -S --noconfirm "$pkg" > /dev/null 2>&1
+                    if [ $? -eq 0 ]; then
+                        log_message "SUCCESS" "Installed failed package $pkg with yay"
+                    else
+                        log_message "ERROR" "Failed to install $pkg with yay"
+                    fi
+                done < "$LOG_DIR/failed_packages.txt"
+            else
+                log_message "INFO" "Skipped retrying failed packages"
+            fi
+        fi
+        
         cleanup_backups
         clean_package_cache
         echo -e "\n${BOLD}${GREEN}┌──────────────────────────────┐${RESET}"
@@ -477,31 +505,6 @@ main() {
         log_message "INFO" "Installation canceled"
         exit 0
     fi
-    echo "TRYING FINAL FIXES FOR SOME FAILED PACKAGES PLEASE BE PATIENT"
-    # Loop over each package in archres.txt
-    while IFS= read -r pkg || [ -n "$pkg" ]; do
-        echo "Installing $pkg..."
-    # Check if package exists in official repositories
-    if pacman -Si "$pkg" > dev/null/ 2>&1; then
-        sudo pacman -S --noconfirm "$pkg" 
-    else
-        # Fallback to AUR installation with yay
-        yay -S --noconfirm "$pkg" > 
-    fi
-    done < /home/$USER/blackarch_packages.txt
 }
 
-
-echo "TRYING FINAL FIXES FOR SOME FAILED PACKAGES PLEASE BE PATIENT"
-# Loop over each package in archres.txt
-while IFS= read -r pkg || [ -n "$pkg" ]; do
-    echo "Installing $pkg..."
-    # Check if package exists in official repositories
-    if pacman -Si "$pkg" > dev/null/ 2>&1; then
-        sudo pacman -Sy --noconfirm "$pkg" 
-    else
-        # Fallback to AUR installation with yay
-        yay -Sy --noconfirm "$pkg" > 
-    fi
-done < /home/$USER/blackarch_packages.txt
 main
