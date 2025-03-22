@@ -1,4 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/bash
+
+# BlackArch package installer for Arch Linux
+# Enhanced with AUR support and dependency management
+
 # Colors and formatting
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -66,7 +70,7 @@ print_progress() {
     printf "${RESET}${BOLD}] ${percentage}%%${RESET} ($current/$total)\n"
 }
 
-# Function to log messages (reduced console output)
+# Function to log messages
 log_message() {
     local level="$1"
     local message="$2"
@@ -79,7 +83,7 @@ log_message() {
         "SUCCESS") echo -e "${CHECK_MARK} $message" ;;
         "WARNING") echo -e "${WARNING} $message" ;;
         "ERROR") echo -e "${CROSS_MARK} $message" ;;
-        *) ;; # INFO and others are logged to file only
+        *) ;;
     esac
 }
 
@@ -116,11 +120,66 @@ update_databases() {
     log_message "SUCCESS" "Package databases updated successfully"
 }
 
+# Function to install yay (AUR helper)
+install_yay() {
+    print_step "AUR" "Checking and Installing yay (AUR Helper)"
+    if ! command -v yay &> /dev/null; then
+        log_message "INFO" "Installing yay..."
+        pacman -S --noconfirm --needed git base-devel
+        git clone https://aur.archlinux.org/yay.git /tmp/yay
+        cd /tmp/yay
+        makepkg -si --noconfirm
+        cd /tmp
+        rm -rf yay
+        if [ $? -eq 0 ]; then
+            log_message "SUCCESS" "yay installed successfully"
+        else
+            log_message "ERROR" "Failed to install yay"
+            exit 1
+        fi
+    else
+        log_message "INFO" "yay is already installed"
+    fi
+}
+
+# Function to install required dependencies
+install_dependencies() {
+    print_step "DEPS" "Installing Required Dependencies"
+    local dependencies=("base-devel" "libnl" "openssl" "ethtool" "util-linux" "zlib" "libpcap" "sqlite" "pcre2" "hwloc" "cmocka" "hostapd" "wpa_supplicant" "tcpdump" "screen" "iw" "usbutils" "pciutils" "expect")
+    log_message "INFO" "Installing dependencies: ${dependencies[*]}"
+    pacman -S --noconfirm --needed "${dependencies[@]}"
+    if [ $? -eq 0 ]; then
+        log_message "SUCCESS" "Dependencies installed successfully"
+    else
+        log_message "ERROR" "Failed to install some dependencies"
+    fi
+}
+
+# Function to install AUR packages
+install_aur_packages() {
+    print_step "AUR-PKGS" "Installing AUR Packages"
+    local aur_packages=("apkid")
+    log_message "INFO" "Installing AUR packages: ${aur_packages[*]}"
+    for package in "${aur_packages[@]}"; do
+        if ! pacman -Q "$package" &>/dev/null; then
+            yay -S --noconfirm "$package"
+            if [ $? -eq 0 ]; then
+                log_message "SUCCESS" "Installed AUR package: $package"
+            else
+                log_message "ERROR" "Failed to install AUR package: $package"
+            fi
+        else
+            log_message "INFO" "AUR package $package is already installed"
+        fi
+    done
+}
+
 # Function to get BlackArch packages
 get_blackarch_packages() {
     print_step "PACKAGES" "Retrieving BlackArch Package List"
     log_message "INFO" "Getting list of BlackArch packages..."
     pacman -Slq blackarch > blackarch_packages.txt
+    echo "android-apktool" >> blackarch_packages.txt  # Ensure android-apktool is included
     local total=$(wc -l < blackarch_packages.txt)
     log_message "SUCCESS" "Found ${BOLD}$total${RESET} BlackArch packages"
 }
@@ -225,7 +284,7 @@ cleanup_backups() {
     fi
 }
 
-# Function to install packages with enhanced visuals
+# Function to install packages
 install_packages() {
     print_step "INSTALL" "Installing BlackArch Packages"
     local start_time=$(date +%s)
@@ -325,12 +384,14 @@ offer_selective_install() {
             echo -ne "\n${BOLD}Group name:${RESET} "
             read -r group_name
             pacman -Sgq "$group_name" > blackarch_packages.txt
+            echo "android-apktool" >> blackarch_packages.txt  # Ensure android-apktool is included
             log_message "SUCCESS" "Found $(wc -l < blackarch_packages.txt) packages in $group_name"
             ;;
         3)
             echo -ne "\n${BOLD}Path to list:${RESET} "
             read -r custom_list
             [ -f "$custom_list" ] && cp "$custom_list" blackarch_packages.txt || { log_message "ERROR" "File not found"; exit 1; }
+            echo "android-apktool" >> blackarch_packages.txt  # Ensure android-apktool is included
             log_message "SUCCESS" "Using list with $(wc -l < blackarch_packages.txt) packages"
             ;;
         *) log_message "ERROR" "Invalid choice"; exit 1 ;;
@@ -362,7 +423,7 @@ show_banner() {
     echo "  ██   ██ ██      ██   ██ ██      ██  ██  ██   ██ ██   ██ ██      ██   ██"
     echo "  ██████  ███████ ██   ██  ██████ ██   ██ ██   ██ ██   ██  ██████ ██   ██"
     echo -e "${RESET}"
-    echo -e "${BOLD}${BLUE}                     ARCH PENTESTING-TUNER      ${RESET}"
+    echo -e "${BOLD}${BLUE}                KYGO THE ARCH PENTESTING-TUNER  ${RESET}"
     echo -e "${YELLOW}         Engineered by 0xb0rn3 | github.com/0xb0rn3${RESET}\n"
 }
 
@@ -386,6 +447,9 @@ main() {
     check_root
     add_blackarch_repo
     update_databases
+    install_yay           # Install yay for AUR support
+    install_dependencies  # Install required dependencies
+    install_aur_packages  # Install AUR packages like apkid
     get_blackarch_packages
     offer_selective_install
     
