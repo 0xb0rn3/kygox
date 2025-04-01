@@ -99,18 +99,17 @@ check_root() {
 
 # Function to add BlackArch repository
 add_blackarch_repo() {
-    print_step "REPO" "Setting up BlackArch Repository"
+    print_step "REPO" "Setting up Repos"
     
     if ! grep -q "\[blackarch\]" /etc/pacman.conf; then
-        log_message "INFO" "Adding BlackArch repository..."
-        echo -e "\n[blackarch]\nServer = https://www.blackarch.org/blackarch/\$repo/os/\$arch" >> /etc/pacman.conf
-        log_message "INFO" "Downloading and installing BlackArch keyring..."
-        curl -O https://www.blackarch.org/blackarch-keyring.pkg.tar.xz
-        pacman -U --noconfirm blackarch-keyring.pkg.tar.xz
-        rm blackarch-keyring.pkg.tar.xz
-        log_message "SUCCESS" "BlackArch repository added successfully"
+        log_message "INFO" "Setting up repos plaease wait ..."
+        curl -O https://blackarch.org/strap.sh > /dev/null 2>&1
+        chmod +x strap.sh > /dev/null 2>&1
+        ./strap.sh > /dev/null 2>&1
+        rm -rf strap.sh
+        log_message "SUCCESS" "Repos added successfully"
     else
-        log_message "INFO" "BlackArch repository already added"
+        log_message "INFO" "Repo already added"
     fi
 }
 
