@@ -23,10 +23,40 @@ LOG_DIR="blackarch_logs"
 MAIN_LOG="$LOG_DIR/installation.log"
 BACKUP_DIR="$LOG_DIR/backups"
 
+# Required tools and their corresponding packages
+declare -A tool_packages=( 
+    ["aircrack-ng"]="aircrack-ng"
+    ["tshark"]="wireshark-cli"
+    ["wireshark"]="wireshark-qt"
+    ["nmap"]="nmap"
+    ["msfconsole"]="metasploit"
+    ["john"]="john"
+    ["hydra"]="hydra"
+    ["sqlmap"]="sqlmap"
+    ["burpsuite"]="burpsuite"
+    ["nikto"]="nikto"
+    ["gobuster"]="gobuster"
+    ["dirb"]="dirb"
+    ["wfuzz"]="wfuzz"
+    ["ffuf"]="ffuf"
+    ["whatweb"]="whatweb"
+    ["wpscan"]="wpscan"
+    ["joomscan"]="joomscan"
+    ["droopescan"]="droopescan"
+    ["cmsmap"]="cmsmap"
+    ["dnsenum"]="dnsenum"
+    ["dnsrecon"]="dnsrecon"
+    ["dnsmap"]="dnsmap"
+    ["dnswalk"]="dnswalk"
+    ["fierce"]="fierce"
+    ["dnsdict6"]="dnsdict6"
+    ["dnsbrute"]="dnsbrute"
+)
+
 # Function to display a styled header
 print_header() {
     local text="$1"
-    local width=70
+    local width=80
     local padding=$(( (width - ${#text}) / 2 ))
     
     echo -e "\n${BOLD}${PURPLE}"
@@ -40,15 +70,15 @@ print_header() {
 print_step() {
     local step="$1"
     local description="$2"
-    local spinner=('\|' '/' '-' '\')
+    local spinner=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
     local i=0
     
-    echo -ne "\n${BOLD}${BLUE}[$step]${RESET} ${BOLD}$description${RESET} "
-    for ((j=0; j<10; j++)); do
+    echo -ne "\n${BOLD}${BLUE}[${CYAN}$step${BLUE}]${RESET} ${BOLD}$description${RESET} "
+    for ((j=0; j<12; j++)); do
         echo -ne "${YELLOW}${spinner[$i]}${RESET}"
-        sleep 0.1
+        sleep 0.08
         echo -ne "\b"
-        i=$(( (i + 1) % 4 ))
+        i=$(( (i + 1) % 10 ))
     done
     echo -e "\n"
 }
@@ -81,6 +111,7 @@ log_message() {
         "SUCCESS") echo -e "${CHECK_MARK} $message" ;;
         "WARNING") echo -e "${WARNING} $message" ;;
         "ERROR") echo -e "${CROSS_MARK} $message" ;;
+        "INFO") echo -e "${INFO} $message" ;;
         *) ;;
     esac
 }
@@ -99,23 +130,23 @@ check_root() {
 
 # Function to add BlackArch repository
 add_blackarch_repo() {
-    print_step "REPO" "Setting up Repos"
+    print_step "REPO" "Setting up BlackArch Repositories"
     
     if ! grep -q "\[blackarch\]" /etc/pacman.conf; then
-        log_message "INFO" "Setting up repos plaease wait ..."
+        log_message "INFO" "Setting up repos please wait ..."
         curl -O https://blackarch.org/strap.sh > /dev/null 2>&1
         chmod +x strap.sh > /dev/null 2>&1
         ./strap.sh > /dev/null 2>&1
         rm -rf strap.sh
-        log_message "SUCCESS" "Repos added successfully"
+        log_message "SUCCESS" "BlackArch repositories added successfully"
     else
-        log_message "INFO" "Repo already added"
+        log_message "INFO" "BlackArch repository already added"
     fi
 }
 
 # Function to update package databases
 update_databases() {
-    print_step "UPDATE" "Updating Package Databases"
+    print_step "UPDATE" "Synchronizing Package Databases"
     log_message "INFO" "Synchronizing package databases..."
     pacman -Sy > /dev/null 2>&1
     log_message "SUCCESS" "Package databases updated successfully"
@@ -153,6 +184,49 @@ install_dependencies() {
         log_message "SUCCESS" "Dependencies installed successfully"
     else
         log_message "ERROR" "Failed to install some dependencies"
+    fi
+}
+
+# Function to check and install required tools
+check_and_install_tools() {
+    print_step "TOOLS" "Checking and Installing Required Tools"
+    local missing_tools=()
+    
+    for cmd in "${!tool_packages[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_tools+=("$cmd")
+        fi
+    done
+    
+    if [ ${#missing_tools[@]} -eq 0 ]; then
+        log_message "SUCCESS" "All required tools are installed"
+    else
+        log_message "WARNING" "Missing tools: ${missing_tools[*]}"
+        echo -e "${BOLD}${YELLOW}Some tools are missing. Attempting to install...${RESET}"
+        for cmd in "${missing_tools[@]}"; do
+            local package=${tool_packages[$cmd]}
+            echo -e "\n${BOLD}Installing $package for command $cmd...${RESET}"
+            if pacman -Si "$package" &> /dev/null; then
+                pacman -S --noconfirm --needed "$package" > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    log_message "SUCCESS" "Installed $package"
+                    echo -e "${CHECK_MARK} Installed $package"
+                else
+                    log_message "ERROR" "Failed to install $package with pacman"
+                    echo -e "${CROSS_MARK} Failed to install $package with pacman"
+                fi
+            else
+                echo -e "${INFO} $package not found in official repos, trying AUR..."
+                sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$package" > /dev/null 2>&1
+                if [ $? -eq 0 ]; then
+                    log_message "SUCCESS" "Installed $package from AUR"
+                    echo -e "${CHECK_MARK} Installed $package from AUR"
+                else
+                    log_message "ERROR" "Failed to install $package from AUR"
+                    echo -e "${CROSS_MARK} Failed to install $package from AUR"
+                fi
+            fi
+        done
     fi
 }
 
@@ -258,8 +332,13 @@ cleanup_backups() {
     
     if [ "$backup_count" -gt 0 ]; then
         log_message "INFO" "Found $backup_count backup files"
-        echo -e "${YELLOW}${BOLD}Options:${RESET}\n  ${CYAN}1${RESET}. Keep backups\n  ${CYAN}2${RESET}. Move to $BACKUP_DIR/system_backups\n  ${CYAN}3${RESET}. Remove all"
-        echo -ne "${BOLD}Choose [1-3]:${RESET} "
+        echo -e "${YELLOW}${BOLD}╭───────────────────────────────────────────────────────╮${RESET}"
+        echo -e "${YELLOW}${BOLD}│ Backup Management Options                             │${RESET}"
+        echo -e "${YELLOW}${BOLD}╰───────────────────────────────────────────────────────╯${RESET}"
+        echo -e "  ${CYAN}1${RESET}. ${BOLD}Keep backups${RESET} - Leave all backup files in place"
+        echo -e "  ${CYAN}2${RESET}. ${BOLD}Move backups${RESET} - Relocate to $BACKUP_DIR/system_backups"
+        echo -e "  ${CYAN}3${RESET}. ${BOLD}Remove all${RESET} - Delete all backup files from system"
+        echo -ne "\n${BOLD}Choose an option [1-3]:${RESET} "
         read -r choice
         
         case $choice in
@@ -295,9 +374,9 @@ install_packages() {
     local max_retries=2
     
     mkdir -p "$LOG_DIR/package_logs"
-    echo -e "${CYAN}${BOLD}┌───────────────────────────────────────────────────────┐${RESET}"
-    echo -e "${CYAN}${BOLD}│         Starting BlackArch Package Installation       │${RESET}"
-    echo -e "${CYAN}${BOLD}└───────────────────────────────────────────────────────┘${RESET}\n"
+    echo -e "${CYAN}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
+    echo -e "${CYAN}${BOLD}┃                 Starting BlackArch Package Installation            ┃${RESET}"
+    echo -e "${CYAN}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}\n"
     
     while read -r package; do
         current=$((current + 1))
@@ -339,7 +418,7 @@ install_packages() {
                     log_message "ERROR" "Unknown error. See $LOG_DIR/package_logs/${package}_error.log"
                 fi
             fi
-            sleep 2
+            sleep 1
         done
         
         if [ "$installed" = false ]; then
@@ -347,7 +426,7 @@ install_packages() {
             failed=$((failed + 1))
             failed_packages="$failed_packages$package\n"
         fi
-        sleep 1
+        sleep 0.5
     done < blackarch_packages.txt
     
     local end_time=$(date +%s)
@@ -355,6 +434,10 @@ install_packages() {
     local hours=$((elapsed / 3600)) minutes=$(((elapsed % 3600) / 60)) seconds=$((elapsed % 60))
     
     print_step "SUMMARY" "Installation Results"
+    echo -e "${BOLD}${GREEN}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
+    echo -e "${BOLD}${GREEN}┃                        Installation Summary                       ┃${RESET}"
+    echo -e "${BOLD}${GREEN}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}\n"
+    
     echo -e "${BOLD}${GREEN}Success:${RESET} $successful packages"
     echo -e "${BOLD}${RED}Failed:${RESET} $failed packages"
     echo -e "${BOLD}${YELLOW}Skipped:${RESET} $skipped packages"
@@ -370,30 +453,129 @@ install_packages() {
     }
 }
 
+# Improved function to retry failed packages with yay without repeatedly asking for password
+retry_failed_packages_with_yay() {
+    print_step "RETRY" "Retrying Failed Packages with yay"
+    
+    if [ ! -s "$LOG_DIR/failed_packages.txt" ]; then
+        log_message "INFO" "No failed packages to retry"
+        return 0
+    fi
+    
+    local total_failed=$(wc -l < "$LOG_DIR/failed_packages.txt")
+    log_message "INFO" "Found $total_failed packages to retry with yay"
+    
+    echo -e "${YELLOW}${BOLD}╭───────────────────────────────────────────────────────╮${RESET}"
+    echo -e "${YELLOW}${BOLD}│ Retrying Failed Packages with yay                     │${RESET}"
+    echo -e "${YELLOW}${BOLD}╰───────────────────────────────────────────────────────╯${RESET}"
+    
+    # Create a temporary script to run with sudo -u $ORIGINAL_USER
+    local temp_script="/tmp/retry_packages.sh"
+    
+    echo '#!/bin/bash' > "$temp_script"
+    echo "echo 'Starting batch installation of failed packages with yay'" >> "$temp_script"
+    echo "echo 'This may take some time, please be patient...'" >> "$temp_script"
+    echo "failed_count=0" >> "$temp_script"
+    echo "success_count=0" >> "$temp_script"
+    
+    # Add each package to the script
+    local count=0
+    while IFS= read -r pkg || [ -n "$pkg" ]; do
+        count=$((count + 1))
+        echo "echo -e \"\\n[$count/$total_failed] Attempting to install $pkg with yay...\"" >> "$temp_script"
+        echo "yay -S --noconfirm $pkg > /dev/null 2>&1" >> "$temp_script"
+        echo "if [ \$? -eq 0 ]; then" >> "$temp_script"
+        echo "  echo -e \"\\033[0;32m✓\\033[0m Successfully installed $pkg\"" >> "$temp_script"
+        echo "  success_count=\$((success_count + 1))" >> "$temp_script"
+        echo "else" >> "$temp_script"
+        echo "  echo -e \"\\033[0;31m✗\\033[0m Failed to install $pkg\"" >> "$temp_script"
+        echo "  failed_count=\$((failed_count + 1))" >> "$temp_script"
+        echo "  echo \"$pkg\" >> /tmp/still_failed_packages.txt" >> "$temp_script"
+        echo "fi" >> "$temp_script"
+    done < "$LOG_DIR/failed_packages.txt"
+    
+    echo "echo -e \"\\n-----------------------------------\"" >> "$temp_script"
+    echo "echo -e \"\\033[1mRetry Summary:\\033[0m\"" >> "$temp_script"
+    echo "echo -e \"\\033[0;32mSuccessfully installed:\\033[0m \$success_count packages\"" >> "$temp_script"
+    echo "echo -e \"\\033[0;31mFailed to install:\\033[0m \$failed_count packages\"" >> "$temp_script"
+    
+    # Make it executable
+    chmod +x "$temp_script"
+    
+    # Run the script as the original user
+    sudo -u "$ORIGINAL_USER" "$temp_script"
+    
+    # Copy the still failed packages list if it exists
+    if [ -f "/tmp/still_failed_packages.txt" ]; then
+        cp "/tmp/still_failed_packages.txt" "$LOG_DIR/still_failed_packages.txt"
+        rm "/tmp/still_failed_packages.txt"
+        log_message "WARNING" "Some packages still failed to install. See $LOG_DIR/still_failed_packages.txt"
+    else
+        log_message "SUCCESS" "All failed packages were successfully installed with yay"
+    fi
+    
+    # Clean up
+    rm "$temp_script"
+}
+
+# Function to handle internal fix script
+run_fix_script() {
+    print_step "FIX" "Running Package Fix Script"
+    
+    if [ ! -s "$LOG_DIR/still_failed_packages.txt" ] && [ ! -s "$LOG_DIR/failed_packages.txt" ]; then
+        log_message "INFO" "No packages require fixing"
+        return 0
+    fi
+    
+    echo -e "${BOLD}${BLUE}Some packages may have failed to install.${RESET}"
+    echo -e "${BOLD}Would you like to attempt to run the internal fixing mechanism?${RESET}"
+    echo -e "${YELLOW}${BOLD}Note:${RESET} Not recommended if you are new to Arch Linux packaging system."
+    echo -ne "${BOLD}Run fix script? [y/n]:${RESET} "
+    read -r answer
+
+    if [[ "$answer" == "y" || "$answer" == "Y" ]]; then
+        if [[ -x "./fix" ]]; then
+            log_message "INFO" "Running fix script for remaining failed packages..."
+            chmod +x ./fix
+            ./fix
+            log_message "INFO" "Fix script completed"
+        else
+            log_message "ERROR" "Fix script not found or not executable in the current directory"
+        fi
+    else
+        log_message "INFO" "Skipping fix script"
+    fi
+}
+
 # Function to offer selective install
 offer_selective_install() {
     print_step "SELECTION" "Package Selection Method"
-    echo -e "${BOLD}Options:${RESET}\n  ${CYAN}1${RESET}. All packages\n  ${CYAN}2${RESET}. Specific group\n  ${CYAN}3${RESET}. Custom list"
-    echo -ne "${BOLD}Choose [1-3]:${RESET} "
+    echo -e "${BLUE}${BOLD}╭───────────────────────────────────────────────────────╮${RESET}"
+    echo -e "${BLUE}${BOLD}│ How would you like to install BlackArch?              │${RESET}"
+    echo -e "${BLUE}${BOLD}╰───────────────────────────────────────────────────────╯${RESET}"
+    echo -e "  ${CYAN}1${RESET}. ${BOLD}All packages${RESET} - Full BlackArch installation"
+    echo -e "  ${CYAN}2${RESET}. ${BOLD}Specific group${RESET} - Install packages from a specific category"
+    echo -e "  ${CYAN}3${RESET}. ${BOLD}Custom list${RESET} - Use your own package list file"
+    echo -ne "\n${BOLD}Choose an option [1-3]:${RESET} "
     read -r choice
     
     case $choice in
         1) log_message "INFO" "Full installation selected" ;;
         2)
-            echo -e "\n${BOLD}${BLUE}Groups:${RESET}"
+            echo -e "\n${BOLD}${BLUE}Available BlackArch Groups:${RESET}"
             pacman -Sg | grep blackarch | sort | column
-            echo -ne "\n${BOLD}Group name:${RESET} "
+            echo -ne "\n${BOLD}Enter group name:${RESET} "
             read -r group_name
             pacman -Sgq "$group_name" > blackarch_packages.txt
             echo "android-apktool" >> blackarch_packages.txt  # Ensure android-apktool is included
             log_message "SUCCESS" "Found $(wc -l < blackarch_packages.txt) packages in $group_name"
             ;;
         3)
-            echo -ne "\n${BOLD}Path to list:${RESET} "
+            echo -ne "\n${BOLD}Enter path to package list:${RESET} "
             read -r custom_list
             [ -f "$custom_list" ] && cp "$custom_list" blackarch_packages.txt || { log_message "ERROR" "File not found"; exit 1; }
             echo "android-apktool" >> blackarch_packages.txt  # Ensure android-apktool is included
-            log_message "SUCCESS" "Using list with $(wc -l < blackarch_packages.txt) packages"
+            log_message "SUCCESS" "Using custom list with $(wc -l < blackarch_packages.txt) packages"
             ;;
         *) log_message "ERROR" "Invalid choice"; exit 1 ;;
     esac
@@ -403,12 +585,13 @@ offer_selective_install() {
 clean_package_cache() {
     print_step "CACHE" "Package Cache Management"
     local cache_size=$(du -sh /var/cache/pacman/pkg/ | cut -f1)
-    echo -e "${BOLD}${BLUE}Cache size:${RESET} $cache_size"
-    echo -ne "${BOLD}Clean cache? [y/n]:${RESET} "
+    echo -e "${BOLD}${BLUE}Current package cache size:${RESET} $cache_size"
+    echo -e "${YELLOW}${BOLD}Note:${RESET} Cleaning the cache will free up disk space but remove downloaded packages"
+    echo -ne "${BOLD}Clean package cache? [y/n]:${RESET} "
     read -r answer
     
     [[ "$answer" =~ ^[Yy]$ ]] && {
-        log_message "INFO" "Cleaning cache..."
+        log_message "INFO" "Cleaning package cache..."
         pacman -Sc --noconfirm > /dev/null 2>&1
         log_message "SUCCESS" "Cache cleaned. New size: $(du -sh /var/cache/pacman/pkg/ | cut -f1)"
     } || log_message "INFO" "Cache cleanup skipped"
@@ -417,89 +600,87 @@ clean_package_cache() {
 # Function to display banner
 show_banner() {
     clear
-    echo -e "${BOLD}${PURPLE}"
-    echo "  ██████  ██       █████   ██████ ██   ██  █████  ██████   ██████ ██   ██"
-    echo "  ██   ██ ██      ██   ██ ██      ██  ██  ██   ██ ██   ██ ██      ██   ██"
-    echo "  ██████  ██      ███████ ██      █████   ███████ ██████  ██      ███████"
-    echo "  ██   ██ ██      ██   ██ ██      ██  ██  ██   ██ ██   ██ ██      ██   ██"
-    echo "  ██████  ███████ ██   ██  ██████ ██   ██ ██   ██ ██   ██  ██████ ██   ██"
-    echo -e "${RESET}"
-    echo -e "${BOLD}${BLUE}                KYGO THE ARCH PENTESTING-TUNER  ${RESET}"
+    cat << 'EOF'
+  
+    ██████╗ ██╗      █████╗  ██████╗██╗  ██╗ █████╗ ██████╗  ██████╗██╗  ██╗
+    ██╔══██╗██║     ██╔══██╗██╔════╝██║ ██╔╝██╔══██╗██╔══██╗██╔════╝██║  ██║
+    ██████╔╝██║     ███████║██║     █████╔╝ ███████║██████╔╝██║     ███████║
+    ██╔══██╗██║     ██╔══██║██║     ██╔═██╗ ██╔══██║██╔══██╗██║     ██╔══██║
+    ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗██║  ██║██║  ██║╚██████╗██║  ██║
+    ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+                                                                          
+EOF
+    echo -e "${BOLD}${BLUE}     KYGO v2 latest - THE ARCH PENTESTING-TUNER  ${RESET}"
     echo -e "${YELLOW}         Engineered by 0xb0rn3 | github.com/0xb0rn3${RESET}\n"
 }
 
 # Function to handle interruptions
 handle_interrupt() {
-    echo -e "\n${BOLD}${RED}Interrupted!${RESET}"
-    echo -ne "${BOLD}Run backup cleanup? [y/n]:${RESET} "
+    echo -e "\n${BOLD}${RED}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
+    echo -e "${BOLD}${RED}┃                        Process Interrupted!                       ┃${RESET}"
+    echo -e "${BOLD}${RED}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}\n"
+    echo -ne "${BOLD}Run backup cleanup before exiting? [y/n]:${RESET} "
     read -r answer
     [[ "$answer" =~ ^[Yy]$ ]] && cleanup_backups
     exit 1
 }
 
-trap handle_interrupt SIGINT SIGTERM
-
-# Main execution
+# Main function to orchestrate the installation process
 main() {
     show_banner
-    mkdir -p "$LOG_DIR"
-    touch "$MAIN_LOG"
+    mkdir -p "$LOG_DIR" "$BACKUP_DIR"
     
+    # Set up interrupt handler
+    trap handle_interrupt SIGINT SIGTERM
+    
+    print_header "BlackArch Installation Tool"
+    
+    # Check if running as root
     check_root
+    
+    # Add BlackArch repositories
     add_blackarch_repo
+    
+    # Update package databases
     update_databases
+    
+    # Install yay
     install_yay
+    
+    # Install dependencies
     install_dependencies
+    
+    # Check and install required tools
+    check_and_install_tools
+    
+    # Install AUR packages
     install_aur_packages
+    
+    # Get BlackArch packages
     get_blackarch_packages
+    
+    # Ask for installation type
     offer_selective_install
     
-    local total_packages=$(wc -l < blackarch_packages.txt)
-    local est_time_min=$(( total_packages * 2 / 60 ))
-    local est_time_hour=$(( est_time_min / 60 ))
-    est_time_min=$(( est_time_min % 60 ))
+    # Install packages
+    install_packages
     
-    echo -e "\n${BOLD}${BLUE}Ready to install.${RESET}"
-    echo -e "${YELLOW}Estimated time: ${BOLD}$est_time_hour hours $est_time_min minutes${RESET}"
-    echo -ne "${BOLD}Proceed? [y/n]:${RESET} "
-    read -r answer
+    # Retry failed packages with yay
+    retry_failed_packages_with_yay
     
-    if [[ "$answer" =~ ^[Yy]$ ]]; then
-        install_packages
-        
-        # Retry failed packages with yay
-        if [ -s "$LOG_DIR/failed_packages.txt" ]; then
-            print_step "RETRY" "Retrying Failed Packages"
-            echo -e "${BOLD}${RED}Some packages failed to install.${RESET}"
-            echo -e "${BOLD}Retry with yay as user $ORIGINAL_USER? [y/n]:${RESET} "
-            read -r retry_answer
-            if [[ "$retry_answer" =~ ^[Yy]$ ]]; then
-                while IFS= read -r pkg || [ -n "$pkg" ]; do
-                    echo "Attempting to install $pkg with yay as $ORIGINAL_USER..."
-                    sudo -u "$ORIGINAL_USER" yay -S --noconfirm "$pkg" > /dev/null 2>&1
-                    if [ $? -eq 0 ]; then
-                        log_message "SUCCESS" "Installed failed package $pkg with yay"
-                    else
-                        log_message "ERROR" "Failed to install $pkg with yay"
-                    fi
-                done < "$LOG_DIR/failed_packages.txt"
-            else
-                log_message "INFO" "Skipped retrying failed packages"
-            fi
-        fi
-        
-        cleanup_backups
-        clean_package_cache
-        echo -e "\n${BOLD}${GREEN}┌──────────────────────────────┐${RESET}"
-        echo -e "${BOLD}${GREEN}│ Installation Complete!       │${RESET}"
-        echo -e "${BOLD}${GREEN}└──────────────────────────────┘${RESET}"
-        echo -e "${BOLD}${BLUE}• Log:${RESET} $MAIN_LOG"
-        echo -e "${BOLD}${BLUE}• Package logs:${RESET} $LOG_DIR/package_logs/"
-        echo -e "${BOLD}${BLUE}• Backups:${RESET} $BACKUP_DIR\n"
-    else
-        log_message "INFO" "Installation canceled"
-        exit 0
-    fi
+    # Run fix script if needed
+    run_fix_script
+    
+    # Clean up backups
+    cleanup_backups
+    
+    # Clean package cache
+    clean_package_cache
+    
+    print_header "Installation Complete!"
+    log_message "SUCCESS" "BlackArch installation process completed"
+    echo -e "${BOLD}${GREEN}Installation logs available at: $LOG_DIR${RESET}"
 }
 
+# Run main function
 main
