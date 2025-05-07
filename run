@@ -555,7 +555,7 @@ offer_selective_install() {
     echo -e "${BLUE}${BOLD}╰───────────────────────────────────────────────────────╯${RESET}"
     echo -e "  ${CYAN}1${RESET}. ${BOLD}All packages${RESET} - Full BlackArch installation"
     echo -e "  ${CYAN}2${RESET}. ${BOLD}Specific group${RESET} - Install packages from a specific category"
-    echo -e "  ${CYAN}3${RESET}. ${BOLD}Custom list${RESET} - Use your own package list file"
+    echo -e "  ${CYAN}3${RESET}. ${BOLD}Custom list${RESET} - Use your own package list file (should be named as blacklist.txt)"
     echo -ne "\n${BOLD}Choose an option [1-3]:${RESET} "
     read -r choice
     
@@ -574,8 +574,8 @@ offer_selective_install() {
             echo -ne "\n${BOLD}Enter path to package list:${RESET} "
             read -r custom_list
             [ -f "$custom_list" ] && cp "$custom_list" blackarch_packages.txt || { log_message "ERROR" "File not found"; exit 1; }
-            echo "android-apktool" >> blackarch_packages.txt  # Ensure android-apktool is included
-            log_message "SUCCESS" "Using custom list with $(wc -l < blackarch_packages.txt) packages"
+            echo "android-apktool" >> blacklist.txt  # Ensure android-apktool is included
+            log_message "SUCCESS" "Using custom list with $(wc -l < blacklist.txt) packages"
             ;;
         *) log_message "ERROR" "Invalid choice"; exit 1 ;;
     esac
