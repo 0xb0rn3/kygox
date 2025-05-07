@@ -629,51 +629,35 @@ handle_interrupt() {
 main() {
     show_banner
     mkdir -p "$LOG_DIR" "$BACKUP_DIR"
-    
     # Set up interrupt handler
     trap handle_interrupt SIGINT SIGTERM
-    
     print_header "BlackArch Installation Tool"
-    
     # Check if running as root
     check_root
-    
     # Add BlackArch repositories
     add_blackarch_repo
-    
     # Update package databases
     update_databases
-    
     # Install yay
     install_yay
-    
     # Install dependencies
     install_dependencies
-    
     # Check and install required tools
     check_and_install_tools
-    
     # Install AUR packages
     install_aur_packages
-    
     # Get BlackArch packages
     get_blackarch_packages
-    
     # Ask for installation type
     offer_selective_install
-    
     # Install packages
     install_packages
-    
     # Retry failed packages with yay
     retry_failed_packages_with_yay
-    
     # Run fix script if needed
     run_fix_script
-    
     # Clean up backups
     cleanup_backups
-    
     # Clean package cache
     clean_package_cache
     
