@@ -1,125 +1,172 @@
-# bkygo - BlackArch Installer for Arch Linux
+bkygo - BlackArch Installer for Arch Linux
 
-![BlackArch Logo](https://blackarch.org/images/blackarch-logo.png)
 
-> Engineered by 0xb0rn3 | github.com/0xb0rn3
+Engineered by 0xb0rn3 | github.com/0xb0rn3
 
-## Overview
+Overview
+bkygo is a modular, robust, and user-friendly tool designed to automate the installation of BlackArch packages on Arch Linux. Built with a focus on reliability, performance, and user experience, it streamlines the deployment of penetration testing tools with advanced features like customizable banners, intelligent error handling, and comprehensive logging.
+Features
 
-`bkygo` is a powerful tool that automates the installation of BlackArch packages on Arch Linux with enhanced visual feedback, intelligent error handling, and robust logging. It's designed to make the BlackArch deployment process smooth, reliable, and user-friendly.
+Modular Architecture: Organized into core, package, system, and run components for maintainability and extensibility.
+Customizable Banner Display: Configurable banner styles ("standard," "minimal," "matrix," "animated") with color options and animation toggling.
+Interactive UI: Animated progress bars, styled menus (using dialog or fallback), and color-coded output for enhanced visibility.
+Smart Package Management: Supports installing all BlackArch packages, specific groups, or custom lists with parallel installation capabilities.
+Intelligent Error Handling: Automatic resolution of file conflicts, dependency issues, and installation retries with detailed logging.
+Comprehensive Logging: Timestamped logs with rotation, stored in a configurable directory for troubleshooting.
+Backup Management: Automatic backup of conflicting files with options to keep, move, or remove them.
+System Validation: Pre-installation checks for disk space, architecture compatibility, and critical components.
+AUR Integration: Seamless installation of AUR packages (e.g., yay, apkid) with user privilege management.
+Performance Optimization: Resource-aware parallel installations and progress tracking with ETA estimates.
+Configuration Flexibility: Customizable settings via a configuration file or environment variables.
+Interruption Recovery: Graceful handling of interruptions (Ctrl+C) with optional backup cleanup.
 
-## Features
+Requirements
 
-- **Interactive UI**: Animated progress bars, styled headers, and color-coded output for better visibility
-- **Smart Error Resolution**: Automatic handling of file conflicts and dependency issues
-- **Comprehensive Logging**: Detailed logs with timestamped entries for troubleshooting
-- **Flexible Installation Options**: Install all packages, specific groups, or a custom list
-- **Backup Management**: Automatic backup of conflicting files with restore metadata
-- **Performance Tracking**: Real-time progress monitoring and time estimates
+Arch Linux (or Arch-based distribution)
+Root privileges (sudo or root user)
+Internet connection
+Bash shell
+Optional: dialog for enhanced TUI (text-based user interface)
 
-## Requirements
+Installation
 
-- Arch Linux (or Arch-based distribution)
-- Root privileges
-- Internet connection
-- Bash shell
+Clone or download the repository:
+git clone https://github.com/0xb0rn3/bkygo.git
 
-## Installation
+Or download the main script directly:
+curl -O https://raw.githubusercontent.com/0xb0rn3/bkygo/main/Bkygo/run
 
-1. Download the script:
-   ```bash
-   curl -O https://raw.githubusercontent.com/0xb0rn3/bkygo/main/run
-   ```
 
-2. Make it executable:
-   ```bash
-   chmod +x run
-   ```
+Navigate to the Bkygo directory:
+cd bkygo/Bkygo
 
-3. Run with sudo:
-   ```bash
-   sudo ./run
-   ```
 
-## Usage Guide
+Make the main script executable:
+chmod +x run
 
-### Initial Setup
 
-The script will:
-1. Verify root privileges
-2. Add the BlackArch repository to your system
-3. Update package databases
-4. Fetch the complete list of BlackArch packages
+Run with sudo:
+sudo ./run
 
-### Installation Methods
 
-Choose from three installation options:
-- **All packages**: Install the complete BlackArch repository
-- **Specific group**: Install packages from a selected BlackArch group
-- **Custom list**: Provide a text file with package names to install
 
-### Conflict Resolution
+Directory Structure
+The project is organized in the Bkygo directory:
 
-The script automatically handles:
-- **File conflicts**: Backs up conflicting files and retries installation
-- **Dependency issues**: Attempts to resolve missing dependencies
-- **Package ownership conflicts**: Intelligently manages package conflicts
+core: Core module for configuration, logging, UI, error handling, and banner display.
+package: Package management module for installation, conflict resolution, and parallel processing.
+system: System module for repository setup, dependency resolution, and validation.
+run: Main script orchestrating the installation process.
 
-### Backup Management
+Usage Guide
+Initial Setup
+The run script performs the following steps:
 
-After installation, you can:
-- Keep all backup files in their original locations
-- Move all backups to a centralized folder
-- Remove all backup files
+Displays a customizable banner (configured via ~/.config/kygo/kygo.conf).
+Verifies root privileges and captures the original user for AUR installations.
+Adds the BlackArch repository to /etc/pacman.conf if not already present.
+Updates package databases using pacman -Syy.
+Installs yay (AUR helper) and base dependencies (base-devel, git).
+Checks and installs required tools (e.g., nmap, metasploit) and AUR packages (e.g., apkid).
 
-### Cache Management
+Installation Options
+Run the script with one of the following options:
 
-Optionally clean the pacman cache to free disk space after installation.
+All Packages: Install the entire BlackArch repository.sudo ./Bkygo/run -a
 
-## Log Files
 
-The script maintains several log files:
-- `blackarch_logs/installation.log`: Main log with all operations
-- `blackarch_logs/package_logs/`: Individual package installation logs
-- `blackarch_logs/failed_packages.txt`: List of packages that failed to install
-- `blackarch_logs/skipped_packages.txt`: List of packages that were skipped
+Specific Group: Install packages from a BlackArch group (e.g., penetration, exploitation).sudo ./Bkygo/run -g penetration
 
-## Error Handling
 
-The script implements multiple retry mechanisms:
-1. Attempts standard installation
-2. Tries installation with `--overwrite` flag
-3. Tries installation with `--needed` flag
-4. Analyzes and resolves specific error types
+Custom List: Install packages from a text file (one package per line).sudo ./Bkygo/run -p packages.txt
 
-## Interruption Recovery
 
-If the script is interrupted (Ctrl+C), it offers to clean up backup files before exiting.
 
-## Customization
+Banner Customization
+The banner can be customized in ~/.config/kygo/kygo.conf:
 
-You can modify these variables at the top of the script to customize behavior:
-- `LOG_DIR`: Location for log files
-- `BACKUP_DIR`: Location for file backups
-- Visual elements (colors, symbols, etc.)
+ui.banner_style: Options are standard, minimal, matrix, or animated.
+ui.animation: Set to true or false to enable/disable animations.
+Example configuration:ui.banner_style=matrix
+ui.animation=true
 
-## Troubleshooting
 
-If you encounter issues:
-1. Check the main log file (`blackarch_logs/installation.log`)
-2. Look for specific package errors in `blackarch_logs/package_logs/`
-3. Try reinstalling failed packages individually
-4. Check system configuration (particularly pacman.conf)
 
-## License
+Conflict Resolution
+The package module automatically handles:
 
-This script is open source and available under the MIT License.
+File Conflicts: Backs up conflicting files to a designated directory with metadata for restoration.
+Dependency Issues: Resolves missing dependencies using --needed or --overwrite flags.
+Package Conflicts: Detects and resolves conflicts before installation.
 
-## Disclaimer
+Backup Management
+Post-installation, the script offers options to:
 
-Use at your own risk. Always backup your system before making significant changes.
+Keep backup files in their original locations.
+Move backups to blackarch_logs/backups/system_backups.
+Remove all backup files.
 
-## Contact & Support
+Cache Management
+Optionally clean the pacman cache to free disk space:
 
-- GitHub: [github.com/0xb0rn3](https://github.com/0xb0rn3)
-- Issues: Report issues through the GitHub repository
+Prompted during execution, with logs stored in blackarch_logs/clean.log.
+
+Configuration
+Settings are stored in ~/.config/kygo/kygo.conf. Key options include:
+
+LOG_LEVEL: Logging verbosity (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+PARALLEL_JOBS: Number of parallel installation jobs (default: 4).
+ui.banner_style, ui.animation: Banner display settings.
+app.version, app.codename, app.author, app.author_url: Metadata for the banner.
+
+Environment variables can override settings (e.g., KYGO_LOG_LEVEL=DEBUG).
+Log Files
+Logs are stored in ~/.config/kygo/logs/ (or /tmp/logs/ if not configured):
+
+kygo.log: Main log with all operations, rotated when exceeding 10MB.
+update.log: Package database update logs.
+install.log: Dependency and tool installation logs.
+clean.log: Cache cleaning logs.
+
+Error Handling
+The core module implements robust error handling:
+
+Retry Mechanisms: Retries installations with --overwrite or --needed flags.
+Error Classification: Handles permission errors, installation failures, and unknown issues.
+State Preservation: Logs errors with line numbers for debugging.
+
+Interruption Recovery
+If interrupted (Ctrl+C), the script:
+
+Prompts to clean up backup files.
+Preserves logs for troubleshooting.
+
+Customization
+Modify the following in core or run:
+
+Log Directory: Change LOG_DIR in core for custom log storage.
+Backup Directory: Adjust backup paths in package or run.
+Banner Settings: Edit kygo.conf for banner style and animation.
+AUR Packages: Update aur_packages array in run for custom AUR installations.
+
+Troubleshooting
+If issues occur:
+
+Check kygo.log for detailed error messages.
+Review specific logs (update.log, install.log, clean.log).
+Verify pacman.conf includes the BlackArch repository.
+Ensure sufficient disk space and internet connectivity.
+Run with KYGO_LOG_LEVEL=DEBUG for verbose output:sudo KYGO_LOG_LEVEL=DEBUG ./Bkygo/run -a
+
+
+
+License
+bkygo is open source and licensed under the MIT License.
+Disclaimer
+Use at your own risk. Always back up your system before running the script, as it modifies system configurations and installs packages.
+Contact & Support
+
+GitHub: github.com/0xb0rn3
+Issues: Report bugs or feature requests on the GitHub repository.
+Email: Contact the author via GitHub for direct support.
+
