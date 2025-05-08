@@ -63,7 +63,7 @@ BKYGO is a sophisticated tool designed to streamline the installation of BlackAr
 git clone https://github.com/0xb0rn3/bkygo.git
 
 # Navigate to the directory
-cd bkygo/Bkygo
+cd bkygo/
 
 # Make executable
 chmod +x run
@@ -76,7 +76,7 @@ sudo ./run
 
 ```bash
 # Download the main script
-curl -O https://raw.githubusercontent.com/0xb0rn3/bkygo/main/Bkygo/run
+curl -O https://raw.githubusercontent.com/0xb0rn3/bkygo/main/run
 
 # Make executable
 chmod +x run
@@ -93,13 +93,13 @@ sudo ./run
 
 ```bash
 # Install all BlackArch packages
-sudo ./Bkygo/run -a
+sudo ./bkygo/run -a
 
 # Install specific package group
-sudo ./Bkygo/run -g penetration
+sudo ./bkygo/run -g penetration
 
 # Install from custom package list
-sudo ./Bkygo/run -p packages.txt
+sudo ./bkygo/run -p packages.txt
 ```
 
 ### Banner Customization
@@ -125,7 +125,7 @@ PARALLEL_JOBS=4           # Number of parallel installation jobs
 ## 📁 Project Structure
 
 ```
-Bkygo/
+bkygo/
 ├── core/           # Core functionality modules
 │   ├── config      # Configuration management
 │   ├── log         # Logging utilities
