@@ -89,58 +89,26 @@ sudo ./run
 
 ## 🛠️ Usage Guide
 
-### Basic Commands
-
 ```bash
-# Install all BlackArch packages
-sudo ./bkygo/run -a
 
-# Install specific package group
-sudo ./bkygo/run -g penetration
+  sudo ./run [option]
 
-# Install from custom package list
-sudo ./bkygo/run -p packages.txt
-```
+Options:
+  -a, --all            Install all BlackArch packages
+  -g, --group GROUP    Install specific package group
+  -p, --packages FILE  Install from custom package list
+  -h, --help           Show this help message
 
-### Banner Customization
-
-Edit `~/.config/kygo/kygo.conf` to set banner preferences:
-
-```
-ui.banner_style=matrix    # Options: standard, minimal, matrix, animated
-ui.animation=true         # Enable/disable animations
-```
-
-### Configuration Options
-
-Key settings in `~/.config/kygo/kygo.conf`:
+Examples:
+  sudo ./run -a
+  sudo ./run -g exploitation
+  sudo ./run -p custom_packages.txt
 
 ```
-LOG_LEVEL=INFO            # DEBUG, INFO, WARNING, ERROR, CRITICAL
-PARALLEL_JOBS=4           # Number of parallel installation jobs
-```
+
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
-## 📁 Project Structure
-
-```
-bkygo/
-├── core/           # Core functionality modules
-│   ├── config      # Configuration management
-│   ├── log         # Logging utilities
-│   ├── ui          # User interface components
-│   └── error       # Error handling mechanisms
-├── package/        # Package management modules
-│   ├── install     # Installation procedures
-│   ├── conflict    # Conflict resolution
-│   └── parallel    # Parallel processing
-├── system/         # System interaction modules
-│   ├── repo        # Repository management
-│   ├── depend      # Dependency resolution
-│   └── validate    # System validation
-└── run             # Main execution script
-```
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
