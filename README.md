@@ -23,18 +23,15 @@ BKYGO is a sophisticated tool designed to streamline the installation of BlackAr
 ## ✨ Features
 
 ### 🧩 Core Architecture
-
-- **Modular Design**: Organized into distinct components for maintainability and extensibility
 - **Intelligent Error Handling**: Automatic resolution of common installation issues 
 - **Comprehensive Logging**: Detailed timestamped logs for troubleshooting
-- **Configuration Flexibility**: Customizable settings via config file or environment variables
+
 
 ### 🎯 Installation Capabilities
 
 - **Full Repository Support**: Install all BlackArch packages with a single command
 - **Group-Based Installation**: Deploy specific tool categories (reconnaissance, exploitation, etc.)
 - **Custom Package Lists**: Install from user-defined package lists
-- **Parallel Processing**: Multi-threaded installation for optimal performance
 - **AUR Integration**: Seamless installation of AUR packages with privilege management
 
 ### 💻 User Experience
