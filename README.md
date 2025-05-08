@@ -109,9 +109,6 @@ Examples:
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
-
-![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
-
 ## 📊 Advanced Features
 
 ### Conflict Resolution
