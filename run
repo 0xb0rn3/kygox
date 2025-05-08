@@ -573,7 +573,7 @@ offer_selective_install() {
         3)
             echo -ne "\n${BOLD}Enter path to package list:${RESET} "
             read -r custom_list
-            [ -f "$custom_list" ] && cp "$custom_list" blackarch_packages.txt || { log_message "ERROR" "File not found"; exit 1; }
+            [ -f "$custom_list" ] && cp "$custom_list" blacklist.txt || { log_message "ERROR" "File not found"; exit 1; }
             echo "android-apktool" >> blacklist.txt  # Ensure android-apktool is included
             log_message "SUCCESS" "Using custom list with $(wc -l < blacklist.txt) packages"
             ;;
