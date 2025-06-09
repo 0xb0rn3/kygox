@@ -10,7 +10,7 @@
 [![Arch Linux](https://img.shields.io/badge/Arch-Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 [![BlackArch](https://img.shields.io/badge/Black-Arch-6C7A89)](https://blackarch.org/)
 [![Version](https://img.shields.io/badge/Version-0.0.3-success.svg)](https://github.com/0xb0rn3/bkygo)
-[![Tested](https://img.shields.io/badge/Tested-Arch%20%7C%20Garuda-00D26A?style=flat-square&logo=linux)](https://github.com/0xb0rn3/bkygo)
+[![Tested](https://img.shields.io/badge/Tested-Arch%20%7C%20Garuda%20%7C%20Archcraft-00D26A?style=flat-square&logo=linux)](https://github.com/0xb0rn3/bkygo)
 [![Engineered by 0xb0rn3](https://img.shields.io/badge/Engineered%20by-0xb0rn3-orange)](https://github.com/0xb0rn3)
 
 </div>
@@ -30,6 +30,7 @@ KYGO Black has been rigorously tested and verified to work flawlessly on the fol
 ### 🖥️ **Bare Metal Installations**
 - **Original Arch Linux**: Full compatibility with vanilla Arch Linux installations on physical hardware
 - **Garuda Linux**: Complete support for Garuda Linux's enhanced Arch environment
+- **Archcraft Linux**: Verified compatibility with Archcraft's minimalist and customizable Arch distribution
 
 ### 🔧 **System Requirements**
 - **Architecture**: x86_64 (64-bit)
@@ -66,7 +67,7 @@ KYGO Black has been rigorously tested and verified to work flawlessly on the fol
 
 ### Prerequisites
 
-- Arch Linux or Arch-based distribution (Tested: Arch Linux, Garuda Linux)
+- Arch Linux or Arch-based distribution (Tested: Arch Linux, Garuda Linux, Archcraft Linux)
 - Root privileges (sudo/root)
 - Internet connection
 - Bash shell
@@ -172,28 +173,4 @@ If issues occur:
 
 **Garuda Linux Users**: KYGO Black automatically detects and adapts to Garuda's enhanced package management features, including compatibility with Garuda's custom repositories and configurations.
 
-**Vanilla Arch Users**: Full compatibility with standard Arch Linux installations, with optimized performance for minimal base systems.
-
-![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
-
-## ⚠️ Disclaimer
-
-Use at your own risk. Always back up your system before running KYGO Black, as it modifies system configurations and installs packages. While extensively tested on Arch Linux and Garuda Linux, individual system configurations may vary.
-
-![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
-
-## 📜 License
-
-KYGO Black is open source and licensed under the [MIT License](https://opensource.org/licenses/MIT).
-
-![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
-
-## 📬 Contact & Support
-
-- **GitHub**: [github.com/0xb0rn3](https://github.com/0xb0rn3)
-- **Issues**: Report bugs or feature requests on the GitHub repository
-- **Email**: Contact the author via GitHub for direct support
-
-<div align="center">
-  <sub>Built with ❤️ by 0xb0rn3 | Tested on Arch Linux & Garuda Linux</sub>
-</div>
+**ArcoLinux Users
