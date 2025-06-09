@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # BKYGO - Advanced Arch Linux Penetration Testing Suite Installer
 # Version 0.0.3 | Stable Version
-# Created by 0xb0rn3 | github.com/0xb0rn3
+# Created by 0xb0rn3 IG: theehiv3 | github.com/0xb0rn3
 
 ORIGINAL_USER=$SUDO_USER  # Capture the original user for yay
 
@@ -70,7 +70,7 @@ display_banner() {
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
           ADVANCED ARCH LINUX PENETRATION TESTING SUITE INSTALLER
                           Version 0.0.3 | Latest Version
-                     Created by 0xb0rn3 | github.com/0xb0rn3
+           Engineered by 0xb0rn3 IG:theehiv3 | github.com/0xb0rn3
 EOFBANNER
 echo
 }
