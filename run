@@ -128,7 +128,7 @@ check_root() {
 # Function to add BlackArch repository
 add_blackarch_repo() {
     if ! grep -q "\[blackarch\]" /etc/pacman.conf; then
-        log_message "INFO" "Setting up BlackArch repositories..."
+        log_message "INFO" "Setting up BlackArch repositories... If it hangs here more than 3 seconds click CTRL+C to stop and restart script one more time, Thanks!"
         curl -O https://blackarch.org/strap.sh > /dev/null 2>&1
         chmod +x strap.sh > /dev/null 2>&1
         ./strap.sh > /dev/null 2>&1
