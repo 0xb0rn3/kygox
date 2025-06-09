@@ -1,4 +1,4 @@
-# KYGO Black (BKYGO)
+# KYGO Black (BKYGO) latest stable
 
 <div align="center">
   
