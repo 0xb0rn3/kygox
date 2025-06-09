@@ -173,4 +173,30 @@ If issues occur:
 
 **Garuda Linux Users**: KYGO Black automatically detects and adapts to Garuda's enhanced package management features, including compatibility with Garuda's custom repositories and configurations.
 
-**ArcoLinux Users
+**Archcraft Linux Users**: KYGO Black seamlessly integrates with Archcraft's lightweight architecture and customizable window manager environments, maintaining full compatibility with the distribution's minimalist philosophy while providing comprehensive BlackArch tool deployment.
+
+**Vanilla Arch Users**: Full compatibility with standard Arch Linux installations, with optimized performance for minimal base systems.
+
+![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
+
+## ⚠️ Disclaimer
+
+Use at your own risk. Always back up your system before running KYGO Black, as it modifies system configurations and installs packages. While extensively tested on Arch Linux, Garuda Linux, and Archcraft Linux, individual system configurations may vary.
+
+![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
+
+## 📜 License
+
+KYGO Black is open source and licensed under the [MIT License](https://opensource.org/licenses/MIT).
+
+![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
+
+## 📬 Contact & Support
+
+- **GitHub**: [github.com/0xb0rn3](https://github.com/0xb0rn3)
+- **Issues**: Report bugs or feature requests on the GitHub repository
+- **Email**: Contact the author via GitHub for direct support
+
+<div align="center">
+  <sub>Built with ❤️ by 0xb0rn3 | Tested on Arch Linux, Garuda Linux & Archcraft Linux</sub>
+</div>
