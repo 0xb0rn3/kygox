@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# BKYGO - Advanced Arch Linux Penetration Testing Suite Installer
-# Version 0.0.3 | Stable Version
 # Created by 0xb0rn3 IG: theehiv3 | github.com/0xb0rn3
 
 ORIGINAL_USER=$SUDO_USER  # Capture the original user for yay
@@ -23,77 +21,89 @@ INFO="${BLUE}ℹ${RESET}"
 WARNING="${YELLOW}⚠${RESET}"
 
 # Log and backup directories
-LOG_DIR="bkygo_logs"
+LOG_DIR="kygox_logs"
 MAIN_LOG="$LOG_DIR/installation.log"
 BACKUP_DIR="$LOG_DIR/backups"
 
-# Required tools and their corresponding packages
-declare -A tool_packages=( 
-    ["aircrack-ng"]="aircrack-ng"
-    ["tshark"]="wireshark-cli"
-    ["wireshark"]="wireshark-qt"
-    ["nmap"]="nmap"
-    ["msfconsole"]="metasploit"
-    ["john"]="john"
-    ["hydra"]="hydra"
-    ["sqlmap"]="sqlmap"
-    ["burpsuite"]="burpsuite"
-    ["nikto"]="nikto"
-    ["gobuster"]="gobuster"
-    ["dirb"]="dirb"
-    ["wfuzz"]="wfuzz"
-    ["ffuf"]="ffuf"
-    ["whatweb"]="whatweb"
-    ["wpscan"]="wpscan"
-    ["joomscan"]="joomscan"
-    ["droopescan"]="droopescan"
-    ["cmsmap"]="cmsmap"
-    ["dnsenum"]="dnsenum"
-    ["dnsrecon"]="dnsrecon"
-    ["dnsmap"]="dnsmap"
-    ["dnswalk"]="dnswalk"
-    ["fierce"]="fierce"
-    ["dnsdict6"]="dnsdict6"
-    ["dnsbrute"]="dnsbrute"
+# Configuration flags
+INSTALL_ZEN_KERNEL=false
+INSTALL_STANDARD_TOOLS=true
+INSTALL_MODE="all"
+QUIET_MODE=false
+AUTO_CLEANUP=false
+
+# Core security tools - these will be installed as regular packages
+CORE_SECURITY_TOOLS=(
+    "nmap"
+    "wireshark-qt"
+    "wireshark-cli"
+    "aircrack-ng"
+    "john"
+    "hydra"
+    "sqlmap"
+    "nikto"
+    "gobuster"
+    "dirb"
+    "wfuzz"
+    "ffuf"
+    "whatweb"
+    "wpscan"
+    "dnsenum"
+    "dnsrecon"
+    "fierce"
 )
 
-# Display banner
+# Obfuscated repository variables to avoid obvious naming
+SECURITY_REPO_NAME="security-arch"
+SECURITY_REPO_URL="https://blackarch.org/strap.sh"
+SECURITY_REPO_IDENTIFIER="blackarch"
+
+# Display enhanced banner
 display_banner() {
     clear
     cat << 'EOFBANNER'
-██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██████╗ ██╗ █████╗ ██████╗██╗  ██╗
-██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗ ██╔══██╗██║ ██╔══██╗██╔════╝██║ ██╔╝
-█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ██████╔╝██║ ███████║██║     █████╔╝ 
-██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔══██╗██║ ██╔══██║██║     ██╔═██╗ 
-██║  ██╗   ██║   ╚██████╔╝╚██████╔╝ ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗
-╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
+██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
+█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
+██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
+██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
+╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-          ADVANCED ARCH LINUX PENETRATION TESTING SUITE INSTALLER
-                          Version 0.0.3 | Latest Version
-           Engineered by 0xb0rn3 IG:theehiv3 | github.com/0xb0rn3
+      ADVANCED ARCH LINUX SECURITY TESTING SUITE INSTALLER
+                    Version 0.0.4 | Enhanced Edition
+         Engineered by 0xb0rn3 IG:theehiv3 | github.com/0xb0rn3
 EOFBANNER
 echo
 }
 
-# Display usage
+# Enhanced usage display with new options
 show_usage() {
     echo -e "${BOLD}Usage:${RESET}"
-    echo -e "  sudo $0 [option]"
+    echo -e "  sudo $0 [options]"
     echo
-    echo -e "${BOLD}Options:${RESET}"
-    echo -e "  ${CYAN}-a, --all${RESET}            Install all BlackArch packages"
-    echo -e "  ${CYAN}-g, --group GROUP${RESET}    Install specific package group"
-    echo -e "  ${CYAN}-p, --packages FILE${RESET}  Install from custom package list"
-    echo -e "  ${CYAN}-h, --help${RESET}           Show this help message"
+    echo -e "${BOLD}Installation Options:${RESET}"
+    echo -e "  ${CYAN}-a, --all${RESET}               Install all security packages"
+    echo -e "  ${CYAN}-g, --group GROUP${RESET}       Install specific package group"
+    echo -e "  ${CYAN}-p, --packages FILE${RESET}     Install from custom package list"
+    echo -e "  ${CYAN}-s, --standard-only${RESET}     Install only standard security tools"
+    echo
+    echo -e "${BOLD}System Options:${RESET}"
+    echo -e "  ${CYAN}-z, --zen-kernel${RESET}        Install Zen kernel for better performance"
+    echo -e "  ${CYAN}--no-standard-tools${RESET}     Skip installation of standard security tools"
+    echo -e "  ${CYAN}-q, --quiet${RESET}             Run in quiet mode (minimal output)"
+    echo -e "  ${CYAN}--auto-cleanup${RESET}          Automatically clean up without prompting"
+    echo
+    echo -e "  ${CYAN}-h, --help${RESET}              Show this help message"
     echo
     echo -e "${BOLD}Examples:${RESET}"
-    echo -e "  sudo $0 -a"
-    echo -e "  sudo $0 -g exploitation"
-    echo -e "  sudo $0 -p custom_packages.txt"
+    echo -e "  sudo $0 -a -z                    # Install all packages with Zen kernel"
+    echo -e "  sudo $0 -s                       # Install standard tools only"
+    echo -e "  sudo $0 -g exploitation          # Install exploitation group"
+    echo -e "  sudo $0 -p custom_list.txt -z    # Custom list with Zen kernel"
     echo
 }
 
-# Function to log messages (quiet mode)
+# Enhanced logging function with better categorization
 log_message() {
     local level="$1"
     local message="$2"
@@ -102,540 +112,465 @@ log_message() {
     mkdir -p "$LOG_DIR"
     echo "[$timestamp] [$level] $message" >> "$MAIN_LOG"
 
-    if [ "$QUIET_MODE" != "true" ]; then
+    if [ "$QUIET_MODE" != true ]; then
         case "$level" in
             "SUCCESS") echo -e "${CHECK_MARK} $message" ;;
             "WARNING") echo -e "${WARNING} $message" ;;
             "ERROR") echo -e "${CROSS_MARK} $message" ;;
             "INFO") echo -e "${INFO} $message" ;;
-            *) ;;
+            "KERNEL") echo -e "${PURPLE}[KERNEL]${RESET} $message" ;;
+            "SECURITY") echo -e "${BLUE}[SECURITY]${RESET} $message" ;;
+            *) echo -e "$message" ;;
         esac
     fi
 }
 
-# Function to check if running as root
+# Root privilege check with better error handling
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        log_message "ERROR" "Please run this script as root with sudo"
+        log_message "ERROR" "This installer requires root privileges. Please run with sudo."
+        echo -e "${RED}${BOLD}Error:${RESET} Root privileges required"
+        echo -e "${CYAN}Usage:${RESET} sudo $0 [options]"
         exit 1
     fi
+    
     if [ -z "$ORIGINAL_USER" ]; then
         log_message "ERROR" "Cannot determine original user. Please run with sudo."
+        echo -e "${RED}${BOLD}Error:${RESET} Original user context lost"
+        echo -e "${INFO} Please ensure you're running with sudo, not as root directly"
         exit 1
     fi
-}
-
-# Function to add BlackArch repository
-add_blackarch_repo() {
-    if ! grep -q "\[blackarch\]" /etc/pacman.conf; then
-        log_message "INFO" "Setting up BlackArch repositories... If it hangs here more than 3 seconds click CTRL+C to stop and restart script one more time, Thanks!"
-        curl -O https://blackarch.org/strap.sh > /dev/null 2>&1
-        chmod +x strap.sh > /dev/null 2>&1
-        ./strap.sh > /dev/null 2>&1
-        rm -rf strap.sh
-        log_message "SUCCESS" "BlackArch repositories added successfully"
-    else
-        log_message "INFO" "BlackArch repository already configured"
-    fi
-}
-
-# Function to update package databases
-update_databases() {
-    log_message "INFO" "Synchronizing package databases..."
-    pacman -Sy > /dev/null 2>&1
-    log_message "SUCCESS" "Package databases updated successfully"
-}
-
-# Function to install yay (AUR helper)
-install_yay() {
-    if ! command -v yay &> /dev/null; then
-        log_message "INFO" "Installing yay AUR helper..."
-        pacman -S --noconfirm --needed git base-devel > /dev/null 2>&1
-        git clone https://aur.archlinux.org/yay.git /tmp/yay > /dev/null 2>&1
-        cd /tmp/yay
-        makepkg -si --noconfirm > /dev/null 2>&1
-        cd /tmp
-        rm -rf yay
-        if [ $? -eq 0 ]; then
-            log_message "SUCCESS" "yay installed successfully"
-        else
-            log_message "ERROR" "Failed to install yay"
-            exit 1
-        fi
-    else
-        log_message "INFO" "yay is already installed"
-    fi
-}
-
-# Function to install required dependencies
-install_dependencies() {
-    local dependencies=("base-devel" "libnl" "openssl" "ethtool" "util-linux" "zlib" "libpcap" "sqlite" "pcre2" "hwloc" "cmocka" "hostapd" "wpa_supplicant" "tcpdump" "screen" "iw" "usbutils" "pciutils" "expect")
-    log_message "INFO" "Installing core dependencies..."
-    pacman -S --noconfirm --needed "${dependencies[@]}" > /dev/null 2>&1
-    if [ $? -eq 0 ]; then
-        log_message "SUCCESS" "Dependencies installed successfully"
-    else
-        log_message "WARNING" "Some dependencies may not have installed correctly"
-    fi
-}
-
-# Function to check and install required tools
-check_and_install_tools() {
-    local missing_tools=()
     
-    for cmd in "${!tool_packages[@]}"; do
-        if ! command -v "$cmd" &> /dev/null; then
-            missing_tools+=("$cmd")
-        fi
-    done
+    log_message "INFO" "Running as root with original user: $ORIGINAL_USER"
+}
+
+# Enhanced Zen kernel installation function
+install_zen_kernel() {
+    log_message "KERNEL" "Checking current kernel..."
+    local current_kernel=$(uname -r)
     
-    if [ ${#missing_tools[@]} -eq 0 ]; then
-        log_message "SUCCESS" "All required tools are already installed"
+    if [[ "$current_kernel" == *"zen"* ]]; then
+        log_message "KERNEL" "Zen kernel already installed: $current_kernel"
         return 0
     fi
     
-    log_message "INFO" "Installing missing tools..."
-    for cmd in "${missing_tools[@]}"; do
-        local package=${tool_packages[$cmd]}
-        log_message "INFO" "Installing $package..."
-        if pacman -Si "$package" &> /dev/null; then
-            pacman -S --noconfirm --needed "$package" > /dev/null 2>&1
-            if [ $? -eq 0 ]; then
-                log_message "SUCCESS" "Installed $package"
-            else
-                log_message "ERROR" "Failed to install $package with pacman"
-            fi
+    log_message "KERNEL" "Installing Zen kernel for enhanced performance..."
+    
+    # Install linux-zen and linux-zen-headers
+    if pacman -S --noconfirm linux-zen linux-zen-headers > /dev/null 2>&1; then
+        log_message "SUCCESS" "Zen kernel installed successfully"
+        
+        # Update GRUB configuration
+        if command -v grub-mkconfig >/dev/null 2>&1; then
+            log_message "KERNEL" "Updating GRUB configuration..."
+            grub-mkconfig -o /boot/grub/grub.cfg > /dev/null 2>&1
+            log_message "SUCCESS" "GRUB configuration updated"
+        fi
+        
+        # Inform user about reboot requirement
+        log_message "WARNING" "System reboot required to use Zen kernel"
+        echo -e "${YELLOW}${BOLD}Note:${RESET} Reboot required to activate Zen kernel"
+        
+        return 0
+    else
+        log_message "ERROR" "Failed to install Zen kernel"
+        return 1
+    fi
+}
+
+# Streamlined security repository setup
+add_security_repo() {
+    if ! grep -q "\[$SECURITY_REPO_IDENTIFIER\]" /etc/pacman.conf; then
+        log_message "SECURITY" "Setting up security repositories..."
+        log_message "WARNING" "Repository setup may take a moment - please be patient"
+        
+        # Download and execute repository setup script
+        if curl -s "$SECURITY_REPO_URL" | bash > /dev/null 2>&1; then
+            log_message "SUCCESS" "Security repositories configured successfully"
         else
-            log_message "INFO" "Trying AUR for $package..."
-            sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$package" > /dev/null 2>&1
-            if [ $? -eq 0 ]; then
-                log_message "SUCCESS" "Installed $package from AUR"
+            log_message "ERROR" "Failed to configure security repositories"
+            return 1
+        fi
+    else
+        log_message "SECURITY" "Security repository already configured"
+    fi
+}
+
+# Optimized package database update
+update_databases() {
+    log_message "INFO" "Synchronizing package databases..."
+    
+    # Force refresh of all package databases
+    if pacman -Syy > /dev/null 2>&1; then
+        log_message "SUCCESS" "Package databases synchronized successfully"
+    else
+        log_message "WARNING" "Some package databases may not have updated correctly"
+    fi
+}
+
+# Enhanced yay installation with error handling
+install_yay() {
+    if command -v yay >/dev/null 2>&1; then
+        log_message "INFO" "yay AUR helper already installed"
+        return 0
+    fi
+    
+    log_message "INFO" "Installing yay AUR helper..."
+    
+    # Install build dependencies
+    if ! pacman -S --noconfirm --needed git base-devel > /dev/null 2>&1; then
+        log_message "ERROR" "Failed to install build dependencies"
+        return 1
+    fi
+    
+    # Clone and build yay as the original user
+    local yay_dir="/tmp/yay_$$"
+    
+    if sudo -u "$ORIGINAL_USER" git clone https://aur.archlinux.org/yay.git "$yay_dir" > /dev/null 2>&1; then
+        cd "$yay_dir"
+        if sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm > /dev/null 2>&1; then
+            log_message "SUCCESS" "yay installed successfully"
+            cd /tmp && rm -rf "$yay_dir"
+            return 0
+        else
+            log_message "ERROR" "Failed to build yay"
+            cd /tmp && rm -rf "$yay_dir"
+            return 1
+        fi
+    else
+        log_message "ERROR" "Failed to clone yay repository"
+        return 1
+    fi
+}
+
+# Consolidated dependency installation
+install_core_dependencies() {
+    local core_deps=(
+        "base-devel" "git" "curl" "wget"
+        "libnl" "openssl" "ethtool" "util-linux"
+        "zlib" "libpcap" "sqlite" "pcre2"
+        "hwloc" "cmocka" "hostapd" "wpa_supplicant"
+        "tcpdump" "screen" "tmux" "iw"
+        "usbutils" "pciutils" "expect"
+    )
+    
+    log_message "INFO" "Installing core system dependencies..."
+    
+    if pacman -S --noconfirm --needed "${core_deps[@]}" > /dev/null 2>&1; then
+        log_message "SUCCESS" "Core dependencies installed successfully"
+    else
+        log_message "WARNING" "Some core dependencies may not have installed correctly"
+    fi
+}
+
+# Enhanced standard security tools installation
+install_standard_security_tools() {
+    if [ "$INSTALL_STANDARD_TOOLS" != true ]; then
+        log_message "INFO" "Skipping standard security tools installation"
+        return 0
+    fi
+    
+    log_message "SECURITY" "Installing standard security tools..."
+    
+    local installed=0
+    local failed=0
+    
+    for tool in "${CORE_SECURITY_TOOLS[@]}"; do
+        if pacman -Q "$tool" >/dev/null 2>&1; then
+            log_message "INFO" "Tool $tool already installed"
+            continue
+        fi
+        
+        log_message "INFO" "Installing $tool..."
+        
+        if pacman -S --noconfirm --needed "$tool" > /dev/null 2>&1; then
+            log_message "SUCCESS" "Installed $tool"
+            installed=$((installed + 1))
+        else
+            log_message "WARNING" "Failed to install $tool with pacman, trying AUR..."
+            if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" > /dev/null 2>&1; then
+                log_message "SUCCESS" "Installed $tool from AUR"
+                installed=$((installed + 1))
             else
-                log_message "ERROR" "Failed to install $package from AUR"
+                log_message "ERROR" "Failed to install $tool"
+                failed=$((failed + 1))
             fi
         fi
     done
+    
+    log_message "SECURITY" "Standard tools installation complete: $installed installed, $failed failed"
 }
 
-# Function to install AUR packages
-install_aur_packages() {
-    local aur_packages=("apkid")
+# Enhanced AUR packages installation
+install_essential_aur_packages() {
+    local aur_packages=(
+        "apkid"
+        "android-apktool"
+        "metasploit"
+        "burpsuite"
+    )
+    
     log_message "INFO" "Installing essential AUR packages..."
+    
     for package in "${aur_packages[@]}"; do
-        if ! pacman -Q "$package" &>/dev/null; then
-            sudo -u "$ORIGINAL_USER" yay -S --noconfirm "$package" > /dev/null 2>&1
-            if [ $? -eq 0 ]; then
-                log_message "SUCCESS" "Installed AUR package: $package"
-            else
-                log_message "ERROR" "Failed to install AUR package: $package"
-            fi
-        else
+        if pacman -Q "$package" >/dev/null 2>&1; then
             log_message "INFO" "AUR package $package already installed"
+            continue
+        fi
+        
+        log_message "INFO" "Installing AUR package: $package"
+        if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$package" > /dev/null 2>&1; then
+            log_message "SUCCESS" "Installed AUR package: $package"
+        else
+            log_message "ERROR" "Failed to install AUR package: $package"
         fi
     done
 }
 
-# Function to get BlackArch packages
-get_blackarch_packages() {
-    log_message "INFO" "Getting list of BlackArch packages..."
+# Streamlined security packages retrieval
+get_security_packages() {
+    log_message "SECURITY" "Retrieving security package list..."
     
     case "$INSTALL_MODE" in
         "all")
-            pacman -Slq blackarch > blackarch_packages.txt
-            log_message "SUCCESS" "Found $(wc -l < blackarch_packages.txt) BlackArch packages"
+            if pacman -Slq "$SECURITY_REPO_IDENTIFIER" > security_packages.txt 2>/dev/null; then
+                local package_count=$(wc -l < security_packages.txt)
+                log_message "SUCCESS" "Found $package_count security packages"
+            else
+                log_message "ERROR" "Failed to retrieve security packages"
+                return 1
+            fi
             ;;
         "group")
-            if ! pacman -Sg | grep -q "$GROUP_NAME"; then
+            if pacman -Sgq "$GROUP_NAME" > security_packages.txt 2>/dev/null; then
+                local package_count=$(wc -l < security_packages.txt)
+                log_message "SUCCESS" "Found $package_count packages in group $GROUP_NAME"
+            else
                 log_message "ERROR" "Group $GROUP_NAME not found"
-                echo -e "Available groups:"
-                pacman -Sg | grep blackarch | sort | column
-                exit 1
+                echo -e "${INFO} Available groups:"
+                pacman -Sg | grep -E "(security|$SECURITY_REPO_IDENTIFIER)" | sort | column
+                return 1
             fi
-            pacman -Sgq "$GROUP_NAME" > blackarch_packages.txt
-            log_message "SUCCESS" "Found $(wc -l < blackarch_packages.txt) packages in $GROUP_NAME"
             ;;
         "custom")
             if [ ! -f "$PACKAGE_LIST" ]; then
                 log_message "ERROR" "Package list file $PACKAGE_LIST not found"
-                exit 1
+                return 1
             fi
-            cp "$PACKAGE_LIST" blackarch_packages.txt
-            log_message "SUCCESS" "Using custom list with $(wc -l < blackarch_packages.txt) packages"
+            cp "$PACKAGE_LIST" security_packages.txt
+            local package_count=$(wc -l < security_packages.txt)
+            log_message "SUCCESS" "Using custom list with $package_count packages"
+            ;;
+        "standard")
+            # For standard mode, we only install core tools (already handled)
+            touch security_packages.txt
+            log_message "INFO" "Standard mode: using core security tools only"
             ;;
     esac
-    
-    # Make sure we have android-apktool
-    if ! grep -q "android-apktool" blackarch_packages.txt; then
-        echo "android-apktool" >> blackarch_packages.txt
-    fi
 }
 
-# Function to handle file conflicts
-handle_file_conflicts() {
-    local package="$1"
-    local error_msg="$2"
-    
-    log_message "WARNING" "Resolving file conflicts for $package..."
-    mkdir -p "$BACKUP_DIR/$package"
-    local conflicting_files=$(echo "$error_msg" | grep "exists in filesystem" | sed -E 's/.*: (\/.*) exists in filesystem.*/\1/')
-    
-    [ -z "$conflicting_files" ] && { log_message "ERROR" "Could not identify conflicting files."; return 1; }
-    
-    echo "$conflicting_files" | while read -r file; do
-        [ -n "$file" ] || continue
-        local owner=$(pacman -Qo "$file" 2>/dev/null | awk '{print $NF}')
-        
-        if [ -n "$owner" ]; then
-            if [[ "$owner" == *"-git"* ]] || [[ "$owner" != *"$package"* ]]; then
-                log_message "WARNING" "Removing conflicting package: $owner"
-                pacman -R --noconfirm "$owner" > /dev/null 2>&1
-            else
-                log_message "INFO" "Backing up conflicting file..."
-                mkdir -p "$BACKUP_DIR/$package/$(dirname "${file#/}")" 2>/dev/null
-                cp "$file" "$BACKUP_DIR/$package/${file#/}.$(date +%Y%m%d%H%M%S)" 2>/dev/null
-                mv "$file" "${file}.backup" 2>/dev/null
-            fi
-        else
-            log_message "INFO" "File not owned, backing up..."
-            mkdir -p "$BACKUP_DIR/$package/$(dirname "${file#/}")" 2>/dev/null
-            cp "$file" "$BACKUP_DIR/$package/${file#/}.$(date +%Y%m%d%H%M%S)" 2>/dev/null
-            mv "$file" "${file}.backup" 2>/dev/null
-        fi
-    done
-    return 0
-}
-
-# Function to handle dependency issues
-handle_dependency_issues() {
-    local package="$1"
-    local error_msg="$2"
-    
-    log_message "WARNING" "Resolving dependency issues for $package..."
-    
-    # Try with --overwrite flag
-    log_message "INFO" "Trying --overwrite flag..."
-    pacman -S --noconfirm --overwrite="*" "$package" > /dev/null 2>&1 && { 
-        log_message "SUCCESS" "Installed with --overwrite"; 
-        return 0; 
-    }
-    
-    # Try with --needed flag
-    log_message "INFO" "Trying --needed flag..."
-    pacman -S --noconfirm --needed "$package" > /dev/null 2>&1 && { 
-        log_message "SUCCESS" "Installed with --needed"; 
-        return 0; 
-    }
-    
-    # Extract and install missing dependencies
-    local missing_deps=$(echo "$error_msg" | grep -o "dependency.*required" | sed -E 's/dependency (.*) is required.*/\1/')
-    if [ -n "$missing_deps" ]; then
-        log_message "INFO" "Installing missing dependencies: $missing_deps"
-        for dep in $missing_deps; do
-            pacman -S --noconfirm --needed "$dep" > /dev/null 2>&1
-        done
-        log_message "INFO" "Retrying $package installation..."
-        pacman -S --noconfirm --needed "$package" > /dev/null 2>&1 && { 
-            log_message "SUCCESS" "Installed after resolving dependencies"; 
-            return 0; 
-        }
-    fi
-    return 1
-}
-
-# Function to clean up backups
-cleanup_backups() {
-    local backup_count=$(find / -name "*.backup" 2>/dev/null | wc -l)
-    
-    if [ "$backup_count" -gt 0 ]; then
-        log_message "INFO" "Found $backup_count backup files"
-        
-        if [ "$AUTO_CLEANUP" == "true" ]; then
-            # Move backups automatically in auto mode
-            mkdir -p "$BACKUP_DIR/system_backups"
-            find / -name "*.backup" 2>/dev/null | while read -r file; do
-                mkdir -p "$BACKUP_DIR/system_backups/$(dirname "${file#/}")"
-                mv "$file" "$BACKUP_DIR/system_backups/${file#/}" 2>/dev/null
-            done
-            log_message "SUCCESS" "Backups moved to $BACKUP_DIR/system_backups"
-        else
-            echo -e "${YELLOW}${BOLD}Backup Management Options${RESET}"
-            echo -e "  ${CYAN}1${RESET}. ${BOLD}Keep backups${RESET} - Leave all backup files in place"
-            echo -e "  ${CYAN}2${RESET}. ${BOLD}Move backups${RESET} - Relocate to $BACKUP_DIR/system_backups"
-            echo -e "  ${CYAN}3${RESET}. ${BOLD}Remove all${RESET} - Delete all backup files from system"
-            echo -ne "\n${BOLD}Choose an option [1-3]:${RESET} "
-            read -r choice
-            
-            case $choice in
-                2)
-                    log_message "INFO" "Moving backups..."
-                    mkdir -p "$BACKUP_DIR/system_backups"
-                    find / -name "*.backup" 2>/dev/null | while read -r file; do
-                        mkdir -p "$BACKUP_DIR/system_backups/$(dirname "${file#/}")"
-                        mv "$file" "$BACKUP_DIR/system_backups/${file#/}" 2>/dev/null
-                    done
-                    log_message "SUCCESS" "Backups moved to $BACKUP_DIR/system_backups"
-                    ;;
-                3)
-                    log_message "WARNING" "Removing backups..."
-                    find / -name "*.backup" 2>/dev/null -delete
-                    log_message "SUCCESS" "All backups removed"
-                    ;;
-                *) log_message "INFO" "Keeping backups in place" ;;
-            esac
-        fi
-    else
-        log_message "INFO" "No backups found"
-    fi
-}
-
-# Function to install packages
-install_packages() {
-    local start_time=$(date +%s)
-    local total=$(wc -l < blackarch_packages.txt)
-    local current=0 successful=0 failed=0 skipped=0
-    local failed_packages="" skipped_packages=""
-    local max_retries=2
-    
-    mkdir -p "$LOG_DIR/package_logs"
-    
-    if [ "$QUIET_MODE" != "true" ]; then 
-        echo -e "${CYAN}${BOLD}Starting BlackArch Package Installation${RESET}\n"
-    fi
-    
-    while read -r package; do
-        current=$((current + 1))
-        
-        if [ "$QUIET_MODE" != "true" ]; then
-            echo -e "\n${YELLOW}${BOLD}PACKAGE: $package${RESET}"
-            # Show progress bar
-            local percentage=$(( current * 100 / total ))
-            local completed=$(( percentage / 2 ))
-            local remaining=$(( 50 - completed ))
-            
-            printf "${BOLD}[${GREEN}"
-            printf "%0.s█" $(seq 1 $completed)
-            printf "${YELLOW}"
-            printf "%0.s▒" $(seq 1 $remaining)
-            printf "${RESET}${BOLD}] ${percentage}%%${RESET} ($current/$total)\n"
-        fi
-        
-        if pacman -Q "$package" &>/dev/null; then
-            log_message "INFO" "Package $package already installed, skipping..."
-            skipped=$((skipped + 1))
-            skipped_packages="$skipped_packages$package (already installed)\n"
-            continue
-        fi
-        
-        local retry=0 installed=false error_output=""
-        while [ $retry -lt $max_retries ] && [ "$installed" = false ]; do
-            retry=$((retry + 1))
-            
-            if [ "$QUIET_MODE" != "true" ]; then
-                echo -ne "Attempt $retry of $max_retries: Installing..."
-            fi
-            
-            error_output=$(pacman -S --noconfirm "$package" 2>&1)
-            if [ $? -eq 0 ]; then
-                if [ "$QUIET_MODE" != "true" ]; then
-                    tput cuu1; tput el
-                    echo -e "Attempt $retry: ${GREEN}✓ Success${RESET}"
-                fi
-                log_message "SUCCESS" "Installed $package on attempt $retry"
-                successful=$((successful + 1))
-                installed=true
-            else
-                if [ "$QUIET_MODE" != "true" ]; then
-                    tput cuu1; tput el
-                    echo -e "Attempt $retry: ${RED}✗ Failed${RESET}"
-                fi
-                log_message "ERROR" "Failed $package on attempt $retry. Analyzing..."
-                echo "$error_output" > "$LOG_DIR/package_logs/${package}_error.log"
-                
-                if echo "$error_output" | grep -q "conflicting files"; then
-                    handle_file_conflicts "$package" "$error_output"
-                elif echo "$error_output" | grep -q "dependency"; then
-                    handle_dependency_issues "$package" "$error_output"
-                else
-                    log_message "ERROR" "Unknown error. See $LOG_DIR/package_logs/${package}_error.log"
-                fi
-            fi
-        done
-        
-        if [ "$installed" = false ]; then
-            log_message "ERROR" "Failed $package after $max_retries retries"
-            failed=$((failed + 1))
-            failed_packages="$failed_packages$package\n"
-        fi
-    done < blackarch_packages.txt
-    
-    local end_time=$(date +%s)
-    local elapsed=$((end_time - start_time))
-    local hours=$((elapsed / 3600)) minutes=$(((elapsed % 3600) / 60)) seconds=$((elapsed % 60))
-    
-    # Write failed packages to file for retry
-    if [ -n "$failed_packages" ]; then
-        echo -e "$failed_packages" | sed '/^$/d' > "$LOG_DIR/failed_packages.txt"
-    fi
-    
-    if [ -n "$skipped_packages" ]; then
-        echo -e "$skipped_packages" | sed '/^$/d' > "$LOG_DIR/skipped_packages.txt"
-    fi
-    
-    log_message "SUCCESS" "Installation completed in ${hours}h ${minutes}m ${seconds}s"
-    log_message "INFO" "Successfully installed: $successful packages"
-    log_message "INFO" "Failed to install: $failed packages"
-    log_message "INFO" "Skipped: $skipped packages"
-}
-
-# Function to retry failed packages with yay
-retry_failed_packages_with_yay() {
-    if [ ! -s "$LOG_DIR/failed_packages.txt" ]; then
-        log_message "INFO" "No failed packages to retry"
+# Optimized package installation with better error handling
+install_security_packages() {
+    if [ ! -s security_packages.txt ]; then
+        log_message "INFO" "No additional security packages to install"
         return 0
     fi
     
-    local total_failed=$(wc -l < "$LOG_DIR/failed_packages.txt")
-    log_message "INFO" "Found $total_failed packages to retry with yay"
+    local start_time=$(date +%s)
+    local total=$(wc -l < security_packages.txt)
+    local current=0 successful=0 failed=0 skipped=0
     
-    # Create a temporary script to run with sudo -u $ORIGINAL_USER
-    local temp_script="/tmp/retry_packages.sh"
+    mkdir -p "$LOG_DIR/package_logs"
     
-    echo '#!/bin/bash' > "$temp_script"
-    echo "failed_count=0" >> "$temp_script"
-    echo "success_count=0" >> "$temp_script"
-    
-    # Add each package to the script
-    local count=0
-    while IFS= read -r pkg || [ -n "$pkg" ]; do
-        count=$((count + 1))
-        echo "echo \"[$count/$total_failed] Attempting to install $pkg with yay...\"" >> "$temp_script"
-        echo "yay -S --noconfirm $pkg > /dev/null 2>&1" >> "$temp_script"
-        echo "if [ \$? -eq 0 ]; then" >> "$temp_script"
-        echo "  echo \"Successfully installed $pkg\"" >> "$temp_script"
-        echo "  success_count=\$((success_count + 1))" >> "$temp_script"
-        echo "else" >> "$temp_script"
-        echo "  echo \"Failed to install $pkg\"" >> "$temp_script"
-        echo "  failed_count=\$((failed_count + 1))" >> "$temp_script"
-        echo "  echo \"$pkg\" >> /tmp/still_failed_packages.txt" >> "$temp_script"
-        echo "fi" >> "$temp_script"
-    done < "$LOG_DIR/failed_packages.txt"
-    
-    # Make it executable
-    chmod +x "$temp_script"
-    
-    # Run the script as the original user
-    log_message "INFO" "Starting yay retry process..."
-    sudo -u "$ORIGINAL_USER" "$temp_script"
-    
-    # Copy the still failed packages list if it exists
-    if [ -f "/tmp/still_failed_packages.txt" ]; then
-        cp "/tmp/still_failed_packages.txt" "$LOG_DIR/still_failed_packages.txt"
-        rm "/tmp/still_failed_packages.txt"
-        log_message "WARNING" "Some packages still failed to install. See $LOG_DIR/still_failed_packages.txt"
-    else
-        log_message "SUCCESS" "All failed packages were successfully installed with yay"
+    if [ "$QUIET_MODE" != true ]; then 
+        echo -e "${CYAN}${BOLD}Installing Security Packages${RESET}\n"
     fi
     
-    # Clean up
-    rm "$temp_script"
+    while IFS= read -r package || [ -n "$package" ]; do
+        [ -z "$package" ] && continue
+        
+        current=$((current + 1))
+        
+        if [ "$QUIET_MODE" != true ]; then
+            echo -e "\n${YELLOW}${BOLD}[$current/$total] $package${RESET}"
+            show_progress_bar "$current" "$total"
+        fi
+        
+        if pacman -Q "$package" >/dev/null 2>&1; then
+            log_message "INFO" "Package $package already installed"
+            skipped=$((skipped + 1))
+            continue
+        fi
+        
+        if install_single_package "$package"; then
+            successful=$((successful + 1))
+        else
+            failed=$((failed + 1))
+            echo "$package" >> "$LOG_DIR/failed_packages.txt"
+        fi
+    done < security_packages.txt
+    
+    local end_time=$(date +%s)
+    local elapsed=$((end_time - start_time))
+    
+    log_message "SUCCESS" "Package installation completed in $(format_duration $elapsed)"
+    log_message "INFO" "Results: $successful successful, $failed failed, $skipped skipped"
 }
 
-# Function to clean package cache
-clean_package_cache() {
-    local cache_size=$(du -sh /var/cache/pacman/pkg/ | cut -f1)
-    log_message "INFO" "Current package cache size: $cache_size"
+# Helper function to install a single package with retries
+install_single_package() {
+    local package="$1"
+    local max_retries=2
+    local retry=0
     
-    if [ "$AUTO_CLEANUP" == "true" ]; then
-        log_message "INFO" "Auto-cleaning package cache..."
-        pacman -Sc --noconfirm > /dev/null 2>&1
-        log_message "SUCCESS" "Cache cleaned. New size: $(du -sh /var/cache/pacman/pkg/ | cut -f1)"
+    while [ $retry -lt $max_retries ]; do
+        retry=$((retry + 1))
+        
+        if [ "$QUIET_MODE" != true ]; then
+            echo -ne "  Attempt $retry: Installing..."
+        fi
+        
+        local error_output
+        error_output=$(pacman -S --noconfirm --needed "$package" 2>&1)
+        
+        if [ $? -eq 0 ]; then
+            if [ "$QUIET_MODE" != true ]; then
+                tput cuu1; tput el
+                echo -e "  Attempt $retry: ${GREEN}✓ Success${RESET}"
+            fi
+            log_message "SUCCESS" "Installed $package"
+            return 0
+        else
+            if [ "$QUIET_MODE" != true ]; then
+                tput cuu1; tput el
+                echo -e "  Attempt $retry: ${RED}✗ Failed${RESET}"
+            fi
+            
+            # Log error for analysis
+            echo "$error_output" > "$LOG_DIR/package_logs/${package}_error.log"
+            
+            # Try to resolve common issues
+            if echo "$error_output" | grep -q "conflicting files"; then
+                resolve_file_conflicts "$package" "$error_output"
+            elif echo "$error_output" | grep -q "dependency"; then
+                resolve_dependencies "$package" "$error_output"
+            fi
+        fi
+    done
+    
+    log_message "ERROR" "Failed to install $package after $max_retries attempts"
+    return 1
+}
+
+# Helper function to show progress bar
+show_progress_bar() {
+    local current=$1
+    local total=$2
+    local percentage=$((current * 100 / total))
+    local completed=$((percentage / 2))
+    local remaining=$((50 - completed))
+    
+    printf "  ${BOLD}[${GREEN}"
+    printf "%0.s█" $(seq 1 $completed)
+    printf "${YELLOW}"
+    printf "%0.s▒" $(seq 1 $remaining)
+    printf "${RESET}${BOLD}] ${percentage}%% ${RESET}\n"
+}
+
+# Helper function to format duration
+format_duration() {
+    local seconds=$1
+    local hours=$((seconds / 3600))
+    local minutes=$(((seconds % 3600) / 60))
+    local secs=$((seconds % 60))
+    
+    if [ $hours -gt 0 ]; then
+        echo "${hours}h ${minutes}m ${secs}s"
+    elif [ $minutes -gt 0 ]; then
+        echo "${minutes}m ${secs}s"
     else
-        echo -e "${YELLOW}${BOLD}Note:${RESET} Cleaning the cache will free up disk space but remove downloaded packages"
-        echo -ne "${BOLD}Clean package cache? [y/n]:${RESET} "
+        echo "${secs}s"
+    fi
+}
+
+# Simplified file conflict resolution
+resolve_file_conflicts() {
+    local package="$1"
+    local error_msg="$2"
+    
+    log_message "WARNING" "Resolving file conflicts for $package"
+    
+    # Try with overwrite flag
+    if pacman -S --noconfirm --overwrite="*" "$package" > /dev/null 2>&1; then
+        log_message "SUCCESS" "Resolved conflicts with --overwrite flag"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Simplified dependency resolution
+resolve_dependencies() {
+    local package="$1"
+    local error_msg="$2"
+    
+    log_message "WARNING" "Resolving dependencies for $package"
+    
+    # Try with needed flag
+    if pacman -S --noconfirm --needed "$package" > /dev/null 2>&1; then
+        log_message "SUCCESS" "Resolved with --needed flag"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Enhanced cleanup function
+cleanup_system() {
+    log_message "INFO" "Performing system cleanup..."
+    
+    # Clean package cache
+    local cache_size_before=$(du -sh /var/cache/pacman/pkg/ 2>/dev/null | cut -f1 || echo "0")
+    
+    if [ "$AUTO_CLEANUP" == true ]; then
+        pacman -Sc --noconfirm > /dev/null 2>&1
+        log_message "SUCCESS" "Package cache cleaned automatically"
+    else
+        echo -e "${YELLOW}${BOLD}System Cleanup${RESET}"
+        echo -e "Current cache size: $cache_size_before"
+        echo -ne "Clean package cache? [y/N]: "
         read -r answer
         
         if [[ "$answer" =~ ^[Yy]$ ]]; then
-            log_message "INFO" "Cleaning package cache..."
             pacman -Sc --noconfirm > /dev/null 2>&1
-            log_message "SUCCESS" "Cache cleaned. New size: $(du -sh /var/cache/pacman/pkg/ | cut -f1)"
-        else
-            log_message "INFO" "Cache cleanup skipped"
+            log_message "SUCCESS" "Package cache cleaned"
         fi
     fi
-}
-
-# Function to handle interruptions
-handle_interrupt() {
-    echo -e "\n${BOLD}${RED}Process Interrupted!${RESET}\n"
-    log_message "WARNING" "Installation process was interrupted"
     
-    if [ "$AUTO_CLEANUP" == "true" ]; then
-        cleanup_backups
-    else
-        echo -ne "${BOLD}Run backup cleanup before exiting? [y/n]:${RESET} "
-        read -r answer
-        [[ "$answer" =~ ^[Yy]$ ]] && cleanup_backups
+    # Remove temporary files
+    rm -f security_packages.txt
+    
+    # Update locate database if available
+    if command -v updatedb >/dev/null 2>&1; then
+        log_message "INFO" "Updating locate database..."
+        updatedb > /dev/null 2>&1 &
     fi
-    exit 1
 }
 
-# Main function to orchestrate the installation process
-main() {
-    display_banner
-    mkdir -p "$LOG_DIR" "$BACKUP_DIR"
+# Enhanced interrupt handler
+handle_interrupt() {
+    echo -e "\n${BOLD}${RED}Installation Interrupted!${RESET}\n"
+    log_message "WARNING" "Installation process was interrupted by user"
     
-    # Set up interrupt handler
-    trap handle_interrupt SIGINT SIGTERM
+    # Quick cleanup
+    rm -f security_packages.txt
     
-    # Process command-line arguments
-    parse_arguments "$@"
-    
-    # Check if running as root
-    check_root
-    
-    # Add BlackArch repositories
-    add_blackarch_repo
-    
-    # Update package databases
-    update_databases
-    
-    # Install yay
-    install_yay
-    
-    # Install dependencies
-    install_dependencies
-    
-    # Check and install required tools
-    check_and_install_tools
-    
-    # Install AUR packages
-    install_aur_packages
-    
-    # Get BlackArch packages
-    get_blackarch_packages
-    
-    # Install packages
-    install_packages
-    
-    # Retry failed packages with yay
-    retry_failed_packages_with_yay
-    
-    # Clean up backups
-    cleanup_backups
-    
-    # Clean package cache
-    clean_package_cache
-    
-    log_message "SUCCESS" "BKYGO installation process completed"
-    echo -e "${BOLD}${GREEN}Installation logs available at: $LOG_DIR${RESET}"
+    echo -e "${INFO} Installation logs saved to: $LOG_DIR"
+    exit 130
 }
 
-# Parse command line arguments
+# Enhanced argument parsing
 parse_arguments() {
-    INSTALL_MODE="all"  # Default
-    QUIET_MODE="false"
-    AUTO_CLEANUP="false"
-    
     if [ $# -eq 0 ]; then
         show_usage
         exit 0
@@ -653,7 +588,7 @@ parse_arguments() {
                     GROUP_NAME="$2"
                     shift 2
                 else
-                    log_message "ERROR" "Group name is required for -g option"
+                    log_message "ERROR" "Group name required for -g option"
                     show_usage
                     exit 1
                 fi
@@ -664,17 +599,29 @@ parse_arguments() {
                     PACKAGE_LIST="$2"
                     shift 2
                 else
-                    log_message "ERROR" "Package list file is required for -p option"
+                    log_message "ERROR" "Package list file required for -p option"
                     show_usage
                     exit 1
                 fi
                 ;;
+            -s|--standard-only)
+                INSTALL_MODE="standard"
+                shift
+                ;;
+            -z|--zen-kernel)
+                INSTALL_ZEN_KERNEL=true
+                shift
+                ;;
+            --no-standard-tools)
+                INSTALL_STANDARD_TOOLS=false
+                shift
+                ;;
             -q|--quiet)
-                QUIET_MODE="true"
+                QUIET_MODE=true
                 shift
                 ;;
             --auto-cleanup)
-                AUTO_CLEANUP="true"
+                AUTO_CLEANUP=true
                 shift
                 ;;
             -h|--help)
@@ -690,23 +637,87 @@ parse_arguments() {
     done
 }
 
-# Function to show installation summary
-show_summary() {
-    if [ "$QUIET_MODE" != "true" ]; then
+# Enhanced installation summary
+show_installation_summary() {
+    if [ "$QUIET_MODE" != true ]; then
         echo
         echo -e "${BOLD}${GREEN}✓ Installation Complete!${RESET}"
-        echo -e "${BOLD}Installation Summary:${RESET}"
-        echo -e "  ${CYAN}→${RESET} Mode: $INSTALL_MODE"
+        echo -e "${BOLD}Configuration Summary:${RESET}"
+        echo -e "  ${CYAN}→${RESET} Installation Mode: $INSTALL_MODE"
+        echo -e "  ${CYAN}→${RESET} Zen Kernel: $([ "$INSTALL_ZEN_KERNEL" == true ] && echo "Installed" || echo "Not installed")"
+        echo -e "  ${CYAN}→${RESET} Standard Tools: $([ "$INSTALL_STANDARD_TOOLS" == true ] && echo "Installed" || echo "Skipped")"
         [ "$INSTALL_MODE" == "group" ] && echo -e "  ${CYAN}→${RESET} Group: $GROUP_NAME"
-        [ "$INSTALL_MODE" == "custom" ] && echo -e "  ${CYAN}→${RESET} Package list: $PACKAGE_LIST"
-        echo -e "  ${CYAN}→${RESET} Logs: $LOG_DIR"
+        [ "$INSTALL_MODE" == "custom" ] && echo -e "  ${CYAN}→${RESET} Package List: $PACKAGE_LIST"
+        echo -e "  ${CYAN}→${RESET} Logs Directory: $LOG_DIR"
         echo
-        echo -e "${BOLD}${BLUE}Thank you for using BKYGO!${RESET}"
+        
+        if [ "$INSTALL_ZEN_KERNEL" == true ]; then
+            echo -e "${YELLOW}${BOLD}Important:${RESET} Reboot required to activate Zen kernel"
+        fi
+        
+        echo -e "${BOLD}${BLUE}Thank you for using KYGOX Security Suite!${RESET}"
+        
+        # Show next steps
+        echo -e "\n${BOLD}Next Steps:${RESET}"
+        echo -e "  ${CYAN}1.${RESET} Review installation logs in $LOG_DIR"
+        echo -e "  ${CYAN}2.${RESET} $([ "$INSTALL_ZEN_KERNEL" == true ] && echo "Reboot to activate Zen kernel" || echo "Consider installing Zen kernel with -z flag")"
+        echo -e "  ${CYAN}3.${RESET} Start exploring your security testing tools"
+        echo
     fi
 }
 
-# Start the installation process
+# Main installation orchestrator
+main() {
+    # Initialize
+    display_banner
+    mkdir -p "$LOG_DIR" "$BACKUP_DIR"
+    
+    # Set up signal handlers
+    trap handle_interrupt SIGINT SIGTERM
+    
+    # Parse command line arguments
+    parse_arguments "$@"
+    
+    # Perform initial checks
+    check_root
+    
+    # Install Zen kernel if requested
+    if [ "$INSTALL_ZEN_KERNEL" == true ]; then
+        install_zen_kernel
+    fi
+    
+    # Set up security repositories
+    add_security_repo
+    
+    # Update package databases
+    update_databases
+    
+    # Install core components
+    install_yay
+    install_core_dependencies
+    
+    # Install standard security tools
+    install_standard_security_tools
+    
+    # Install essential AUR packages
+    install_essential_aur_packages
+    
+    # Get and install additional security packages
+    if [ "$INSTALL_MODE" != "standard" ]; then
+        if get_security_packages; then
+            install_security_packages
+        fi
+    fi
+    
+    # Perform cleanup
+    cleanup_system
+    
+    # Log completion
+    log_message "SUCCESS" "KYGOX installation process completed successfully"
+}
+
+# Entry point
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
-    show_summary
+    show_installation_summary
 fi
