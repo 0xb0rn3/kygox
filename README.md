@@ -9,7 +9,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Arch Linux](https://img.shields.io/badge/Arch-Linux-1793D1?logo=arch-linux&logoColor=white)](https://archlinux.org/)
 [![BlackArch](https://img.shields.io/badge/Black-Arch-6C7A89)](https://blackarch.org/)
-[![Version](https://img.shields.io/badge/Version-1.0.0-success.svg)](https://github.com/0xb0rn3/kygox)
+[![Version](https://img.shields.io/badge/Version-0.0.4-success.svg)](https://github.com/0xb0rn3/kygox)
 [![Enhanced Edition](https://img.shields.io/badge/Enhanced-Edition-gold?style=flat-square)](https://github.com/0xb0rn3/kygox)
 [![Engineered by 0xb0rn3](https://img.shields.io/badge/Engineered%20by-0xb0rn3-orange)](https://github.com/0xb0rn3)
 
