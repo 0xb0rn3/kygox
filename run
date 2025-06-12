@@ -70,7 +70,7 @@ display_banner() {
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
       ADVANCED ARCH LINUX SECURITY TESTING SUITE INSTALLER
-                    Version 0.0.4 | Enhanced Edition
+              Version 0.0.4 | Latest stable version
          Engineered by 0xb0rn3 IG:theehiv3 | github.com/0xb0rn3
 EOFBANNER
 echo
