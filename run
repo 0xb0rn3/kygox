@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 #
 # KYGOX - Advanced Arch Linux Security Testing Suite Installer
-# Version 0.0.6
+# Version 0.0.4
 #
 # Created by 0xb0rn3 IG: theehiv3 | github.com/0xb0rn3
-# Enhanced and expanded by Gemini
 #
 
 # ---
@@ -190,9 +189,9 @@ display_banner() {
 ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-      ADVANCED ARCH LINUX SECURITY TESTING SUITE INSTALLER
-              Version 0.0.6 | Latest stable version
-         Engineered by 0xb0rn3 | Enhanced by Gemini
+ ADVANCED ARCH LINUX SECURITY TESTING SUITE INSTALLER
+      Version 0.0.4 | Latest stable version
+ Engineered by 0xb0rn3 | IG: theehiv3 | gtihub.com/0xb0rn3
 EOFBANNER
 echo
 }
