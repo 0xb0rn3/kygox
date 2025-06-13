@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
 # KYGOX - Advanced Arch Linux Security Testing Suite Installer
-# Version 0.0.4
+# Version 0.0.6
 #
 # Created by 0xb0rn3 IG: theehiv3 | github.com/0xb0rn3
+# Enhanced and expanded by Gemini
 #
 
 # ---
@@ -79,11 +80,12 @@ ADVANCED_OFFENSIVE_TOOLS_PACMAN=(
     "angr" "afl" "radamsa"
 )
 ADVANCED_OFFENSIVE_TOOLS_YAY=(
-    "empire" "sharphound-ps" "unicorn-magic" "veil" "eyewitness" "subfinder-bin" "httpx-bin"
+    "empire" "sliver" "kerbrute" "cloud_enum" "sharphound-ps" "unicorn-magic" "veil" "eyewitness" "subfinder-bin" "httpx-bin"
     "nuclei-bin" "findmyhash" "recursive-gobuster" "linpeas" "winpeas" "zphisher" "nexphisher"
     "maskphish" "blackeye" "shellphish"
 )
 ADVANCED_OFFENSIVE_TOOLS_GIT=(
+    "https://github.com/carlospolop/PEASS-ng.git"
     "https://github.com/PowerShellMafia/PowerSploit.git"
     "https://github.com/samratashok/nishang.git"
     "https://github.com/lgandx/Responder.git"
@@ -106,7 +108,7 @@ BLUE_TEAM_DEFENSIVE_TOOLS_PACMAN=(
     "collectd" "telegraf" "prometheus" "grafana" "influxdb" "elasticsearch" "logstash"
     "kibana" "filebeat" "packetbeat" "metricbeat" "heartbeat-elastic-beat" "auditbeat"
     "graylog" "fluentd" "rsyslog" "syslog-ng" "logwatch" "logcheck" "multitail" "lnav"
-    "goaccess" "osquery" "velociraptor"
+    "goaccess" "osquery" "velociraptor" "clamav" "yara" "audit"
 )
 BLUE_TEAM_DEFENSIVE_TOOLS_YAY=(
     "security-onion" "wazuh-agent" "helk"
@@ -120,11 +122,34 @@ MOBILE_SECURITY_TOOLS_PACMAN=(
     "ideviceinstaller"
 )
 MOBILE_SECURITY_TOOLS_YAY=(
-    "qark" "apkid"
+    "qark" "apkid" "mobsf-git" "qark-git" "androguard-git" "apkid-git" "droidlysis"
+    "super-git" "androwarn-git" "quark-engine-git" "mariana-trench"
+    "frida-server" "frida-gadget" "objection-git" "passionfruit"
+    "needle-git" "introspy-android" "introspy-ios" "snoop-it"
+    "clutch4" "dumpdecrypted" "flexdecrypt" "bfinject" "cycript"
+    "theos" "logos" "substrate" "substitute" "ellekit" "dobby"
+    "shadow" "xposed-framework" "edxposed" "lsposed" "magisk"
+    "btlejuice" "btlejack" "mirage" "killerbee-git" "zigbee-tools"
+    "hackrf-git" "rtl-sdr-git" "bladerf" "usrp" "gnuradio-git"
 )
 MOBILE_SECURITY_TOOLS_GIT=(
-    "https://github.com/sensepost/objection.git"
+    # Essential mobile security Git repositories
     "https://github.com/MobSF/Mobile-Security-Framework-MobSF.git"
+    "https://github.com/sensepost/objection.git"
+    "https://github.com/frida/frida.git"
+    "https://github.com/linkedin/qark.git"  
+    "https://github.com/androguard/androguard.git"
+    "https://github.com/rednaga/APKiD.git"
+    "https://github.com/quark-engine/quark-engine.git"
+    "https://github.com/facebook/mariana-trench.git"
+    "https://github.com/mwrlabs/needle.git"
+    "https://github.com/iSECPartners/Introspy-Android.git"
+    "https://github.com/iSECPartners/Introspy-iOS.git"
+    "https://github.com/dpnishant/appmon.git"
+    "https://github.com/WithSecureLabs/drozer.git"
+    "https://github.com/KJCracks/Clutch.git"
+    "https://github.com/stefanesser/dumpdecrypted.git"
+    "https://github.com/JohnCoates/Flex.git"
 )
 
 # 5. IoT and Hardware Security
@@ -166,8 +191,8 @@ display_banner() {
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
       ADVANCED ARCH LINUX SECURITY TESTING SUITE INSTALLER
-              Version 0.0.4 | Latest stable version
-                  Engineered by 0xb0rn3 
+              Version 0.0.6 | Latest stable version
+         Engineered by 0xb0rn3 | Enhanced by Gemini
 EOFBANNER
 echo
 }
@@ -435,8 +460,16 @@ post_install_setup() {
             log_message "SUCCESS" "Metasploit database initialized."
         fi
     fi
-
-    # Add more post-install steps here, e.g., for Elasticsearch, OpenVAS, etc.
+    
+    if command -v systemctl >/dev/null 2>&1 && pacman -Q audit >/dev/null 2>&1; then
+        echo -ne "${YELLOW}Auditd (Linux Audit Daemon) is installed. Enable and start the service? [y/N]: ${RESET}"
+        read -r answer
+        if [[ "$answer" =~ ^[Yy]$ ]]; then
+            log_message "INFO" "Enabling and starting auditd service..."
+            systemctl enable auditd.service && systemctl start auditd.service
+            log_message "SUCCESS" "auditd service enabled and started."
+        fi
+    fi
 }
 
 show_manual_install_notes() {
@@ -519,8 +552,12 @@ main() {
             pacman -S --noconfirm --needed blackarch
             ;;
         "group")
-            log_message "STEP" "Installing BlackArch group: $GROUP_NAME"
-            pacman -S --noconfirm --needed "$GROUP_NAME"
+            if [ -n "$GROUP_NAME" ]; then
+                log_message "STEP" "Installing BlackArch group: $GROUP_NAME"
+                pacman -S --noconfirm --needed "$GROUP_NAME"
+            else
+                log_message "ERROR" "Group name not provided for group installation mode."
+            fi
             ;;
         "custom")
             if [ -f "$PACKAGE_LIST" ]; then
