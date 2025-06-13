@@ -34,6 +34,8 @@ AUTO_CLEANUP=false
 
 # Core security tools - these will be installed as regular packages
 CORE_SECURITY_TOOLS=(
+    "volatility"
+    "autopsy"
     "nmap"
     "wireshark-qt"
     "wireshark-cli"
@@ -51,6 +53,10 @@ CORE_SECURITY_TOOLS=(
     "dnsenum"
     "dnsrecon"
     "fierce"
+    "hashcat"
+    "tcpdump"
+    "rustscan"
+    "masscan"
 )
 
 # Obfuscated repository variables to avoid obvious naming
