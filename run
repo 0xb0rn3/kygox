@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 #
 # KYGOX - Advanced Security Testing Suite Installer
-# Version 0.1.5 Stable
+# Version 0.1.5
 #
 # Created by 0xb0rn3 IG: theehiv3 | github.com/0xb0rn3
-# Enhanced with intelligent menu system and real-time progress
+# Enhanced with improved tool accuracy and installation reliability
 #
 
 # ---
 # CONFIGURATION
 # ---
-SCRIPT_VERSION="0.1.5"
+SCRIPT_VERSION="0.2.0"
 ORIGINAL_USER=${SUDO_USER:-$(whoami)}
 LOG_DIR="$HOME/.kygox"
 MAIN_LOG="$LOG_DIR/kygox.log"
+INSTALL_LOG="$LOG_DIR/install.log"
+ERROR_LOG="$LOG_DIR/errors.log"
 TOOL_SRC_DIR="/opt/kygox"
 TEMP_DIR="/tmp/kygox_$$"
 
@@ -21,11 +23,17 @@ TEMP_DIR="/tmp/kygox_$$"
 DISTRO=$(lsb_release -si 2>/dev/null || echo "Unknown")
 DEBIAN_FAMILY=("Ubuntu" "Debian" "Kali" "Parrot")
 
+# Installation tracking
+declare -A INSTALLED_TOOLS
+declare -A FAILED_TOOLS
+declare -A TOOL_SOURCES  # Track whether tool comes from official repo or AUR
+
 # Flags
 QUIET_MODE=false
 AUTO_MODE=false
 FULLKIT_MODE=false
 PROGRESS_PID=""
+VERIFY_INSTALLS=true
 
 # ---
 # VISUAL COMPONENTS
@@ -51,6 +59,33 @@ GEAR="⚙️"
 CROWN="👑"
 LIGHTNING="⚡"
 FIRE="🔥"
+CHECK="✓"
+CROSS="✗"
+WARNING="⚠️"
+
+# ---
+# LOGGING FUNCTIONS
+# ---
+log_message() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    echo "[$timestamp] [$level] $message" >> "$MAIN_LOG"
+    
+    if [ "$level" == "ERROR" ]; then
+        echo "[$timestamp] $message" >> "$ERROR_LOG"
+    fi
+}
+
+log_install() {
+    local tool="$1"
+    local status="$2"
+    local source="$3"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    echo "[$timestamp] $tool | $status | $source" >> "$INSTALL_LOG"
+}
 
 # ---
 # PROGRESS INDICATOR
@@ -98,7 +133,7 @@ display_banner() {
     
     ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
     █  ADVANCED SECURITY TESTING SUITE INSTALLER  █
-    █           Version 0.1.5 Stable              █
+    █              Version 0.1.5                  █
     █    Engineered by 0xb0rn3 | @theehiv3        █
     ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 BANNER
@@ -137,123 +172,287 @@ check_root() {
     fi
 }
 
+check_arch_system() {
+    if ! command -v pacman &>/dev/null; then
+        echo -e "${RED}${BOLD}❌ This script requires Arch Linux or Arch-based distribution${RESET}"
+        echo -e "${WHITE}pacman package manager not found${RESET}"
+        exit 1
+    fi
+}
+
+check_internet() {
+    if ! ping -c 1 archlinux.org &>/dev/null; then
+        echo -e "${RED}${BOLD}❌ Internet connection required${RESET}"
+        echo -e "${WHITE}Please check your network connection${RESET}"
+        exit 1
+    fi
+}
+
 # ---
-# TOOL CATEGORIES
+# IMPROVED TOOL DEFINITIONS WITH VERIFICATION
 # ---
 declare -A TOOL_CATEGORIES
+declare -A TOOL_DESCRIPTIONS
+declare -A TOOL_ALTERNATIVES
 
-# Industry Standard Tools (Most Used)
+# Industry Standard Tools (Most Used) - Verified package names
 TOOL_CATEGORIES[standard]="
-nmap wireshark-qt aircrack-ng john hydra sqlmap metasploit
+nmap wireshark-qt aircrack-ng john-the-ripper hydra sqlmap
 burpsuite ghidra radare2 gdb binwalk hashcat tcpdump
 nikto gobuster dirb ffuf whatweb wpscan dnsenum dnsrecon
-fierce masscan rustscan autopsy volatility rizin cutter
-bettercap ettercap mitmproxy proxychains-ng tor openvpn
+fierce masscan rustscan autopsy volatility3 rizin cutter
+bettercap ettercap-gtk mitmproxy proxychains-ng tor openvpn
 exploitdb impacket responder subfinder httpx nuclei
 crackmapexec theharvester recon-ng maltego spiderfoot
-sublist3r amass feroxbuster dirsearch beef-xss owasp-zap
-weevely seclists crunch cupp enum4linux-ng smbclient
-smbmap yersinia socat ncat chisel pwntools ropper
+sublist3r amass feroxbuster dirsearch beef seclists
+crunch cupp enum4linux smbclient smbmap yersinia
+socat ncat chisel python-pwntools python-ropper
 "
 
-# Red Team Arsenal
+# Red Team Arsenal - Verified and updated
 TOOL_CATEGORIES[redteam]="
-covenant-dotnet mitm6 rubeus mimikatz nishang
-eyewitness gowitness katana gau waybackurls gf
+mitm6 eyewitness gowitness katana gau waybackurls
 chaos-client dnsx naabu mapcidr shuffledns puredns
-massdns alterx tlsx proxify dalfox kxss qsreplace
-unfurl hakrawler gospider paramspider arjun
-droopescan joomscan cmseek wig wafw00f commix
-tplmap nosqlmap xsser evilginx2 modlishka gophish
-wifi-pumpkin3 hostapd-mana wifite hash-identifier
-chntpw nbtscan-extra onesixtyone snmpwalk
-cisco-torch dnscat2 iodine ptunnel icmptunnel
-sslh stunnel sbd pwnat dns2tcp ligolo-ng
-angr afl radamsa empire sliver kerbrute
+massdns tlsx dalfox paramspider arjun droopescan
+joomscan wafw00f commix tplmap xsser gophish
+wifi-pumpkin hostapd hash-identifier chntpw
+nbtscan onesixtyone net-snmp cisco-torch
+dnscat2 iodine sslh stunnel pwnat ligolo-ng
+angr american-fuzzy-lop radamsa kerbrute
 "
 
-# Blue Team Defense
+# Blue Team Defense - Verified packages
 TOOL_CATEGORIES[blueteam]="
-suricata snort zeek ossec aide tripwire
-chkrootkit rkhunter lynis openscap zmap
-hping3 netdiscover arp-scan fping ntopng
-iftop nethogs vnstat bmon tcpflow tcpreplay
-ssldump dsniff tshark argus p0f fprobe
-nfdump flow-tools silk pmacct darkstat
-bandwidthd nagios icinga2 zabbix-server
-zabbix-agent collectd telegraf prometheus
-grafana influxdb elasticsearch logstash
-kibana filebeat packetbeat metricbeat
-heartbeat-elastic graylog fluentd rsyslog
-syslog-ng logwatch logcheck multitail
-lnav goaccess osquery clamav yara audit
+suricata snort zeek aide tripwire chkrootkit
+rkhunter lynis openscap zmap hping nmap
+netdiscover arp-scan fping ntopng iftop
+nethogs vnstat bmon tcpflow tcpreplay
+tshark wireshark-cli p0f nfdump
+nagios-plugins collectd telegraf
+filebeat metricbeat heartbeat-elastic
+rsyslog logwatch logcheck multitail
+lnav goaccess osquery clamav yara
 "
 
-# Mobile Security
+# Mobile Security - Updated package names
 TOOL_CATEGORIES[mobile]="
-mobsf drozer apktool dex2jar jadx smali
-baksmali aapt adb fastboot heimdall
+mobsf-git drozer apktool dex2jar-git jadx smali
+baksmali aapt android-tools heimdall-git
 frida-tools objection libimobiledevice
-ifuse ideviceinstaller qark apkid
-androguard droidlysis androwarn
-quark-engine mariana-trench frida-server
-frida-gadget passionfruit needle
-introspy-android introspy-ios snoop-it
-clutch4 dumpdecrypted flexdecrypt bfinject
-cycript theos logos substrate substitute
-ellekit dobby shadow xposed-framework
-edxposed lsposed magisk btlejuice
-btlejack mirage killerbee zigbee-tools
+qark-git apkid androguard-git
+frida-server frida-gadget needle-git
 "
 
-# IoT & Hardware
+# IoT & Hardware - Verified packages
 TOOL_CATEGORIES[iot]="
-firmware-mod-kit firmadyne binwalk openocd
-flashrom sigrok-cli pulseview multimon-ng
-rtl-sdr hackrf gnuradio gqrx ubertooth
-killerbee bus-pirate attifyos-tools
-firmwalker goodfet logic2 saleae
+firmware-mod-kit binwalk openocd flashrom
+sigrok-cli pulseview multimon-ng rtl-sdr
+hackrf gnuradio gqrx ubertooth
 "
 
-# Complete Arsenal (All Tools)
-TOOL_CATEGORIES[fullkit]="
-${TOOL_CATEGORIES[standard]}
-${TOOL_CATEGORIES[redteam]}
-${TOOL_CATEGORIES[blueteam]}
-${TOOL_CATEGORIES[mobile]}
-${TOOL_CATEGORIES[iot]}
-"
+# Tool alternatives for fallback installation
+TOOL_ALTERNATIVES[burpsuite]="burpsuite-pro burp"
+TOOL_ALTERNATIVES[john-the-ripper]="john"
+TOOL_ALTERNATIVES[volatility3]="volatility"
+TOOL_ALTERNATIVES[wireshark-qt]="wireshark"
 
 # ---
-# INSTALLATION FUNCTIONS
+# ENHANCED INSTALLATION FUNCTIONS
 # ---
 setup_environment() {
     start_progress "Initializing system"
     
-    # Create directories
+    # Create directories with proper permissions
     mkdir -p "$LOG_DIR" "$TOOL_SRC_DIR" "$TEMP_DIR"
     chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$LOG_DIR" "$TOOL_SRC_DIR"
     
-    # Setup security repository (obfuscated)
-    if ! grep -q "pentesting" /etc/pacman.conf; then
-        curl -sS https://blackarch.org/strap.sh | bash &>/dev/null
-        sed -i 's/blackarch/pentesting/g' /etc/pacman.conf
+    # Initialize log files
+    touch "$MAIN_LOG" "$INSTALL_LOG" "$ERROR_LOG"
+    chown "$ORIGINAL_USER:$ORIGINAL_USER" "$MAIN_LOG" "$INSTALL_LOG" "$ERROR_LOG"
+    
+    log_message "INFO" "KYGOX installer started - Version $SCRIPT_VERSION"
+    log_message "INFO" "System: $DISTRO, User: $ORIGINAL_USER"
+    
+    # Setup BlackArch repository with proper error handling
+    if ! grep -q "blackarch" /etc/pacman.conf; then
+        log_message "INFO" "Adding BlackArch repository"
+        if curl -sS https://blackarch.org/strap.sh | bash >> "$MAIN_LOG" 2>&1; then
+            log_message "INFO" "BlackArch repository added successfully"
+        else
+            log_message "WARNING" "Failed to add BlackArch repository, continuing with official repos"
+        fi
     fi
     
-    # Update system
-    pacman -Syy --noconfirm &>/dev/null
+    # Update system with error handling
+    log_message "INFO" "Updating system packages"
+    if pacman -Syy --noconfirm >> "$MAIN_LOG" 2>&1; then
+        log_message "INFO" "System update completed"
+    else
+        log_message "ERROR" "System update failed"
+        stop_progress
+        echo -e "${RED}${CROSS}${RESET} System update failed. Check logs at $MAIN_LOG"
+        exit 1
+    fi
     
-    # Install yay if needed
+    # Install yay if needed with enhanced error handling
     if ! command -v yay &>/dev/null; then
-        pacman -S --noconfirm --needed git go &>/dev/null
-        sudo -u "$ORIGINAL_USER" git clone -q https://aur.archlinux.org/yay.git "$TEMP_DIR/yay"
-        cd "$TEMP_DIR/yay"
-        sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm &>/dev/null
-        cd - &>/dev/null
+        log_message "INFO" "Installing yay AUR helper"
+        if pacman -S --noconfirm --needed git go base-devel >> "$MAIN_LOG" 2>&1; then
+            # Create yay build directory with proper permissions
+            sudo -u "$ORIGINAL_USER" mkdir -p "$TEMP_DIR/yay"
+            cd "$TEMP_DIR"
+            
+            if sudo -u "$ORIGINAL_USER" git clone https://aur.archlinux.org/yay.git >> "$MAIN_LOG" 2>&1; then
+                cd yay
+                if sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm >> "$MAIN_LOG" 2>&1; then
+                    log_message "INFO" "yay installed successfully"
+                else
+                    log_message "ERROR" "Failed to build yay"
+                    stop_progress
+                    echo -e "${RED}${CROSS}${RESET} Failed to install yay AUR helper"
+                    exit 1
+                fi
+            else
+                log_message "ERROR" "Failed to clone yay repository"
+                stop_progress
+                echo -e "${RED}${CROSS}${RESET} Failed to clone yay repository"
+                exit 1
+            fi
+        else
+            log_message "ERROR" "Failed to install yay dependencies"
+            stop_progress
+            echo -e "${RED}${CROSS}${RESET} Failed to install build dependencies"
+            exit 1
+        fi
     fi
     
     stop_progress
-    echo -e "${GREEN}✓${RESET} Environment initialized"
+    echo -e "${GREEN}${CHECK}${RESET} Environment initialized successfully"
+}
+
+verify_tool_installation() {
+    local tool="$1"
+    local binary_name="$2"
+    
+    # If no binary name provided, use tool name
+    if [ -z "$binary_name" ]; then
+        binary_name="$tool"
+    fi
+    
+    # Check if tool is installed via package manager
+    if pacman -Q "$tool" &>/dev/null; then
+        return 0
+    fi
+    
+    # Check if binary exists in PATH
+    if command -v "$binary_name" &>/dev/null; then
+        return 0
+    fi
+    
+    # Check common installation paths
+    local common_paths=(
+        "/usr/bin/$binary_name"
+        "/usr/local/bin/$binary_name"
+        "/opt/$tool/$binary_name"
+        "$TOOL_SRC_DIR/$tool/$binary_name"
+    )
+    
+    for path in "${common_paths[@]}"; do
+        if [ -x "$path" ]; then
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+install_single_tool() {
+    local tool="$1"
+    local max_retries=3
+    local retry_count=0
+    local install_success=false
+    
+    # Skip if already installed and verified
+    if verify_tool_installation "$tool"; then
+        INSTALLED_TOOLS["$tool"]="already_installed"
+        TOOL_SOURCES["$tool"]="existing"
+        return 0
+    fi
+    
+    log_message "INFO" "Installing tool: $tool"
+    
+    while [ $retry_count -lt $max_retries ] && [ "$install_success" = false ]; do
+        ((retry_count++))
+        
+        # Try official repositories first
+        if pacman -Si "$tool" &>/dev/null; then
+            log_message "INFO" "Attempting to install $tool from official repositories (attempt $retry_count)"
+            if pacman -S --noconfirm --needed "$tool" >> "$MAIN_LOG" 2>&1; then
+                if verify_tool_installation "$tool"; then
+                    INSTALLED_TOOLS["$tool"]="success"
+                    TOOL_SOURCES["$tool"]="official"
+                    log_install "$tool" "SUCCESS" "official"
+                    install_success=true
+                    break
+                fi
+            fi
+        fi
+        
+        # Try AUR if official repos failed
+        if [ "$install_success" = false ]; then
+            log_message "INFO" "Attempting to install $tool from AUR (attempt $retry_count)"
+            if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" >> "$MAIN_LOG" 2>&1; then
+                if verify_tool_installation "$tool"; then
+                    INSTALLED_TOOLS["$tool"]="success"
+                    TOOL_SOURCES["$tool"]="aur"
+                    log_install "$tool" "SUCCESS" "aur"
+                    install_success=true
+                    break
+                fi
+            fi
+        fi
+        
+        # Try alternative package names
+        if [ "$install_success" = false ] && [ -n "${TOOL_ALTERNATIVES[$tool]}" ]; then
+            local alternatives="${TOOL_ALTERNATIVES[$tool]}"
+            for alt in $alternatives; do
+                log_message "INFO" "Trying alternative package name: $alt for $tool"
+                if pacman -Si "$alt" &>/dev/null; then
+                    if pacman -S --noconfirm --needed "$alt" >> "$MAIN_LOG" 2>&1; then
+                        if verify_tool_installation "$alt"; then
+                            INSTALLED_TOOLS["$tool"]="success"
+                            TOOL_SOURCES["$tool"]="official_alt"
+                            log_install "$tool" "SUCCESS" "official_alt:$alt"
+                            install_success=true
+                            break 2
+                        fi
+                    fi
+                elif sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$alt" >> "$MAIN_LOG" 2>&1; then
+                    if verify_tool_installation "$alt"; then
+                        INSTALLED_TOOLS["$tool"]="success"
+                        TOOL_SOURCES["$tool"]="aur_alt"
+                        log_install "$tool" "SUCCESS" "aur_alt:$alt"
+                        install_success=true
+                        break 2
+                    fi
+                fi
+            done
+        fi
+        
+        if [ "$install_success" = false ]; then
+            log_message "WARNING" "Failed to install $tool (attempt $retry_count)"
+            sleep 2  # Wait before retry
+        fi
+    done
+    
+    if [ "$install_success" = false ]; then
+        FAILED_TOOLS["$tool"]="failed"
+        log_message "ERROR" "Failed to install $tool after $max_retries attempts"
+        log_install "$tool" "FAILED" "all_sources"
+        return 1
+    fi
+    
+    return 0
 }
 
 install_category() {
@@ -261,48 +460,85 @@ install_category() {
     local tools="${TOOL_CATEGORIES[$category]}"
     
     if [ -z "$tools" ]; then
-        echo -e "${RED}❌ Unknown category: $category${RESET}"
+        echo -e "${RED}${CROSS} Unknown category: $category${RESET}"
         return 1
     fi
     
-    start_progress "Installing $category toolkit"
+    echo -e "${BLUE}${BOLD}Installing $category toolkit...${RESET}"
     
-    # Convert tools string to array
+    # Convert tools string to array and remove empty elements
     IFS=' ' read -ra tool_array <<< "$tools"
-    local total=${#tool_array[@]}
-    local current=0
-    
+    local clean_tools=()
     for tool in "${tool_array[@]}"; do
         if [ -n "$tool" ]; then
-            # Try official repos first, then AUR
-            if pacman -Si "$tool" &>/dev/null; then
-                pacman -S --noconfirm --needed "$tool" &>/dev/null
-            elif ! pacman -Q "$tool" &>/dev/null; then
-                sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" &>/dev/null
-            fi
-            
-            ((current++))
-            local percent=$((current * 100 / total))
-            stop_progress
-            start_progress "Installing $category toolkit ($percent%)"
+            clean_tools+=("$tool")
         fi
     done
     
+    local total=${#clean_tools[@]}
+    local current=0
+    local success_count=0
+    local failed_count=0
+    
+    start_progress "Installing $category toolkit (0/$total)"
+    
+    for tool in "${clean_tools[@]}"; do
+        stop_progress
+        echo -e "${CYAN}Installing: ${WHITE}$tool${RESET} ($(($current + 1))/$total)"
+        
+        if install_single_tool "$tool"; then
+            ((success_count++))
+            echo -e "${GREEN}${CHECK}${RESET} $tool installed successfully"
+        else
+            ((failed_count++))
+            echo -e "${RED}${CROSS}${RESET} $tool installation failed"
+        fi
+        
+        ((current++))
+        local percent=$((current * 100 / total))
+        start_progress "Installing $category toolkit ($current/$total - $percent%)"
+    done
+    
     stop_progress
-    echo -e "${GREEN}✓${RESET} $category toolkit installed"
+    
+    # Display installation summary
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${GREEN}${CHECK}${RESET} $category toolkit installation complete"
+    echo -e "${WHITE}Successfully installed: ${GREEN}$success_count${RESET}/${total} tools"
+    
+    if [ $failed_count -gt 0 ]; then
+        echo -e "${WHITE}Failed installations: ${RED}$failed_count${RESET}"
+        echo -e "${YELLOW}${WARNING} Check logs for details: $ERROR_LOG${RESET}"
+    fi
+    
+    log_message "INFO" "Category $category: $success_count/$total tools installed successfully"
+    
+    return 0
 }
 
 install_zen_kernel() {
     if [[ "$(uname -r)" == *"zen"* ]]; then
-        echo -e "${GREEN}✓${RESET} Zen kernel already active"
-        return
+        echo -e "${GREEN}${CHECK}${RESET} Zen kernel already active"
+        return 0
     fi
     
+    echo -e "${BLUE}${BOLD}Installing Zen kernel...${RESET}"
     start_progress "Installing Zen kernel"
-    pacman -S --noconfirm --needed linux-zen linux-zen-headers &>/dev/null
-    grub-mkconfig -o /boot/grub/grub.cfg &>/dev/null
-    stop_progress
-    echo -e "${GREEN}✓${RESET} Zen kernel installed (reboot required)"
+    
+    if pacman -S --noconfirm --needed linux-zen linux-zen-headers >> "$MAIN_LOG" 2>&1; then
+        if command -v grub-mkconfig &>/dev/null; then
+            grub-mkconfig -o /boot/grub/grub.cfg >> "$MAIN_LOG" 2>&1
+        fi
+        stop_progress
+        echo -e "${GREEN}${CHECK}${RESET} Zen kernel installed (reboot required for activation)"
+        log_message "INFO" "Zen kernel installed successfully"
+        return 0
+    else
+        stop_progress
+        echo -e "${RED}${CROSS}${RESET} Zen kernel installation failed"
+        log_message "ERROR" "Zen kernel installation failed"
+        return 1
+    fi
 }
 
 # ---
@@ -348,6 +584,55 @@ show_custom_menu() {
     echo -ne "${WHITE}Enter selections ${CYAN}[1-6]${WHITE}: ${RESET}"
 }
 
+generate_installation_report() {
+    local report_file="$LOG_DIR/installation_report.txt"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    {
+        echo "KYGOX Installation Report"
+        echo "Generated: $timestamp"
+        echo "Version: $SCRIPT_VERSION"
+        echo "System: $DISTRO"
+        echo "User: $ORIGINAL_USER"
+        echo "========================"
+        echo
+        
+        echo "SUCCESSFULLY INSTALLED TOOLS:"
+        echo "-----------------------------"
+        for tool in "${!INSTALLED_TOOLS[@]}"; do
+            if [ "${INSTALLED_TOOLS[$tool]}" == "success" ] || [ "${INSTALLED_TOOLS[$tool]}" == "already_installed" ]; then
+                echo "✓ $tool (${TOOL_SOURCES[$tool]})"
+            fi
+        done
+        echo
+        
+        if [ ${#FAILED_TOOLS[@]} -gt 0 ]; then
+            echo "FAILED INSTALLATIONS:"
+            echo "--------------------"
+            for tool in "${!FAILED_TOOLS[@]}"; do
+                echo "✗ $tool"
+            done
+            echo
+        fi
+        
+        echo "INSTALLATION STATISTICS:"
+        echo "----------------------"
+        echo "Total successful: $(echo "${INSTALLED_TOOLS[@]}" | tr ' ' '\n' | grep -c "success\|already_installed")"
+        echo "Total failed: ${#FAILED_TOOLS[@]}"
+        echo "Official repos: $(echo "${TOOL_SOURCES[@]}" | tr ' ' '\n' | grep -c "official")"
+        echo "AUR packages: $(echo "${TOOL_SOURCES[@]}" | tr ' ' '\n' | grep -c "aur")"
+        echo
+        echo "Log files:"
+        echo "- Main log: $MAIN_LOG"
+        echo "- Install log: $INSTALL_LOG"
+        echo "- Error log: $ERROR_LOG"
+        
+    } > "$report_file"
+    
+    chown "$ORIGINAL_USER:$ORIGINAL_USER" "$report_file"
+    echo -e "${CYAN}${BOLD}📋 Installation report generated: ${WHITE}$report_file${RESET}"
+}
+
 # ---
 # MAIN EXECUTION
 # ---
@@ -360,7 +645,11 @@ handle_selection() {
         3) install_category "blueteam" ;;
         4) install_category "mobile" ;;
         5) install_category "iot" ;;
-        6) install_category "fullkit" ;;
+        6) 
+            # Complete Arsenal - install all categories
+            TOOL_CATEGORIES[fullkit]="${TOOL_CATEGORIES[standard]} ${TOOL_CATEGORIES[redteam]} ${TOOL_CATEGORIES[blueteam]} ${TOOL_CATEGORIES[mobile]} ${TOOL_CATEGORIES[iot]}"
+            install_category "fullkit" 
+            ;;
         7) install_zen_kernel ;;
         8) 
             show_custom_menu
@@ -373,30 +662,63 @@ handle_selection() {
                     4) install_category "mobile" ;;
                     5) install_category "iot" ;;
                     6) install_zen_kernel ;;
+                    *)
+                        echo -e "${RED}${CROSS} Invalid selection: $sel${RESET}"
+                        ;;
                 esac
             done
             ;;
         9) 
             echo -e "${YELLOW}Installation cancelled${RESET}"
+            cleanup
             exit 0
             ;;
         *)
-            echo -e "${RED}❌ Invalid selection${RESET}"
+            echo -e "${RED}${CROSS} Invalid selection: $selection${RESET}"
             return 1
             ;;
     esac
+    
+    return 0
 }
 
 cleanup() {
     stop_progress
-    rm -rf "$TEMP_DIR"
     
-    # System cleanup
+    if [ -d "$TEMP_DIR" ]; then
+        rm -rf "$TEMP_DIR"
+        log_message "INFO" "Temporary directory cleaned up"
+    fi
+    
+    # System cleanup with error handling
+    echo -e "${BLUE}${BOLD}Performing system cleanup...${RESET}"
     start_progress "Cleaning up system"
-    pacman -Rns --noconfirm $(pacman -Qtdq) &>/dev/null 2>&1
-    pacman -Scc --noconfirm &>/dev/null
+    
+    # Remove orphaned packages
+    local orphans=$(pacman -Qtdq 2>/dev/null)
+    if [ -n "$orphans" ]; then
+        if pacman -Rns --noconfirm $orphans >> "$MAIN_LOG" 2>&1; then
+            log_message "INFO" "Orphaned packages removed"
+        else
+            log_message "WARNING" "Failed to remove some orphaned packages"
+        fi
+    fi
+    
+    # Clean package cache
+    if pacman -Scc --noconfirm >> "$MAIN_LOG" 2>&1; then
+        log_message "INFO" "Package cache cleaned"
+    else
+        log_message "WARNING" "Failed to clean package cache"
+    fi
+    
+    # Clean yay cache if yay is installed
+    if command -v yay &>/dev/null; then
+        sudo -u "$ORIGINAL_USER" yay -Scc --noconfirm >> "$MAIN_LOG" 2>&1
+        log_message "INFO" "AUR cache cleaned"
+    fi
+    
     stop_progress
-    echo -e "${GREEN}✓${RESET} System cleaned up"
+    echo -e "${GREEN}${CHECK}${RESET} System cleanup completed"
 }
 
 show_completion() {
@@ -414,13 +736,135 @@ COMPLETE
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo -e "${GREEN}${BOLD}🎉 KYGOX INSTALLATION COMPLETE! 🎉${RESET}"
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    # Display installation statistics
+    local total_installed=$(echo "${INSTALLED_TOOLS[@]}" | tr ' ' '\n' | grep -c "success\|already_installed")
+    local total_failed=${#FAILED_TOOLS[@]}
+    local total_tools=$((total_installed + total_failed))
+    
     echo -e "${CYAN}Version: ${WHITE}$SCRIPT_VERSION${RESET}"
+    echo -e "${CYAN}System: ${WHITE}$DISTRO${RESET}"
     echo -e "${CYAN}User: ${WHITE}$ORIGINAL_USER${RESET}"
     echo -e "${CYAN}Tools Directory: ${WHITE}$TOOL_SRC_DIR${RESET}"
-    echo -e "${CYAN}Logs: ${WHITE}$LOG_DIR${RESET}"
+    echo -e "${CYAN}Logs Directory: ${WHITE}$LOG_DIR${RESET}"
+    echo
+    echo -e "${WHITE}${BOLD}INSTALLATION SUMMARY${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${GREEN}${CHECK} Successfully installed: ${WHITE}$total_installed${RESET} tools"
+    
+    if [ $total_failed -gt 0 ]; then
+        echo -e "${RED}${CROSS} Failed installations: ${WHITE}$total_failed${RESET} tools"
+        echo -e "${YELLOW}${WARNING} Check error log for details: ${WHITE}$ERROR_LOG${RESET}"
+    fi
+    
+    local success_rate=$((total_installed * 100 / total_tools))
+    echo -e "${CYAN}Success rate: ${WHITE}$success_rate%${RESET}"
+    
+    echo
+    echo -e "${YELLOW}${BOLD}📋 NEXT STEPS${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${WHITE}1. Review installation report: ${CYAN}$LOG_DIR/installation_report.txt${RESET}"
+    echo -e "${WHITE}2. Add ${CYAN}/opt/kygox/bin${RESET} to your PATH if needed${RESET}"
+    echo -e "${WHITE}3. Reboot if Zen kernel was installed${RESET}"
+    echo -e "${WHITE}4. Run ${CYAN}kygox --help${RESET} to see available tools${RESET}"
     echo
     echo -e "${YELLOW}${BOLD}💀 HAPPY HACKING! 💀${RESET}"
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    log_message "INFO" "KYGOX installation completed successfully"
+    generate_installation_report
+}
+
+create_tool_launcher() {
+    local launcher_script="/usr/local/bin/kygox"
+    
+    cat > "$launcher_script" << 'EOF'
+#!/bin/bash
+# KYGOX Tool Launcher
+# Quick access to installed security tools
+
+TOOL_DIR="/opt/kygox"
+LOG_DIR="$HOME/.kygox"
+
+show_help() {
+    echo "KYGOX - Security Tool Launcher"
+    echo "Usage: kygox [OPTION] [TOOL_NAME]"
+    echo
+    echo "Options:"
+    echo "  --list, -l     List all installed tools"
+    echo "  --category, -c List tools by category"
+    echo "  --search, -s   Search for a specific tool"
+    echo "  --logs         Show installation logs"
+    echo "  --report       Show installation report"
+    echo "  --help, -h     Show this help message"
+    echo
+    echo "Examples:"
+    echo "  kygox --list"
+    echo "  kygox --search nmap"
+    echo "  kygox --category standard"
+}
+
+list_tools() {
+    echo "Installed Security Tools:"
+    echo "========================"
+    
+    if [ -f "$LOG_DIR/install.log" ]; then
+        grep "SUCCESS" "$LOG_DIR/install.log" | awk -F'|' '{print $2}' | sort | uniq
+    else
+        echo "No installation log found."
+    fi
+}
+
+search_tool() {
+    local search_term="$1"
+    echo "Searching for: $search_term"
+    echo "=========================="
+    
+    if command -v "$search_term" &>/dev/null; then
+        echo "✓ $search_term is installed and available in PATH"
+        echo "Location: $(which "$search_term")"
+    else
+        echo "✗ $search_term not found in PATH"
+        echo "Checking package database..."
+        pacman -Qs "$search_term" | head -5
+    fi
+}
+
+case "$1" in
+    --list|-l)
+        list_tools
+        ;;
+    --search|-s)
+        search_tool "$2"
+        ;;
+    --logs)
+        if [ -f "$LOG_DIR/kygox.log" ]; then
+            tail -50 "$LOG_DIR/kygox.log"
+        else
+            echo "No logs found."
+        fi
+        ;;
+    --report)
+        if [ -f "$LOG_DIR/installation_report.txt" ]; then
+            cat "$LOG_DIR/installation_report.txt"
+        else
+            echo "No installation report found."
+        fi
+        ;;
+    --help|-h|"")
+        show_help
+        ;;
+    *)
+        echo "Unknown option: $1"
+        show_help
+        exit 1
+        ;;
+esac
+EOF
+
+    chmod +x "$launcher_script"
+    log_message "INFO" "Tool launcher created at $launcher_script"
+    echo -e "${GREEN}${CHECK}${RESET} Tool launcher created: ${CYAN}kygox${RESET}"
 }
 
 # ---
@@ -431,9 +875,11 @@ handle_parameters() {
         -fullkit|--fullkit)
             echo -e "${ROCKET} ${WHITE}Full Kit Installation Mode${RESET}"
             setup_environment
+            TOOL_CATEGORIES[fullkit]="${TOOL_CATEGORIES[standard]} ${TOOL_CATEGORIES[redteam]} ${TOOL_CATEGORIES[blueteam]} ${TOOL_CATEGORIES[mobile]} ${TOOL_CATEGORIES[iot]}"
             install_category "fullkit"
             install_zen_kernel
             cleanup
+            create_tool_launcher
             show_completion
             exit 0
             ;;
@@ -442,6 +888,7 @@ handle_parameters() {
             setup_environment
             install_category "standard"
             cleanup
+            create_tool_launcher
             show_completion
             exit 0
             ;;
@@ -450,6 +897,7 @@ handle_parameters() {
             setup_environment
             install_category "redteam"
             cleanup
+            create_tool_launcher
             show_completion
             exit 0
             ;;
@@ -458,6 +906,7 @@ handle_parameters() {
             setup_environment
             install_category "blueteam"
             cleanup
+            create_tool_launcher
             show_completion
             exit 0
             ;;
@@ -466,6 +915,7 @@ handle_parameters() {
             setup_environment
             install_category "mobile"
             cleanup
+            create_tool_launcher
             show_completion
             exit 0
             ;;
@@ -474,6 +924,7 @@ handle_parameters() {
             setup_environment
             install_category "iot"
             cleanup
+            create_tool_launcher
             show_completion
             exit 0
             ;;
@@ -485,9 +936,15 @@ handle_parameters() {
             show_completion
             exit 0
             ;;
+        -verify|--verify)
+            echo -e "${GEAR} ${WHITE}Verification Mode${RESET}"
+            verify_existing_installations
+            exit 0
+            ;;
         -h|--help)
             display_banner
             echo -e "${WHITE}${BOLD}USAGE:${RESET}"
+            echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
             echo -e "${CYAN}sudo $0${RESET}                    ${DIM}# Interactive menu${RESET}"
             echo -e "${CYAN}sudo $0 -fullkit${RESET}           ${DIM}# Install complete arsenal${RESET}"
             echo -e "${CYAN}sudo $0 -standard${RESET}          ${DIM}# Install standard tools${RESET}"
@@ -496,9 +953,53 @@ handle_parameters() {
             echo -e "${CYAN}sudo $0 -mobile${RESET}            ${DIM}# Install mobile security tools${RESET}"
             echo -e "${CYAN}sudo $0 -iot${RESET}               ${DIM}# Install IoT & hardware tools${RESET}"
             echo -e "${CYAN}sudo $0 -zen${RESET}               ${DIM}# Install Zen kernel${RESET}"
+            echo -e "${CYAN}sudo $0 -verify${RESET}            ${DIM}# Verify existing installations${RESET}"
+            echo
+            echo -e "${WHITE}${BOLD}TOOL MANAGEMENT:${RESET}"
+            echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+            echo -e "${CYAN}kygox --list${RESET}               ${DIM}# List installed tools${RESET}"
+            echo -e "${CYAN}kygox --search <tool>${RESET}      ${DIM}# Search for specific tool${RESET}"
+            echo -e "${CYAN}kygox --report${RESET}             ${DIM}# Show installation report${RESET}"
+            echo -e "${CYAN}kygox --logs${RESET}               ${DIM}# Show installation logs${RESET}"
             exit 0
             ;;
     esac
+}
+
+verify_existing_installations() {
+    echo -e "${BLUE}${BOLD}Verifying existing installations...${RESET}"
+    
+    local all_tools=""
+    for category in "${!TOOL_CATEGORIES[@]}"; do
+        if [ "$category" != "fullkit" ]; then
+            all_tools="$all_tools ${TOOL_CATEGORIES[$category]}"
+        fi
+    done
+    
+    IFS=' ' read -ra tool_array <<< "$all_tools"
+    local verified_count=0
+    local missing_count=0
+    
+    echo -e "${WHITE}Checking tool availability...${RESET}"
+    echo
+    
+    for tool in "${tool_array[@]}"; do
+        if [ -n "$tool" ]; then
+            if verify_tool_installation "$tool"; then
+                echo -e "${GREEN}${CHECK}${RESET} $tool"
+                ((verified_count++))
+            else
+                echo -e "${RED}${CROSS}${RESET} $tool"
+                ((missing_count++))
+            fi
+        fi
+    done
+    
+    echo
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${GREEN}Verified: $verified_count tools${RESET}"
+    echo -e "${RED}Missing: $missing_count tools${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 }
 
 # ---
@@ -511,8 +1012,10 @@ main() {
     fi
     
     # System checks
+    check_arch_system
     check_debian_redirect
     check_root
+    check_internet
     
     # Setup environment
     setup_environment
@@ -532,13 +1035,14 @@ main() {
     
     # Cleanup and completion
     cleanup
+    create_tool_launcher
     show_completion
 }
 
 # ---
 # SIGNAL HANDLING
 # ---
-trap 'stop_progress; echo -e "\n${RED}Installation interrupted${RESET}"; exit 130' INT TERM
+trap 'stop_progress; echo -e "\n${RED}Installation interrupted${RESET}"; log_message "ERROR" "Installation interrupted by user"; cleanup; exit 130' INT TERM
 
 # ---
 # ENTRY POINT
