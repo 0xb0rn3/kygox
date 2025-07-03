@@ -1,596 +1,546 @@
 #!/usr/bin/env bash
 #
-# KYGOX - Advanced Arch Linux Security Testing Suite Installer
-# Version 0.0.4
+# KYGOX - Advanced Security Testing Suite Installer
+# Version 0.1.5 Stable
 #
 # Created by 0xb0rn3 IG: theehiv3 | github.com/0xb0rn3
+# Enhanced with intelligent menu system and real-time progress
 #
 
 # ---
 # CONFIGURATION
 # ---
+SCRIPT_VERSION="0.1.5"
 ORIGINAL_USER=${SUDO_USER:-$(whoami)}
-LOG_DIR="kygox_logs"
-MAIN_LOG="$LOG_DIR/installation.log"
-BACKUP_DIR="$LOG_DIR/backups"
-TOOL_SRC_DIR="/opt/kygox" # Directory for Git-based tools
+LOG_DIR="$HOME/.kygox"
+MAIN_LOG="$LOG_DIR/kygox.log"
+TOOL_SRC_DIR="/opt/kygox"
+TEMP_DIR="/tmp/kygox_$$"
+
+# System Detection
+DISTRO=$(lsb_release -si 2>/dev/null || echo "Unknown")
+DEBIAN_FAMILY=("Ubuntu" "Debian" "Kali" "Parrot")
 
 # Flags
-INSTALL_ZEN_KERNEL=false
-INSTALL_STANDARD_TOOLS=true
-INSTALL_MODE="core" # Default to core tools
 QUIET_MODE=false
-AUTO_CLEANUP=false
-GROUP_NAME=""
-PACKAGE_LIST=""
+AUTO_MODE=false
+FULLKIT_MODE=false
+PROGRESS_PID=""
 
 # ---
-# VISUALS AND FORMATTING
+# VISUAL COMPONENTS
 # ---
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
+WHITE='\033[1;37m'
 BOLD='\033[1m'
+DIM='\033[2m'
 RESET='\033[0m'
 
-CHECK_MARK="${GREEN}✓${RESET}"
-CROSS_MARK="${RED}✗${RESET}"
-ARROW="${CYAN}→${RESET}"
-INFO="${BLUE}ℹ${RESET}"
-WARNING="${YELLOW}⚠${RESET}"
+# Icons
+ROCKET="🚀"
+SHIELD="🛡️"
+HAMMER="🔨"
+PHONE="📱"
+CHIP="🔧"
+GEAR="⚙️"
+CROWN="👑"
+LIGHTNING="⚡"
+FIRE="🔥"
 
 # ---
-# TOOL ARRAYS - Categorized by Purpose and Installation Source
+# PROGRESS INDICATOR
 # ---
+show_progress() {
+    local message="$1"
+    local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    local i=0
+    
+    while true; do
+        printf "\r${CYAN}%s${RESET} %s ${DIM}Setting up your environment...${RESET}" \
+               "${chars:$i:1}" "$message"
+        i=$(((i + 1) % ${#chars}))
+        sleep 0.1
+    done
+}
 
-# Obfuscated repository variables
-SECURITY_REPO_URL="https://blackarch.org/strap.sh"
-SECURITY_REPO_IDENTIFIER="blackarch"
+start_progress() {
+    show_progress "$1" &
+    PROGRESS_PID=$!
+    disown
+}
 
-# 1. Core Security Tools (Installed with --standard-only or as a base for other installs)
-CORE_SECURITY_TOOLS_PACMAN=(
-    "nmap" "wireshark-qt" "wireshark-cli" "aircrack-ng" "john" "hydra" "sqlmap"
-    "nikto" "gobuster" "dirb" "wfuzz" "ffuf" "whatweb" "wpscan" "dnsenum"
-    "dnsrecon" "fierce" "hashcat" "tcpdump" "rustscan" "masscan" "metasploit"
-    "autopsy" "volatility" "burpsuite" "ghidra" "radare2" "rizin" "cutter"
-    "gdb" "binwalk" "bettercap" "ettercap" "mitmproxy" "proxychains-ng" "tor"
-    "openvpn" "exploitdb" "powersploit" "impacket" "responder" "bloodhound"
-    "social-engineer-toolkit" "subfinder" "httpx" "nuclei"
-)
-CORE_SECURITY_TOOLS_YAY=()
-
-# 2. Advanced Offensive Tools
-ADVANCED_OFFENSIVE_TOOLS_PACMAN=(
-    "covenant-dotnet" "crackmapexec" "mitm6" "rubeus" "mimikatz" "nishang"
-    "theharvester" "recon-ng" "maltego" "spiderfoot" "sublist3r" "amass" "aquatone"
-    "eyewitness" "gowitness" "katana" "gau" "waybackurls" "gf" "pdtm" "chaos-client"
-    "dnsx" "naabu" "mapcidr" "shuffledns" "puredns" "massdns" "alterx" "tlsx" "proxify"
-    "dalfox" "kxss" "qsreplace" "unfurl" "hakrawler" "gospider" "paramspider" "arjun"
-    "feroxbuster" "dirsearch" "droopescan" "joomscan" "cmseek" "wig" "wafw00f"
-    "commix" "tplmap" "nosqlmap" "xsser" "beef-xss" "evilginx2" "modlishka" "gophish"
-    "wifi-pumpkin3" "hostapd-mana" "wifite" "owasp-zap" "weevely" "seclists"
-    "payloadsallthethings" "crunch" "cupp" "hash-identifier" "chntpw" "enum4linux-ng"
-    "smbclient" "smbmap" "nbtscan-extra" "onesixtyone" "snmpwalk" "yersinia" "cisco-torch"
-    "dnscat2" "iodine" "ptunnel" "icmptunnel" "sslh" "stunnel" "socat" "ncat" "sbd"
-    "pwnat" "dns2tcp" "chisel" "ligolo-ng" "ghidra" "pwntools" "rop-gadget" "ropper"
-    "angr" "afl" "radamsa"
-)
-ADVANCED_OFFENSIVE_TOOLS_YAY=(
-    "empire" "sliver" "kerbrute" "cloud_enum" "sharphound-ps" "unicorn-magic" "veil" "eyewitness" "subfinder-bin" "httpx-bin"
-    "nuclei-bin" "findmyhash" "recursive-gobuster" "linpeas" "winpeas" "zphisher" "nexphisher"
-    "maskphish" "blackeye" "shellphish"
-)
-ADVANCED_OFFENSIVE_TOOLS_GIT=(
-    "https://github.com/carlospolop/PEASS-ng.git"
-    "https://github.com/PowerShellMafia/PowerSploit.git"
-    "https://github.com/samratashok/nishang.git"
-    "https://github.com/lgandx/Responder.git"
-    "https://github.com/byt3bl33d3r/CrackMapExec.git"
-    "https://github.com/dirkjanm/mitm6.git"
-    "https://github.com/BloodHoundAD/BloodHound.git"
-    "https://github.com/GhostPack/Rubeus.git"
-    "https://github.com/gentilkiwi/mimikatz.git"
-    "https://github.com/ffuf/ffuf.git"
-    "https://github.com/assetnote/kiterunner.git"
-)
-
-# 3. Blue Team / Defensive Tools
-BLUE_TEAM_DEFENSIVE_TOOLS_PACMAN=(
-    "suricata" "snort" "zeek" "ossec" "aide" "tripwire" "chkrootkit" "rkhunter"
-    "lynis" "openscap" "zmap" "hping3" "netdiscover" "arp-scan" "fping" "ntopng"
-    "iftop" "nethogs" "vnstat" "bmon" "tcpflow" "tcpreplay" "ssldump" "dsniff"
-    "tshark" "argus" "p0f" "fprobe" "nfdump" "flow-tools" "silk" "pmacct" "darkstat"
-    "bandwidthd" "cacti" "nagios" "icinga2" "zabbix-server" "zabbix-agent" "munin"
-    "collectd" "telegraf" "prometheus" "grafana" "influxdb" "elasticsearch" "logstash"
-    "kibana" "filebeat" "packetbeat" "metricbeat" "heartbeat-elastic-beat" "auditbeat"
-    "graylog" "fluentd" "rsyslog" "syslog-ng" "logwatch" "logcheck" "multitail" "lnav"
-    "goaccess" "osquery" "velociraptor" "clamav" "yara" "audit"
-)
-BLUE_TEAM_DEFENSIVE_TOOLS_YAY=(
-    "security-onion" "wazuh-agent" "helk"
-)
-BLUE_TEAM_DEFENSIVE_TOOLS_GIT=()
-
-# 4. Mobile Security Tools
-MOBILE_SECURITY_TOOLS_PACMAN=(
-    "mobsf" "drozer" "apktool" "dex2jar" "jadx" "smali" "baksmali" "aapt" "adb"
-    "fastboot" "heimdall" "frida-tools" "objection" "libimobiledevice" "ifuse"
-    "ideviceinstaller"
-)
-MOBILE_SECURITY_TOOLS_YAY=(
-    "qark" "apkid" "mobsf-git" "qark-git" "androguard-git" "apkid-git" "droidlysis"
-    "super-git" "androwarn-git" "quark-engine-git" "mariana-trench"
-    "frida-server" "frida-gadget" "objection-git" "passionfruit"
-    "needle-git" "introspy-android" "introspy-ios" "snoop-it"
-    "clutch4" "dumpdecrypted" "flexdecrypt" "bfinject" "cycript"
-    "theos" "logos" "substrate" "substitute" "ellekit" "dobby"
-    "shadow" "xposed-framework" "edxposed" "lsposed" "magisk"
-    "btlejuice" "btlejack" "mirage" "killerbee-git" "zigbee-tools"
-    "hackrf-git" "rtl-sdr-git" "bladerf" "usrp" "gnuradio-git"
-)
-MOBILE_SECURITY_TOOLS_GIT=(
-    # Essential mobile security Git repositories
-    "https://github.com/MobSF/Mobile-Security-Framework-MobSF.git"
-    "https://github.com/sensepost/objection.git"
-    "https://github.com/frida/frida.git"
-    "https://github.com/linkedin/qark.git"  
-    "https://github.com/androguard/androguard.git"
-    "https://github.com/rednaga/APKiD.git"
-    "https://github.com/quark-engine/quark-engine.git"
-    "https://github.com/facebook/mariana-trench.git"
-    "https://github.com/mwrlabs/needle.git"
-    "https://github.com/iSECPartners/Introspy-Android.git"
-    "https://github.com/iSECPartners/Introspy-iOS.git"
-    "https://github.com/dpnishant/appmon.git"
-    "https://github.com/WithSecureLabs/drozer.git"
-    "https://github.com/KJCracks/Clutch.git"
-    "https://github.com/stefanesser/dumpdecrypted.git"
-    "https://github.com/JohnCoates/Flex.git"
-)
-
-# 5. IoT and Hardware Security
-IOT_HARDWARE_SECURITY_TOOLS_PACMAN=(
-    "firmware-mod-kit" "firmadyne" "radare2" "ghidra" "binwalk" "gdb" "openocd"
-    "flashrom" "saleae-logic2" "sigrok-cli" "pulseview" "multimon-ng" "rtl-sdr" "hackrf"
-    "gnuradio" "gqrx" "ubertooth" "killerbee"
-)
-IOT_HARDWARE_SECURITY_TOOLS_YAY=(
-    "bus-pirate" "attifyos-tools"
-)
-IOT_HARDWARE_SECURITY_TOOLS_GIT=(
-    "https://github.com/ReFirmLabs/binwalk.git"
-    "https://github.com/craigz28/firmwalker.git"
-    "https://github.com/travisgoodspeed/goodfet.git"
-)
-
-# 6. Manual Installation / Commercial Tools
-MANUAL_INSTALL_TOOLS=(
-    "cobalt-strike: Commercial C2 framework. Requires a license from helpnetsecurity.com."
-    "burpsuite-professional: Commercial web vulnerability scanner. Requires a license from portswigger.net."
-    "cellebrite-ufed: Commercial mobile forensics tool. Requires a hardware and software license."
-    "oxygen-forensic-detective: Commercial digital forensics platform. Requires a license."
-    "msab-xry: Commercial mobile forensics solution. Requires a license."
-)
+stop_progress() {
+    if [ -n "$PROGRESS_PID" ]; then
+        kill $PROGRESS_PID 2>/dev/null
+        PROGRESS_PID=""
+        printf "\r\033[K"
+    fi
+}
 
 # ---
-# CORE SCRIPT FUNCTIONS
+# BANNER AND DISPLAY
 # ---
-
 display_banner() {
     clear
-    cat << 'EOFBANNER'
-██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
-██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
-█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝
-██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗
-██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
-╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
- ADVANCED ARCH LINUX SECURITY TESTING SUITE INSTALLER
-      Version 0.0.4 | Latest stable version
- Engineered by 0xb0rn3 | IG: theehiv3 | github.com/0xb0rn3
-EOFBANNER
-echo
-}
-
-show_usage() {
-    echo -e "${BOLD}Usage:${RESET}"
-    echo -e "  sudo $0 [options]"
-    echo
-    echo -e "${BOLD}Installation Modes:${RESET}"
-    echo -e "  ${CYAN}-s, --standard-only${RESET}      Install a curated list of essential security tools."
-    echo -e "  ${CYAN}-a, --all-blackarch${RESET}     Install ALL packages from the BlackArch repository (very large)."
-    echo -e "  ${CYAN}-g, --group GROUP${RESET}        Install a specific BlackArch package group (e.g., blackarch-exploitation)."
-    echo -e "  ${CYAN}-p, --packages FILE${RESET}      Install from a custom package list file."
-    echo
-    echo -e "${BOLD}Tool Category Options:${RESET}"
-    echo -e "  ${CYAN}--offensive${RESET}              Install the advanced offensive tools category."
-    echo -e "  ${CYAN}--defensive${RESET}              Install the blue team / defensive tools category."
-    echo -e "  ${CYAN}--mobile${RESET}                 Install the mobile security tools category."
-    echo -e "  ${CYAN}--iot${RESET}                    Install the IoT & hardware security tools category."
-    echo -e "  ${CYAN}--all-tools${RESET}              Install ALL categorized tools (offensive, defensive, mobile, iot)."
-    echo
-    echo -e "${BOLD}System Options:${RESET}"
-    echo -e "  ${CYAN}-z, --zen-kernel${RESET}          Install the Zen kernel for enhanced performance."
-    echo -e "  ${CYAN}-q, --quiet${RESET}               Run in quiet mode (minimal output)."
-    echo -e "  ${CYAN}--auto-cleanup${RESET}           Automatically clean up without prompting."
-    echo -e "  ${CYAN}-h, --help${RESET}                Show this help message."
-    echo
-    echo -e "${BOLD}Examples:${RESET}"
-    echo -e "  sudo $0 --offensive --iot -z    # Install offensive, IoT tools and Zen kernel."
-    echo -e "  sudo $0 -s                      # Install only the standard core tools."
-    echo -e "  sudo $0 --all-tools             # Install all predefined tool categories."
-    echo
-}
-
-log_message() {
-    local level="$1"
-    local message="$2"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo -e "${PURPLE}${BOLD}"
+    cat << 'BANNER'
+    ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
+    ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
+    █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
+    ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
+    ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
+    ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
     
-    mkdir -p "$LOG_DIR"
-    echo "[$timestamp] [$level] $message" >> "$MAIN_LOG"
+    ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+    █  ADVANCED SECURITY TESTING SUITE INSTALLER  █
+    █           Version 0.1.5 Stable              █
+    █    Engineered by 0xb0rn3 | @theehiv3        █
+    ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+BANNER
+    echo -e "${RESET}"
+}
 
-    if [ "$QUIET_MODE" != true ]; then
-        case "$level" in
-            "SUCCESS") echo -e "${CHECK_MARK} $message" ;;
-            "WARNING") echo -e "${WARNING} $message" ;;
-            "ERROR")   echo -e "${CROSS_MARK} $message" ;;
-            "INFO")    echo -e "${INFO} $message" ;;
-            "STEP")    echo -e "\n${PURPLE}${BOLD}>>> $message${RESET}" ;;
-            "GIT")     echo -e "${CYAN}[GIT]${RESET} $message" ;;
-            *)         echo -e "$message" ;;
-        esac
-    fi
+# ---
+# SYSTEM VALIDATION
+# ---
+check_debian_redirect() {
+    for distro in "${DEBIAN_FAMILY[@]}"; do
+        if [[ "$DISTRO" == "$distro" ]]; then
+            echo -e "${RED}${BOLD}⚠️  DEBIAN-BASED SYSTEM DETECTED${RESET}"
+            echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+            echo -e "${YELLOW}For Debian/Ubuntu systems, please use our specialized installer:${RESET}"
+            echo -e "${CYAN}${BOLD}KRILIN${RESET} - Debian Security Suite"
+            echo -e "${WHITE}Repository: ${BLUE}https://github.com/0xb0rn3/krilin${RESET}"
+            echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+            echo -e "${DIM}KYGOX is optimized for Arch-based systems only.${RESET}"
+            exit 1
+        fi
+    done
 }
 
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        log_message "ERROR" "This installer requires root privileges. Please run with sudo."
+        echo -e "${RED}${BOLD}❌ Root privileges required${RESET}"
+        echo -e "${WHITE}Please run: ${CYAN}sudo $0${RESET}"
         exit 1
     fi
+    
     if [ -z "$ORIGINAL_USER" ] || [ "$ORIGINAL_USER" == "root" ]; then
-        log_message "ERROR" "Cannot determine original user. Please run with 'sudo' not as root directly."
+        echo -e "${RED}${BOLD}❌ Invalid user context${RESET}"
+        echo -e "${WHITE}Please run with: ${CYAN}sudo $0${RESET} (not as root directly)"
         exit 1
     fi
-    log_message "INFO" "Running as root with original user context: $ORIGINAL_USER"
 }
 
 # ---
-# INSTALLATION AND SETUP FUNCTIONS
+# TOOL CATEGORIES
 # ---
+declare -A TOOL_CATEGORIES
 
-add_security_repo() {
-    log_message "STEP" "Configuring BlackArch Repository"
-    if grep -q "\[$SECURITY_REPO_IDENTIFIER\]" /etc/pacman.conf; then
-        log_message "INFO" "BlackArch repository already configured."
-        return
+# Industry Standard Tools (Most Used)
+TOOL_CATEGORIES[standard]="
+nmap wireshark-qt aircrack-ng john hydra sqlmap metasploit
+burpsuite ghidra radare2 gdb binwalk hashcat tcpdump
+nikto gobuster dirb ffuf whatweb wpscan dnsenum dnsrecon
+fierce masscan rustscan autopsy volatility rizin cutter
+bettercap ettercap mitmproxy proxychains-ng tor openvpn
+exploitdb impacket responder subfinder httpx nuclei
+crackmapexec theharvester recon-ng maltego spiderfoot
+sublist3r amass feroxbuster dirsearch beef-xss owasp-zap
+weevely seclists crunch cupp enum4linux-ng smbclient
+smbmap yersinia socat ncat chisel pwntools ropper
+"
+
+# Red Team Arsenal
+TOOL_CATEGORIES[redteam]="
+covenant-dotnet mitm6 rubeus mimikatz nishang
+eyewitness gowitness katana gau waybackurls gf
+chaos-client dnsx naabu mapcidr shuffledns puredns
+massdns alterx tlsx proxify dalfox kxss qsreplace
+unfurl hakrawler gospider paramspider arjun
+droopescan joomscan cmseek wig wafw00f commix
+tplmap nosqlmap xsser evilginx2 modlishka gophish
+wifi-pumpkin3 hostapd-mana wifite hash-identifier
+chntpw nbtscan-extra onesixtyone snmpwalk
+cisco-torch dnscat2 iodine ptunnel icmptunnel
+sslh stunnel sbd pwnat dns2tcp ligolo-ng
+angr afl radamsa empire sliver kerbrute
+"
+
+# Blue Team Defense
+TOOL_CATEGORIES[blueteam]="
+suricata snort zeek ossec aide tripwire
+chkrootkit rkhunter lynis openscap zmap
+hping3 netdiscover arp-scan fping ntopng
+iftop nethogs vnstat bmon tcpflow tcpreplay
+ssldump dsniff tshark argus p0f fprobe
+nfdump flow-tools silk pmacct darkstat
+bandwidthd nagios icinga2 zabbix-server
+zabbix-agent collectd telegraf prometheus
+grafana influxdb elasticsearch logstash
+kibana filebeat packetbeat metricbeat
+heartbeat-elastic graylog fluentd rsyslog
+syslog-ng logwatch logcheck multitail
+lnav goaccess osquery clamav yara audit
+"
+
+# Mobile Security
+TOOL_CATEGORIES[mobile]="
+mobsf drozer apktool dex2jar jadx smali
+baksmali aapt adb fastboot heimdall
+frida-tools objection libimobiledevice
+ifuse ideviceinstaller qark apkid
+androguard droidlysis androwarn
+quark-engine mariana-trench frida-server
+frida-gadget passionfruit needle
+introspy-android introspy-ios snoop-it
+clutch4 dumpdecrypted flexdecrypt bfinject
+cycript theos logos substrate substitute
+ellekit dobby shadow xposed-framework
+edxposed lsposed magisk btlejuice
+btlejack mirage killerbee zigbee-tools
+"
+
+# IoT & Hardware
+TOOL_CATEGORIES[iot]="
+firmware-mod-kit firmadyne binwalk openocd
+flashrom sigrok-cli pulseview multimon-ng
+rtl-sdr hackrf gnuradio gqrx ubertooth
+killerbee bus-pirate attifyos-tools
+firmwalker goodfet logic2 saleae
+"
+
+# Complete Arsenal (All Tools)
+TOOL_CATEGORIES[fullkit]="
+${TOOL_CATEGORIES[standard]}
+${TOOL_CATEGORIES[redteam]}
+${TOOL_CATEGORIES[blueteam]}
+${TOOL_CATEGORIES[mobile]}
+${TOOL_CATEGORIES[iot]}
+"
+
+# ---
+# INSTALLATION FUNCTIONS
+# ---
+setup_environment() {
+    start_progress "Initializing system"
+    
+    # Create directories
+    mkdir -p "$LOG_DIR" "$TOOL_SRC_DIR" "$TEMP_DIR"
+    chown -R "$ORIGINAL_USER:$ORIGINAL_USER" "$LOG_DIR" "$TOOL_SRC_DIR"
+    
+    # Setup security repository (obfuscated)
+    if ! grep -q "pentesting" /etc/pacman.conf; then
+        curl -sS https://blackarch.org/strap.sh | bash &>/dev/null
+        sed -i 's/blackarch/pentesting/g' /etc/pacman.conf
     fi
-    log_message "INFO" "Downloading and running BlackArch strap.sh script..."
-    if curl -sS "$SECURITY_REPO_URL" | bash; then
-        log_message "SUCCESS" "BlackArch repository configured successfully."
-    else
-        log_message "ERROR" "Failed to configure BlackArch repository. Aborting."
-        exit 1
+    
+    # Update system
+    pacman -Syy --noconfirm &>/dev/null
+    
+    # Install yay if needed
+    if ! command -v yay &>/dev/null; then
+        pacman -S --noconfirm --needed git go &>/dev/null
+        sudo -u "$ORIGINAL_USER" git clone -q https://aur.archlinux.org/yay.git "$TEMP_DIR/yay"
+        cd "$TEMP_DIR/yay"
+        sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm &>/dev/null
+        cd - &>/dev/null
     fi
+    
+    stop_progress
+    echo -e "${GREEN}✓${RESET} Environment initialized"
 }
 
-update_databases() {
-    log_message "STEP" "Synchronizing Package Databases"
-    if pacman -Syy; then
-        log_message "SUCCESS" "Package databases synchronized."
-    else
-        log_message "ERROR" "Failed to synchronize package databases. Check your internet connection and mirrors."
-        exit 1
-    fi
-}
-
-install_yay() {
-    if command -v yay >/dev/null 2>&1; then
-        log_message "INFO" "yay AUR helper is already installed."
-        return
-    fi
-    log_message "STEP" "Installing yay AUR Helper"
-    pacman -S --noconfirm --needed git go || { log_message "ERROR" "Failed to install build dependencies for yay."; return 1; }
-    local yay_dir="/tmp/yay_build"
-    log_message "INFO" "Cloning yay repository..."
-    if sudo -u "$ORIGINAL_USER" git clone https://aur.archlinux.org/yay.git "$yay_dir"; then
-        cd "$yay_dir"
-        log_message "INFO" "Building and installing yay..."
-        if sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm; then
-            log_message "SUCCESS" "yay installed successfully."
-        else
-            log_message "ERROR" "Failed to build or install yay."
-        fi
-        cd /tmp && rm -rf "$yay_dir"
-    else
-        log_message "ERROR" "Failed to clone yay repository."
+install_category() {
+    local category="$1"
+    local tools="${TOOL_CATEGORIES[$category]}"
+    
+    if [ -z "$tools" ]; then
+        echo -e "${RED}❌ Unknown category: $category${RESET}"
         return 1
     fi
+    
+    start_progress "Installing $category toolkit"
+    
+    # Convert tools string to array
+    IFS=' ' read -ra tool_array <<< "$tools"
+    local total=${#tool_array[@]}
+    local current=0
+    
+    for tool in "${tool_array[@]}"; do
+        if [ -n "$tool" ]; then
+            # Try official repos first, then AUR
+            if pacman -Si "$tool" &>/dev/null; then
+                pacman -S --noconfirm --needed "$tool" &>/dev/null
+            elif ! pacman -Q "$tool" &>/dev/null; then
+                sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" &>/dev/null
+            fi
+            
+            ((current++))
+            local percent=$((current * 100 / total))
+            stop_progress
+            start_progress "Installing $category toolkit ($percent%)"
+        fi
+    done
+    
+    stop_progress
+    echo -e "${GREEN}✓${RESET} $category toolkit installed"
 }
 
 install_zen_kernel() {
     if [[ "$(uname -r)" == *"zen"* ]]; then
-        log_message "INFO" "Zen kernel is already installed and running."
+        echo -e "${GREEN}✓${RESET} Zen kernel already active"
         return
-    fi
-    log_message "STEP" "Installing Zen Kernel"
-    if pacman -S --noconfirm --needed linux-zen linux-zen-headers; then
-        log_message "INFO" "Updating GRUB configuration..."
-        grub-mkconfig -o /boot/grub/grub.cfg
-        log_message "SUCCESS" "Zen kernel installed. A reboot is required to use it."
-    else
-        log_message "ERROR" "Failed to install Zen kernel."
-    fi
-}
-
-install_packages() {
-    local pkg_manager="$1"
-    local description="$2"
-    shift 2
-    local packages=("$@")
-
-    if [ ${#packages[@]} -eq 0 ]; then
-        return
-    fi
-
-    log_message "INFO" "Installing $description packages..."
-    if [ "$pkg_manager" == "pacman" ]; then
-        pacman -S --noconfirm --needed "${packages[@]}"
-    elif [ "$pkg_manager" == "yay" ]; then
-        sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "${packages[@]}"
-    fi
-
-    if [ $? -eq 0 ]; then
-        log_message "SUCCESS" "Successfully installed $description packages."
-    else
-        log_message "WARNING" "Some $description packages may have failed to install."
-    fi
-}
-
-install_git_repos() {
-    shift
-    local repos=("$@")
-
-    if [ ${#repos[@]} -eq 0 ]; then
-        return
-    fi
-
-    log_message "INFO" "Cloning Git-based tools to $TOOL_SRC_DIR..."
-    mkdir -p "$TOOL_SRC_DIR"
-    chown "$ORIGINAL_USER:$ORIGINAL_USER" "$TOOL_SRC_DIR"
-
-    for repo in "${repos[@]}"; do
-        local repo_name=$(basename "$repo" .git)
-        if [ -d "$TOOL_SRC_DIR/$repo_name" ]; then
-            log_message "GIT" "$repo_name already exists, skipping."
-        else
-            log_message "GIT" "Cloning $repo..."
-            if sudo -u "$ORIGINAL_USER" git clone "$repo" "$TOOL_SRC_DIR/$repo_name"; then
-                log_message "SUCCESS" "Cloned $repo_name successfully."
-            else
-                log_message "ERROR" "Failed to clone $repo_name."
-            fi
-        fi
-    done
-}
-
-# ---
-# TOOL CATEGORY INSTALLATION FUNCTIONS
-# ---
-
-install_standard_suite() {
-    log_message "STEP" "Installing Standard Security Suite"
-    install_packages "pacman" "Standard (Pacman)" "${CORE_SECURITY_TOOLS_PACMAN[@]}"
-}
-
-install_offensive_tools() {
-    log_message "STEP" "Installing Advanced Offensive Tools"
-    install_packages "pacman" "Offensive (Pacman)" "${ADVANCED_OFFENSIVE_TOOLS_PACMAN[@]}"
-    install_packages "yay" "Offensive (AUR)" "${ADVANCED_OFFENSIVE_TOOLS_YAY[@]}"
-    install_git_repos "git" "${ADVANCED_OFFENSIVE_TOOLS_GIT[@]}"
-}
-
-install_defensive_tools() {
-    log_message "STEP" "Installing Blue Team / Defensive Tools"
-    install_packages "pacman" "Defensive (Pacman)" "${BLUE_TEAM_DEFENSIVE_TOOLS_PACMAN[@]}"
-    install_packages "yay" "Defensive (AUR)" "${BLUE_TEAM_DEFENSIVE_TOOLS_YAY[@]}"
-    install_git_repos "git" "${BLUE_TEAM_DEFENSIVE_TOOLS_GIT[@]}"
-}
-
-install_mobile_tools() {
-    log_message "STEP" "Installing Mobile Security Tools"
-    install_packages "pacman" "Mobile (Pacman)" "${MOBILE_SECURITY_TOOLS_PACMAN[@]}"
-    install_packages "yay" "Mobile (AUR)" "${MOBILE_SECURITY_TOOLS_YAY[@]}"
-    install_git_repos "git" "${MOBILE_SECURITY_TOOLS_GIT[@]}"
-}
-
-install_iot_tools() {
-    log_message "STEP" "Installing IoT & Hardware Security Tools"
-    install_packages "pacman" "IoT (Pacman)" "${IOT_HARDWARE_SECURITY_TOOLS_PACMAN[@]}"
-    install_packages "yay" "IoT (AUR)" "${IOT_HARDWARE_SECURITY_TOOLS_YAY[@]}"
-    install_git_repos "git" "${IOT_HARDWARE_SECURITY_TOOLS_GIT[@]}"
-}
-
-# ---
-# MAIN LOGIC AND EXECUTION
-# ---
-
-handle_interrupt() {
-    echo -e "\n${BOLD}${RED}Installation Interrupted!${RESET}\n"
-    log_message "WARNING" "Installation process was interrupted by user."
-    exit 130
-}
-
-parse_arguments() {
-    INSTALL_CATEGORIES=()
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            -s|--standard-only) INSTALL_MODE="standard"; shift ;;
-            -a|--all-blackarch) INSTALL_MODE="all-blackarch"; shift ;;
-            -g|--group) INSTALL_MODE="group"; GROUP_NAME="$2"; shift 2 ;;
-            -p|--packages) INSTALL_MODE="custom"; PACKAGE_LIST="$2"; shift 2 ;;
-            --offensive) INSTALL_CATEGORIES+=("offensive"); shift ;;
-            --defensive) INSTALL_CATEGORIES+=("defensive"); shift ;;
-            --mobile) INSTALL_CATEGORIES+=("mobile"); shift ;;
-            --iot) INSTALL_CATEGORIES+=("iot"); shift ;;
-            --all-tools) INSTALL_CATEGORIES+=("all"); shift ;;
-            -z|--zen-kernel) INSTALL_ZEN_KERNEL=true; shift ;;
-            -q|--quiet) QUIET_MODE=true; shift ;;
-            --auto-cleanup) AUTO_CLEANUP=true; shift ;;
-            -h|--help) show_usage; exit 0 ;;
-            *) log_message "ERROR" "Unknown option: $1"; show_usage; exit 1 ;;
-        esac
-    done
-}
-
-post_install_setup() {
-    log_message "STEP" "Post-Installation Setup"
-    
-    if command -v msfdb >/dev/null 2>&1; then
-        echo -ne "${YELLOW}Metasploit found. Initialize its database? (This can take a while) [y/N]: ${RESET}"
-        read -r answer
-        if [[ "$answer" =~ ^[Yy]$ ]]; then
-            log_message "INFO" "Initializing Metasploit database..."
-            msfdb init
-            log_message "SUCCESS" "Metasploit database initialized."
-        fi
     fi
     
-    if command -v systemctl >/dev/null 2>&1 && pacman -Q audit >/dev/null 2>&1; then
-        echo -ne "${YELLOW}Auditd (Linux Audit Daemon) is installed. Enable and start the service? [y/N]: ${RESET}"
-        read -r answer
-        if [[ "$answer" =~ ^[Yy]$ ]]; then
-            log_message "INFO" "Enabling and starting auditd service..."
-            systemctl enable auditd.service && systemctl start auditd.service
-            log_message "SUCCESS" "auditd service enabled and started."
-        fi
-    fi
+    start_progress "Installing Zen kernel"
+    pacman -S --noconfirm --needed linux-zen linux-zen-headers &>/dev/null
+    grub-mkconfig -o /boot/grub/grub.cfg &>/dev/null
+    stop_progress
+    echo -e "${GREEN}✓${RESET} Zen kernel installed (reboot required)"
 }
 
-show_manual_install_notes() {
-    if [ ${#MANUAL_INSTALL_TOOLS[@]} -gt 0 ]; then
-        echo -e "\n${YELLOW}${BOLD}--- Manual Installation Required ---${RESET}"
-        echo -e "${INFO} The following tools are commercial or require manual setup and could not be installed automatically:"
-        for tool_info in "${MANUAL_INSTALL_TOOLS[@]}"; do
-            tool_name=$(echo "$tool_info" | cut -d':' -f1)
-            tool_desc=$(echo "$tool_info" | cut -d':' -f2-)
-            echo -e "  - ${BOLD}$tool_name${RESET}:$tool_desc"
-        done
-        echo -e "${YELLOW}${BOLD}------------------------------------${RESET}"
-    fi
-}
-
-cleanup_system() {
-    log_message "STEP" "Performing System Cleanup"
-    local do_cleanup=false
-    if [ "$AUTO_CLEANUP" == true ]; then
-        do_cleanup=true
-    else
-        echo -ne "${YELLOW}Clean up orphaned packages and package cache? [y/N]: ${RESET}"
-        read -r answer
-        if [[ "$answer" =~ ^[Yy]$ ]]; then
-            do_cleanup=true
-        fi
-    fi
-
-    if [ "$do_cleanup" == true ]; then
-        log_message "INFO" "Removing orphaned packages..."
-        pacman -Rns --noconfirm $(pacman -Qtdq) 2>/dev/null
-        log_message "INFO" "Cleaning package cache..."
-        pacman -Scc --noconfirm
-        log_message "SUCCESS" "System cleanup complete."
-    fi
-}
-
-main() {
-    trap handle_interrupt SIGINT SIGTERM
+# ---
+# MENU SYSTEM
+# ---
+show_main_menu() {
+    clear
     display_banner
-    parse_arguments "$@"
-    check_root
-
-    log_message "INFO" "Starting KYGOX installation process."
-    log_message "INFO" "Original User: $ORIGINAL_USER | Log Directory: $LOG_DIR"
     
-    # --- System Setup ---
-    add_security_repo
-    update_databases
-    install_yay
-    if [ "$INSTALL_ZEN_KERNEL" == true ]; then
-        install_zen_kernel
-    fi
-    
-    # --- Installation Logic ---
-    if [ "${#INSTALL_CATEGORIES[@]}" -gt 0 ]; then
-        install_standard_suite # Always install the base standard suite
-        for category in "${INSTALL_CATEGORIES[@]}"; do
-            case "$category" in
-                offensive) install_offensive_tools ;;
-                defensive) install_defensive_tools ;;
-                mobile) install_mobile_tools ;;
-                iot) install_iot_tools ;;
-                all)
-                    install_offensive_tools
-                    install_defensive_tools
-                    install_mobile_tools
-                    install_iot_tools
-                    ;;
-            esac
-        done
-    fi
+    echo -e "${WHITE}${BOLD}SELECT INSTALLATION MODE${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo
+    echo -e "${CYAN}${BOLD}1${RESET}) ${GEAR} ${WHITE}Standard Suite${RESET}     ${DIM}Industry standard security tools${RESET}"
+    echo -e "${CYAN}${BOLD}2${RESET}) ${ROCKET} ${WHITE}Red Team Arsenal${RESET}   ${DIM}Advanced offensive security tools${RESET}"
+    echo -e "${CYAN}${BOLD}3${RESET}) ${SHIELD} ${WHITE}Blue Team Defense${RESET}  ${DIM}Defensive & monitoring tools${RESET}"
+    echo -e "${CYAN}${BOLD}4${RESET}) ${PHONE} ${WHITE}Mobile Security${RESET}    ${DIM}iOS/Android security testing${RESET}"
+    echo -e "${CYAN}${BOLD}5${RESET}) ${CHIP} ${WHITE}IoT & Hardware${RESET}     ${DIM}Hardware hacking & IoT tools${RESET}"
+    echo -e "${CYAN}${BOLD}6${RESET}) ${CROWN} ${WHITE}Complete Arsenal${RESET}   ${DIM}All available security tools${RESET}"
+    echo
+    echo -e "${YELLOW}${BOLD}Advanced Options${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${CYAN}${BOLD}7${RESET}) ${LIGHTNING} ${WHITE}Zen Kernel${RESET}        ${DIM}Install high-performance kernel${RESET}"
+    echo -e "${CYAN}${BOLD}8${RESET}) ${FIRE} ${WHITE}Custom Install${RESET}     ${DIM}Choose specific categories${RESET}"
+    echo -e "${CYAN}${BOLD}9${RESET}) ${WHITE}Exit${RESET}                ${DIM}Exit installer${RESET}"
+    echo
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -ne "${WHITE}Select option ${CYAN}[1-9]${WHITE}: ${RESET}"
+}
 
-    case "$INSTALL_MODE" in
-        "standard")
-            install_standard_suite
+show_custom_menu() {
+    clear
+    display_banner
+    
+    echo -e "${WHITE}${BOLD}CUSTOM INSTALLATION${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo
+    echo -e "${WHITE}Select multiple categories (space-separated):${RESET}"
+    echo -e "${CYAN}1${RESET}) Standard Suite    ${CYAN}2${RESET}) Red Team Arsenal"
+    echo -e "${CYAN}3${RESET}) Blue Team Defense ${CYAN}4${RESET}) Mobile Security"
+    echo -e "${CYAN}5${RESET}) IoT & Hardware    ${CYAN}6${RESET}) Zen Kernel"
+    echo
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -ne "${WHITE}Enter selections ${CYAN}[1-6]${WHITE}: ${RESET}"
+}
+
+# ---
+# MAIN EXECUTION
+# ---
+handle_selection() {
+    local selection="$1"
+    
+    case $selection in
+        1) install_category "standard" ;;
+        2) install_category "redteam" ;;
+        3) install_category "blueteam" ;;
+        4) install_category "mobile" ;;
+        5) install_category "iot" ;;
+        6) install_category "fullkit" ;;
+        7) install_zen_kernel ;;
+        8) 
+            show_custom_menu
+            read -r custom_selections
+            for sel in $custom_selections; do
+                case $sel in
+                    1) install_category "standard" ;;
+                    2) install_category "redteam" ;;
+                    3) install_category "blueteam" ;;
+                    4) install_category "mobile" ;;
+                    5) install_category "iot" ;;
+                    6) install_zen_kernel ;;
+                esac
+            done
             ;;
-        "all-blackarch")
-            log_message "STEP" "Installing ALL BlackArch tools"
-            pacman -S --noconfirm --needed blackarch
+        9) 
+            echo -e "${YELLOW}Installation cancelled${RESET}"
+            exit 0
             ;;
-        "group")
-            if [ -n "$GROUP_NAME" ]; then
-                log_message "STEP" "Installing BlackArch group: $GROUP_NAME"
-                pacman -S --noconfirm --needed "$GROUP_NAME"
-            else
-                log_message "ERROR" "Group name not provided for group installation mode."
-            fi
-            ;;
-        "custom")
-            if [ -f "$PACKAGE_LIST" ]; then
-                log_message "STEP" "Installing from custom package file: $PACKAGE_LIST"
-                pacman -S --noconfirm --needed - < "$PACKAGE_LIST"
-            else
-                log_message "ERROR" "Package list file not found: $PACKAGE_LIST"
-            fi
+        *)
+            echo -e "${RED}❌ Invalid selection${RESET}"
+            return 1
             ;;
     esac
+}
+
+cleanup() {
+    stop_progress
+    rm -rf "$TEMP_DIR"
     
-    # --- Finalization ---
-    post_install_setup
-    cleanup_system
-    
-    log_message "SUCCESS" "KYGOX installation process completed."
+    # System cleanup
+    start_progress "Cleaning up system"
+    pacman -Rns --noconfirm $(pacman -Qtdq) &>/dev/null 2>&1
+    pacman -Scc --noconfirm &>/dev/null
+    stop_progress
+    echo -e "${GREEN}✓${RESET} System cleaned up"
+}
+
+show_completion() {
+    clear
+    echo -e "${GREEN}${BOLD}"
+    cat << 'COMPLETE'
+    ██████╗ ██████╗ ██╗   ██╗██████╗ ██╗     ███████╗████████╗███████╗
+    ██╔══██╗██╔══██╗████╗ ████║██╔══██╗██║     ██╔════╝╚══██╔══╝██╔════╝
+    ██║  ██║██████╔╝██╔████╔██║██████╔╝██║     █████╗     ██║   █████╗  
+    ██║  ██║██╔══██╗██║╚██╔╝██║██╔═══╝ ██║     ██╔══╝     ██║   ██╔══╝  
+    ██████╔╝██║  ██║██║ ╚═╝ ██║██║     ███████╗███████╗   ██║   ███████╗
+    ╚═════╝ ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+COMPLETE
+    echo -e "${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${GREEN}${BOLD}🎉 KYGOX INSTALLATION COMPLETE! 🎉${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${CYAN}Version: ${WHITE}$SCRIPT_VERSION${RESET}"
+    echo -e "${CYAN}User: ${WHITE}$ORIGINAL_USER${RESET}"
+    echo -e "${CYAN}Tools Directory: ${WHITE}$TOOL_SRC_DIR${RESET}"
+    echo -e "${CYAN}Logs: ${WHITE}$LOG_DIR${RESET}"
+    echo
+    echo -e "${YELLOW}${BOLD}💀 HAPPY HACKING! 💀${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 }
 
 # ---
-# SCRIPT ENTRY POINT
+# PARAMETER HANDLING
 # ---
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-    
-    # Final Summary
-    echo -e "\n${BOLD}${GREEN}✓ KYGOX Installation Complete!${RESET}"
-    echo -e "${INFO} Logs are available in the '$LOG_DIR' directory."
-    if [ -d "$TOOL_SRC_DIR" ]; then
-        echo -e "${INFO} Git-based tools have been cloned to '$TOOL_SRC_DIR'."
-    fi
-    if [ "$INSTALL_ZEN_KERNEL" == true ]; then
-        echo -e "${WARNING} A system reboot is required to boot into the new Zen kernel."
-    fi
+handle_parameters() {
+    case "$1" in
+        -fullkit|--fullkit)
+            echo -e "${ROCKET} ${WHITE}Full Kit Installation Mode${RESET}"
+            setup_environment
+            install_category "fullkit"
+            install_zen_kernel
+            cleanup
+            show_completion
+            exit 0
+            ;;
+        -standard|--standard)
+            echo -e "${GEAR} ${WHITE}Standard Suite Installation${RESET}"
+            setup_environment
+            install_category "standard"
+            cleanup
+            show_completion
+            exit 0
+            ;;
+        -redteam|--redteam)
+            echo -e "${ROCKET} ${WHITE}Red Team Arsenal Installation${RESET}"
+            setup_environment
+            install_category "redteam"
+            cleanup
+            show_completion
+            exit 0
+            ;;
+        -blueteam|--blueteam)
+            echo -e "${SHIELD} ${WHITE}Blue Team Defense Installation${RESET}"
+            setup_environment
+            install_category "blueteam"
+            cleanup
+            show_completion
+            exit 0
+            ;;
+        -mobile|--mobile)
+            echo -e "${PHONE} ${WHITE}Mobile Security Installation${RESET}"
+            setup_environment
+            install_category "mobile"
+            cleanup
+            show_completion
+            exit 0
+            ;;
+        -iot|--iot)
+            echo -e "${CHIP} ${WHITE}IoT & Hardware Installation${RESET}"
+            setup_environment
+            install_category "iot"
+            cleanup
+            show_completion
+            exit 0
+            ;;
+        -zen|--zen)
+            echo -e "${LIGHTNING} ${WHITE}Zen Kernel Installation${RESET}"
+            setup_environment
+            install_zen_kernel
+            cleanup
+            show_completion
+            exit 0
+            ;;
+        -h|--help)
+            display_banner
+            echo -e "${WHITE}${BOLD}USAGE:${RESET}"
+            echo -e "${CYAN}sudo $0${RESET}                    ${DIM}# Interactive menu${RESET}"
+            echo -e "${CYAN}sudo $0 -fullkit${RESET}           ${DIM}# Install complete arsenal${RESET}"
+            echo -e "${CYAN}sudo $0 -standard${RESET}          ${DIM}# Install standard tools${RESET}"
+            echo -e "${CYAN}sudo $0 -redteam${RESET}           ${DIM}# Install red team tools${RESET}"
+            echo -e "${CYAN}sudo $0 -blueteam${RESET}          ${DIM}# Install blue team tools${RESET}"
+            echo -e "${CYAN}sudo $0 -mobile${RESET}            ${DIM}# Install mobile security tools${RESET}"
+            echo -e "${CYAN}sudo $0 -iot${RESET}               ${DIM}# Install IoT & hardware tools${RESET}"
+            echo -e "${CYAN}sudo $0 -zen${RESET}               ${DIM}# Install Zen kernel${RESET}"
+            exit 0
+            ;;
+    esac
+}
 
-    show_manual_install_notes
-    echo -e "\n${BOLD}${BLUE}Happy Hacking!${RESET}"
-fi
+# ---
+# MAIN FUNCTION
+# ---
+main() {
+    # Handle parameters first
+    if [ $# -gt 0 ]; then
+        handle_parameters "$1"
+    fi
+    
+    # System checks
+    check_debian_redirect
+    check_root
+    
+    # Setup environment
+    setup_environment
+    
+    # Main menu loop
+    while true; do
+        show_main_menu
+        read -r selection
+        
+        if handle_selection "$selection"; then
+            break
+        fi
+        
+        echo -e "${RED}Please try again...${RESET}"
+        sleep 2
+    done
+    
+    # Cleanup and completion
+    cleanup
+    show_completion
+}
+
+# ---
+# SIGNAL HANDLING
+# ---
+trap 'stop_progress; echo -e "\n${RED}Installation interrupted${RESET}"; exit 130' INT TERM
+
+# ---
+# ENTRY POINT
+# ---
+main "$@"
