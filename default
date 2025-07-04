@@ -1,8 +1,3 @@
-# KYGOX Default Package List - Version 0.1.5
-# Essential security tools for red team, blue team, and bug bounty operations
-# Created by 0xb0rn3 | github.com/0xb0rn3/kygox
-
-# Network Discovery & Scanning
 nmap
 masscan
 zmap
@@ -11,8 +6,6 @@ hping
 netdiscover
 arp-scan
 fping
-
-# Web Application Testing
 sqlmap
 nikto
 gobuster
@@ -28,8 +21,6 @@ burpsuite
 wafw00f
 commix
 xsser
-
-# Wireless Security
 aircrack-ng
 bettercap
 kismet
@@ -38,8 +29,6 @@ reaver
 pixiewps
 hostapd-wpe
 wpa_supplicant
-
-# Password Attacks
 john
 hashcat
 hydra
@@ -50,8 +39,6 @@ cewl
 cupp
 brutespray
 crowbar
-
-# Exploitation Frameworks
 metasploit
 impacket
 powershell-empire
@@ -61,8 +48,6 @@ responder
 bloodhound
 nishang
 powersploit
-
-# Reconnaissance & OSINT
 theharvester
 recon-ng
 sublist3r
@@ -74,8 +59,6 @@ aquatone
 photon
 sherlock
 spiderfoot
-
-# Vulnerability Scanners
 openvas
 nexpose
 nuclei
@@ -85,8 +68,6 @@ skipfish
 w3af
 wapiti
 uniscan
-
-# Forensics & Analysis
 volatility
 autopsy
 sleuthkit
@@ -97,8 +78,6 @@ safecopy
 dc3dd
 ddrescue
 binwalk
-
-# Reverse Engineering
 radare2
 ghidra
 ida-free
@@ -109,8 +88,6 @@ strace
 gdb
 immunity-debugger
 ollydbg
-
-# Cryptography
 hashcat
 john
 hashid
@@ -121,8 +98,6 @@ rarcrack
 samdump2
 ophcrack
 rainbow-tables
-
-# Social Engineering
 setoolkit
 king-phisher
 gophish
@@ -132,8 +107,6 @@ creepy
 sherlock
 phoneinfoga
 whatsmyname
-
-# Mobile Security
 mobsf
 drozer
 apktool
@@ -144,8 +117,6 @@ objection
 android-sdk
 adb-fastboot
 apkid
-
-# Network Analysis
 wireshark-qt
 tcpdump
 tshark
@@ -156,8 +127,6 @@ chaosreader
 tcpflow
 tcptrace
 tcpreplay
-
-# Post-Exploitation
 mimikatz
 rubeus
 sharphound
@@ -168,8 +137,6 @@ weevely
 webshell
 laudanum
 b374k
-
-# Steganography
 steghide
 outguess
 stegsolve
@@ -178,8 +145,6 @@ steganabara
 steg
 jsteg
 mp3stego
-
-# Buffer Overflow
 pattern_create
 pattern_offset
 mona
@@ -188,8 +153,6 @@ windbg
 gdb-peda
 ropper
 ropgadget
-
-# DNS Tools
 dnsenum
 dnsrecon
 dnsmap
@@ -199,8 +162,6 @@ dnsdict6
 dnsbrute
 subbrute
 massdns
-
-# Cloud Security
 awscli
 azure-cli
 gcloud
@@ -209,8 +170,6 @@ prowler
 pacu
 cloudmapper
 cloud-enum
-
-# Container Security
 docker
 docker-compose
 kubernetes
@@ -219,8 +178,6 @@ kube-bench
 clair
 anchore
 trivy
-
-# API Testing
 postman
 insomnia
 swagger
@@ -229,8 +186,6 @@ owasp-zap
 fuzzapi
 restler
 soapui
-
-# Log Analysis
 logstash
 elasticsearch
 kibana
@@ -239,8 +194,6 @@ graylog
 ossec
 aide
 tripwire
-
-# Malware Analysis
 cuckoo
 yara
 virustotal-cli
@@ -249,8 +202,6 @@ upx
 malzilla
 remnux
 flare-vm
-
-# Hardware Security
 arduino
 raspberry-pi
 rtl-sdr
@@ -259,8 +210,6 @@ proxmark3
 flipper-zero
 bus-pirate
 logic-analyzer
-
-# Reporting Tools
 dradis
 faraday
 serpico
@@ -268,8 +217,6 @@ vulnreport
 writehat
 ghostwriter
 plextrac
-
-# Utility Tools
 tmux
 screen
 vim
@@ -280,8 +227,6 @@ wget
 netcat
 ncat
 socat
-
-# Development Tools
 python3
 python2
 ruby
@@ -292,8 +237,6 @@ go
 rust
 gcc
 make
-
-# System Tools
 htop
 iotop
 iftop
