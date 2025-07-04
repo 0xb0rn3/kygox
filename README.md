@@ -16,69 +16,65 @@
 </div>
 
 ```
-██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
-██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
-█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
-██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
-██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
-╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██████╗ ██╗ █████╗ ██████╗██╗  ██╗
+██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗ ██╔══██╗██║ ██╔══██╗██╔════╝██║ ██╔╝
+█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ██████╔╝██║ ███████║██║     █████╔╝ 
+██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔══██╗██║ ██╔══██║██║     ██╔═██╗ 
+██║  ██╗   ██║   ╚██████╔╝╚██████╔╝ ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗
+╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
 ```
 
 ## 📋 Overview
 
 KYGOX (Advanced Arch Linux Security Testing Suite) represents the evolution of security tool deployment on Arch Linux systems. This enhanced edition transforms complex penetration testing environment setup into an intelligent, streamlined process with enterprise-grade reliability and comprehensive automation.
 
-Built from the ground up with modularity, performance optimization, and user experience at its core, KYGOX delivers not just tool installation but a complete security testing ecosystem with advanced features like kernel optimization, intelligent dependency resolution, and sophisticated error recovery mechanisms.
+Built from the ground up with modularity, performance optimization, and user experience at its core, KYGOX delivers not just tool installation but a complete security testing ecosystem with advanced features like intelligent dependency resolution, sophisticated error recovery mechanisms, and comprehensive backup management.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
 ## ✨ Advanced Features
 
-### 🎯 Interactive Menu System
-KYGOX features an intelligent menu-driven interface that guides users through installation options with visual feedback and real-time progress indicators. The system automatically detects your environment and presents appropriate installation categories.
+### 🎯 Intelligent Installation System
+KYGOX features an advanced installation system that handles complex package dependencies, file conflicts, and provides robust error recovery. The system automatically detects and resolves conflicts while maintaining detailed logs of all operations.
 
-### 📦 Categorized Installation Options
+### 📦 Flexible Installation Options
 
-**Standard Suite** (⚙️): Industry-standard security tools including network scanners (nmap, masscan), traffic analyzers (wireshark, tcpdump), wireless security tools (aircrack-ng, bettercap), password crackers (john, hashcat, hydra), web application scanners (sqlmap, nikto, gobuster), and essential exploitation frameworks (metasploit, impacket).
+**Complete Arsenal** (--all): Install all available BlackArch security tools for comprehensive penetration testing laboratories. This option deploys the entire BlackArch repository, providing access to thousands of security tools across all categories.
 
-**Red Team Arsenal** (🚀): Advanced offensive security tools including covenant, rubeus, mimikatz, eyewitness, nuclei, crackmapexec, subfinder, and specialized tools for advanced persistent threat simulation and red team operations.
+**Package Groups** (--group): Install specific BlackArch package groups such as exploitation, wireless, web, forensics, crypto, and more. This targeted approach allows users to install only the tools relevant to their specific security testing needs.
 
-**Blue Team Defense** (🛡️): Comprehensive defensive security tools including intrusion detection systems (suricata, snort, zeek), security monitoring (ossec, aide, tripwire), network analysis tools (zmap, hping3, netdiscover), and log analysis frameworks (graylog, elk stack components).
+**Custom Package Lists** (--packages): Install from custom package lists using the included `default` file or your own custom lists. This provides ultimate flexibility for creating tailored security environments.
 
-**Mobile Security** (📱): Specialized mobile application security testing tools including mobsf, drozer, apktool, frida-tools, objection, and iOS/Android reverse engineering utilities for comprehensive mobile security assessments.
+### 🚀 Enterprise-Grade Reliability
 
-**IoT & Hardware** (🔧): Internet of Things and hardware security testing tools including firmware analysis utilities (firmware-mod-kit, binwalk), hardware debugging tools (openocd, flashrom), and radio frequency analysis tools (rtl-sdr, hackrf, gnuradio).
+**Advanced Conflict Resolution**: Sophisticated file conflict handling with automatic backup creation, intelligent package removal, and restoration capabilities. The system can handle complex dependency chains and version conflicts automatically.
 
-**Complete Arsenal** (👑): Full deployment of all available security tools across all categories for comprehensive security testing laboratories.
+**Comprehensive Backup System**: Automatic backup of conflicting files with organized storage in timestamped directories. Users can choose to keep, move, or remove backups after installation completion.
 
-### 🚀 Performance & System Optimization
+**Intelligent Retry Mechanisms**: Failed packages are automatically retried using the YAY AUR helper, providing multiple installation pathways and maximizing success rates.
 
-**Zen Kernel Integration** (⚡): Automatically install and configure the Zen kernel for enhanced system performance during intensive security testing operations. The installer handles GRUB configuration updates and provides clear reboot notifications.
+**Robust Error Recovery**: Advanced error handling with detailed logging, graceful interruption management, and system integrity preservation throughout the installation process.
 
-**Intelligent Package Management**: Advanced dependency resolution with automatic handling of both official Arch repositories and AUR packages. The system intelligently determines the best installation source for each tool and handles conflicts automatically.
+### 🔧 Advanced Package Management
 
-**YAY AUR Helper Integration**: Seamless integration with the YAY AUR helper for accessing community-maintained security tools not available in official repositories.
+**Dual Repository Support**: Seamless integration with both official Arch repositories and AUR packages through the YAY helper. The system intelligently determines the best installation source for each tool.
 
-### 🔧 Enterprise-Grade Reliability
+**BlackArch Integration**: Automatic BlackArch repository setup with proper GPG key management and secure repository configuration. The system handles all aspects of BlackArch integration transparently.
 
-**Comprehensive Progress Tracking**: Real-time visual progress indicators with animated spinners and percentage completion tracking for all installation phases.
-
-**Automatic System Cleanup**: Built-in cleanup procedures that remove unnecessary packages and clear package caches to maintain system efficiency.
-
-**Robust Error Handling**: Advanced error recovery mechanisms with graceful interrupt handling and system integrity preservation.
-
-**Secure Installation Process**: Proper privilege management with user context preservation for AUR builds while maintaining security throughout the installation process.
+**Dependency Resolution**: Intelligent dependency management that automatically installs required base packages, development tools, and system libraries needed for security tool compilation and operation.
 
 ### 💻 Enhanced User Experience
 
-**Adaptive Interface**: Color-coded output with symbolic indicators, progress visualization, and context-aware information display that adapts to terminal capabilities.
+**Visual Progress Tracking**: Real-time progress indicators with detailed package information, success/failure tracking, and comprehensive installation statistics.
 
-**Multiple Operation Modes**: 
-- **Interactive Mode**: Rich visual menu system with guided installation choices
-- **Command Line Mode**: Direct category installation via command line parameters
-- **Batch Mode**: Support for automated deployment scenarios
+**Detailed Logging**: Complete installation logs with categorized message levels, error details, and package-specific logs for troubleshooting and audit purposes.
 
-**Installation Interruption Handling**: Graceful handling of Ctrl+C interruptions with proper cleanup procedures and system integrity preservation.
+**Flexible Operation Modes**: 
+- **Interactive Mode**: Rich visual interface with real-time progress updates
+- **Quiet Mode**: Minimal output for automated deployments
+- **Auto-cleanup Mode**: Automatic backup and cache management
+
+**Graceful Interruption Handling**: Proper handling of Ctrl+C interruptions with cleanup procedures and system integrity preservation.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
@@ -86,9 +82,9 @@ KYGOX features an intelligent menu-driven interface that guides users through in
 
 ### System Requirements
 
-KYGOX has been extensively tested and optimized for Arch Linux and Arch-based distributions. The installer includes automatic detection for Debian-based systems and will redirect users to the appropriate KRILIN installer for those environments.
+KYGOX has been extensively tested and optimized for Arch Linux and Arch-based distributions. The installer requires root privileges, internet connectivity, and adequate storage space for selected tool categories.
 
-**Prerequisites**: Root privileges, internet connectivity, bash shell, and adequate storage space for selected tool categories.
+**Prerequisites**: Root privileges, internet connectivity, bash shell, and sufficient storage space (varies by installation type: 2GB minimum for targeted installations, 20GB+ for complete arsenal).
 
 ### Installation Methods
 
@@ -124,118 +120,149 @@ sudo ./run
 ```bash
 sudo ./run [options]
 
-Interactive Mode:
-  sudo ./run                    # Launch interactive menu system
+Installation Options:
+  -a, --all                    # Install all BlackArch packages
+  -g, --group GROUP           # Install specific package group
+  -p, --packages FILE         # Install from custom package list
 
-Direct Installation Options:
-  -fullkit, --fullkit          # Install complete security arsenal
-  -standard, --standard        # Install standard security tools
-  -redteam, --redteam          # Install red team arsenal
-  -blueteam, --blueteam        # Install blue team defense tools
-  -mobile, --mobile            # Install mobile security tools
-  -iot, --iot                  # Install IoT & hardware tools
-  -zen, --zen                  # Install Zen kernel only
+Operation Modes:
+  -q, --quiet                 # Quiet mode with minimal output
+  --auto-cleanup              # Automatic backup and cache cleanup
 
-  -h, --help                   # Show help message
+  -h, --help                  # Show help message
 ```
 
 ### Real-World Usage Examples
 
-**Interactive Installation**:
+**Complete Security Arsenal**:
 ```bash
-# Launch the menu-driven interface
-sudo ./run
+# Install all available BlackArch tools
+sudo ./run --all
 ```
 
-**Complete Security Lab Setup**:
+**Targeted Security Categories**:
 ```bash
-# Install everything with performance optimization
-sudo ./run -fullkit
+# Install exploitation tools
+sudo ./run --group exploitation
+
+# Install wireless security tools
+sudo ./run --group wireless
+
+# Install web application testing tools
+sudo ./run --group webapp
 ```
 
-**Targeted Penetration Testing Environment**:
+**Custom Tool Selection**:
 ```bash
-# Install red team tools for offensive security
-sudo ./run -redteam
+# Install from the included default package list
+sudo ./run --packages default
+
+# Install from your custom package list
+sudo ./run --packages my_custom_tools.txt
 ```
 
-**Mobile Security Testing Lab**:
+**Automated Deployment**:
 ```bash
-# Deploy mobile security testing tools
-sudo ./run -mobile
+# Silent installation with automatic cleanup
+sudo ./run --packages default --quiet --auto-cleanup
 ```
 
-**Performance Optimization Only**:
-```bash
-# Install Zen kernel for better performance
-sudo ./run -zen
-```
+### Using the Default Package List
 
-**Standard Security Toolkit**:
+KYGOX includes a curated `default` package list that contains essential tools for red team operations, blue team defense, and bug bounty hunting. This carefully selected collection provides a comprehensive foundation for security testing without the storage requirements of a full BlackArch installation.
+
+The default list includes:
+- **Network Discovery & Scanning**: nmap, masscan, zmap, unicornscan
+- **Web Application Testing**: sqlmap, nikto, gobuster, dirb, wfuzz, ffuf, whatweb
+- **Wireless Security**: aircrack-ng, bettercap, kismet, wifite
+- **Password Attacks**: john, hashcat, hydra, medusa, patator
+- **Exploitation Frameworks**: metasploit, impacket, covenant, empire
+- **Reconnaissance**: theHarvester, recon-ng, sublist3r, amass
+- **Forensics & Analysis**: volatility, autopsy, sleuthkit, foremost
+- **And many more specialized tools for comprehensive security testing
+
+To use the default package list:
 ```bash
-# Essential tools for general security testing
-sudo ./run -standard
+sudo ./run --packages default
 ```
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
 ## 🔍 Advanced Architecture
 
-### Core Security Tools Integration
+### Core System Integration
 
-KYGOX automatically deploys curated collections of security tools organized by use case. The standard suite includes essential tools like nmap for network discovery, wireshark for traffic analysis, aircrack-ng for wireless security, john and hashcat for password cracking, sqlmap for database security testing, and metasploit for exploitation frameworks.
+KYGOX automatically handles complex system integration tasks including BlackArch repository setup, GPG key management, package database synchronization, and dependency resolution. The system maintains security through proper privilege management and secure repository configuration.
 
-### BlackArch Repository Integration
+### Intelligent Package Management
 
-The installer seamlessly integrates with BlackArch repository infrastructure while maintaining system security through proper GPG key management and repository configuration. The system disguises the BlackArch repository name for operational security purposes.
+The installer implements sophisticated package management including automatic conflict resolution, intelligent retry mechanisms, and comprehensive backup systems. Failed installations are automatically retried using alternative installation methods to maximize success rates.
 
-### AUR Package Management
+### Backup and Recovery System
 
-KYGOX includes sophisticated AUR integration through the YAY helper, enabling installation of community-maintained security tools. The system properly handles user context switching to ensure AUR packages are built with appropriate privileges while maintaining system security.
+KYGOX includes a comprehensive backup system that automatically creates timestamped backups of conflicting files, organizes them in structured directories, and provides flexible cleanup options. The system ensures that no system files are lost during the installation process.
 
-### System Integration Features
+### Logging and Monitoring
 
-**Kernel Optimization**: Zen kernel installation includes automatic GRUB configuration updates with proper bootloader management and user notification for reboot requirements.
-
-**Package Database Management**: Intelligent package database synchronization with error handling and retry mechanisms to ensure consistent package availability.
-
-**Security Repository Setup**: Automated BlackArch repository configuration with proper signature verification and secure repository addition procedures.
+The installer maintains detailed logs of all operations in the `bkygo_logs` directory, including main installation logs, package-specific error logs, and lists of failed and skipped packages. This comprehensive logging system enables effective troubleshooting and installation auditing.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
-## 📊 Monitoring & Logging
+## 📊 Installation Categories
 
-### Comprehensive Logging System
+### Available BlackArch Groups
 
-KYGOX creates detailed logs in the `~/.kygox` directory structure within the user's home directory. The logging system maintains complete installation timelines with categorized message levels and detailed progress tracking.
+KYGOX supports installation of specific BlackArch package groups, allowing users to install only the tools relevant to their security testing needs. Popular groups include:
 
-### Progress Monitoring
+- **exploitation**: Exploitation tools and frameworks
+- **wireless**: Wireless security testing tools
+- **webapp**: Web application security tools
+- **scanner**: Network and vulnerability scanners
+- **forensic**: Digital forensics and analysis tools
+- **crypto**: Cryptographic tools and utilities
+- **social**: Social engineering tools
+- **mobile**: Mobile security testing tools
+- **hardware**: Hardware security testing tools
+- **malware**: Malware analysis and reverse engineering
 
-Real-time progress tracking includes visual progress indicators with animated spinners, percentage completion tracking for category installations, and detailed status updates for each installation phase.
+To see all available groups:
+```bash
+pacman -Sg | grep blackarch
+```
 
-### System State Management
+### Custom Package Lists
 
-The installer maintains temporary working directories in `/tmp/kygox_$$` with automatic cleanup procedures and organized tool source storage in `/opt/kygox` for easy access and management.
+Users can create custom package lists by creating text files with one package name per line. The installer will attempt to install each package using the most appropriate method (official repos, BlackArch, or AUR).
+
+Example custom list format:
+```
+nmap
+sqlmap
+metasploit
+wireshark-qt
+aircrack-ng
+john
+```
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
 ## 🔧 Troubleshooting & Recovery
 
-### Automatic System Detection
+### Automatic Error Recovery
 
-KYGOX automatically detects the system distribution and redirects Debian-based users to the appropriate KRILIN installer, ensuring compatibility and preventing installation issues on unsupported systems.
+KYGOX implements multiple error recovery mechanisms including automatic file conflict resolution, dependency issue handling, and intelligent retry logic. The system attempts to resolve issues automatically before requiring user intervention.
 
-### Package Conflict Resolution
+### Backup Management
 
-The system intelligently handles package conflicts by attempting official repository installation first, then falling back to AUR packages when necessary. This approach minimizes conflicts while ensuring comprehensive tool availability.
+The installer creates comprehensive backups of any conflicting files and provides flexible cleanup options. Users can choose to keep backups in place, move them to organized directories, or remove them after successful installation.
 
-### Installation Recovery
+### Installation Resumption
 
-If installation issues occur, KYGOX provides multiple recovery mechanisms including automatic cleanup of temporary files, proper signal handling for interrupted installations, and preservation of system integrity through careful privilege management.
+If an installation is interrupted, users can resume by re-running the installer with the same options. The system will skip already-installed packages and continue with remaining installations.
 
-### Environment Validation
+### Log Analysis
 
-The installer performs comprehensive environment validation including root privilege verification, user context preservation, and system compatibility checks before beginning any installation procedures.
+Detailed logs are maintained in the `bkygo_logs` directory, including main installation logs, package-specific error logs, and failed package lists. These logs provide comprehensive information for troubleshooting installation issues.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
@@ -243,15 +270,18 @@ The installer performs comprehensive environment validation including root privi
 
 ### System Resource Management
 
-KYGOX is designed to efficiently manage system resources during installation. The installer creates organized directory structures for logs and temporary files while maintaining proper ownership and permissions throughout the process.
-
-### Installation Optimization
-
-The system implements several performance optimizations including intelligent tool categorization to minimize conflicts, proper package ordering to reduce dependency issues, and efficient progress tracking that doesn't impact installation performance.
+KYGOX is designed to efficiently manage system resources during installation. The installer handles large package installations with appropriate progress tracking and resource utilization monitoring.
 
 ### Storage Requirements
 
-Storage requirements vary significantly based on selected categories, ranging from approximately 2GB for standard tools to 20GB+ for complete arsenal deployment. The installer provides clear category descriptions to help users make informed decisions about storage allocation.
+Storage requirements vary significantly based on installation type:
+- **Targeted Groups**: 1-5GB depending on the group
+- **Default Package List**: Approximately 3-5GB
+- **Complete Arsenal**: 20GB+ for full BlackArch installation
+
+### Installation Optimization
+
+The system implements several performance optimizations including intelligent package ordering, efficient dependency resolution, and optimized compilation flags for AUR packages.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
@@ -259,43 +289,54 @@ Storage requirements vary significantly based on selected categories, ranging fr
 
 ### Privilege Management
 
-KYGOX implements careful privilege management throughout the installation process. The system requires root privileges for package installation while preserving user context for AUR builds, ensuring security without compromising functionality.
+KYGOX implements careful privilege management throughout the installation process. The system requires root privileges for system modifications while preserving user context for AUR builds, ensuring security without compromising functionality.
 
 ### Repository Security
 
-The installer maintains security through proper GPG key management for repository additions, secure repository configuration procedures, and verification of package authenticity during installation.
+The installer maintains security through proper GPG key management for BlackArch repository additions, secure repository configuration procedures, and verification of package authenticity during installation.
 
 ### System Integrity
 
-Installation procedures include comprehensive system integrity checks, proper cleanup of temporary files, and careful handling of system configurations to prevent security vulnerabilities.
+Installation procedures include comprehensive backup systems, proper cleanup of temporary files, and careful handling of system configurations to prevent security vulnerabilities and ensure system stability.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
 ## 🔄 Updates & Maintenance
 
-### Tool Categories
+### Package Updates
 
-KYGOX organizes security tools into logical categories that can be updated independently. Users can install additional categories at any time by re-running the installer with different options.
+Installed packages can be updated using standard Arch Linux package management tools:
+```bash
+# Update all packages
+sudo pacman -Syu
+
+# Update AUR packages
+yay -Syu
+```
 
 ### System Maintenance
 
-The installer includes automatic system cleanup procedures that remove unnecessary packages and clear package caches to maintain system efficiency and free up storage space.
+The installer includes automatic system cleanup procedures that remove unnecessary packages and clear package caches to maintain system efficiency. Users can also manually clean package caches:
+```bash
+# Clean package cache
+sudo pacman -Sc
+```
 
 ### Version Management
 
-The current stable version is 0.1.5, with ongoing development focused on expanding tool categories, improving installation reliability, and enhancing user experience through better progress tracking and error handling.
+The current stable version is 0.1.5, with ongoing development focused on improving installation reliability, expanding tool coverage, and enhancing user experience through better error handling and progress tracking.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
 ## ⚠️ Important Notices
 
-**System Modification Warning**: KYGOX makes significant system modifications including repository additions, kernel installations, and extensive package deployments. The installer performs these operations with appropriate safeguards but users should understand the scope of changes.
-
-**Debian System Redirection**: The installer automatically detects Debian-based systems and redirects users to the KRILIN installer specifically designed for those environments, preventing compatibility issues and ensuring optimal tool deployment.
+**System Modification Warning**: KYGOX makes significant system modifications including repository additions and extensive package deployments. The installer performs these operations with appropriate safeguards, but users should understand the scope of changes and ensure adequate system backups.
 
 **Root Privilege Requirement**: KYGOX requires root privileges for system modifications while maintaining proper user context for AUR builds. The installer validates privilege levels and user context before beginning installation procedures.
 
-**Security Tool Responsibility**: The tools installed by KYGOX are powerful security testing utilities. Users are responsible for ensuring all usage complies with applicable laws, regulations, and organizational policies.
+**Storage Space Requirements**: Security tool installations can consume significant storage space. Users should ensure adequate free space before beginning large installations and consider storage requirements when selecting installation options.
+
+**Security Tool Responsibility**: The tools installed by KYGOX are powerful security testing utilities designed for legitimate security testing purposes. Users are responsible for ensuring all usage complies with applicable laws, regulations, and organizational policies.
 
 ![-----------------------------------------------------](https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/colored.png)
 
@@ -315,7 +356,7 @@ KYGOX is released under the MIT License, providing flexibility for both personal
 
 ### Development Contributions
 
-KYGOX welcomes contributions including bug fixes, tool category expansions, user interface improvements, and testing on additional Arch-based distributions.
+KYGOX welcomes contributions including bug fixes, tool additions, user interface improvements, and testing on additional Arch-based distributions. Please submit pull requests with detailed descriptions of changes and improvements.
 
 ### Professional Support
 
