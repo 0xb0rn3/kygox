@@ -7,7 +7,7 @@ nmap
 masscan
 zmap
 unicornscan
-hping3
+hping
 netdiscover
 arp-scan
 fping
