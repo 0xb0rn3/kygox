@@ -1,0 +1,305 @@
+# KYGOX Default Package List - Version 0.1.5
+# Essential security tools for red team, blue team, and bug bounty operations
+# Created by 0xb0rn3 | github.com/0xb0rn3/kygox
+
+# Network Discovery & Scanning
+nmap
+masscan
+zmap
+unicornscan
+hping3
+netdiscover
+arp-scan
+fping
+
+# Web Application Testing
+sqlmap
+nikto
+gobuster
+dirb
+wfuzz
+ffuf
+whatweb
+wpscan
+joomscan
+droopescan
+cmsmap
+burpsuite
+wafw00f
+commix
+xsser
+
+# Wireless Security
+aircrack-ng
+bettercap
+kismet
+wifite
+reaver
+pixiewps
+hostapd-wpe
+wpa_supplicant
+
+# Password Attacks
+john
+hashcat
+hydra
+medusa
+patator
+crunch
+cewl
+cupp
+brutespray
+crowbar
+
+# Exploitation Frameworks
+metasploit
+impacket
+powershell-empire
+covenant
+crackmapexec
+responder
+bloodhound
+nishang
+powersploit
+
+# Reconnaissance & OSINT
+theharvester
+recon-ng
+sublist3r
+amass
+subfinder
+assetfinder
+httprobe
+aquatone
+photon
+sherlock
+spiderfoot
+
+# Vulnerability Scanners
+openvas
+nexpose
+nuclei
+nessus
+nikto
+skipfish
+w3af
+wapiti
+uniscan
+
+# Forensics & Analysis
+volatility
+autopsy
+sleuthkit
+foremost
+scalpel
+bulk_extractor
+safecopy
+dc3dd
+ddrescue
+binwalk
+
+# Reverse Engineering
+radare2
+ghidra
+ida-free
+objdump
+strings
+ltrace
+strace
+gdb
+immunity-debugger
+ollydbg
+
+# Cryptography
+hashcat
+john
+hashid
+hash-identifier
+fcrackzip
+pdfcrack
+rarcrack
+samdump2
+ophcrack
+rainbow-tables
+
+# Social Engineering
+setoolkit
+king-phisher
+gophish
+beef
+maltego
+creepy
+sherlock
+phoneinfoga
+whatsmyname
+
+# Mobile Security
+mobsf
+drozer
+apktool
+dex2jar
+jadx
+frida-tools
+objection
+android-sdk
+adb-fastboot
+apkid
+
+# Network Analysis
+wireshark-qt
+tcpdump
+tshark
+ettercap
+dsniff
+ngrep
+chaosreader
+tcpflow
+tcptrace
+tcpreplay
+
+# Post-Exploitation
+mimikatz
+rubeus
+sharphound
+empire
+covenant
+powershell-empire
+weevely
+webshell
+laudanum
+b374k
+
+# Steganography
+steghide
+outguess
+stegsolve
+openstego
+steganabara
+steg
+jsteg
+mp3stego
+
+# Buffer Overflow
+pattern_create
+pattern_offset
+mona
+immunity-debugger
+windbg
+gdb-peda
+ropper
+ropgadget
+
+# DNS Tools
+dnsenum
+dnsrecon
+dnsmap
+dnswalk
+fierce
+dnsdict6
+dnsbrute
+subbrute
+massdns
+
+# Cloud Security
+awscli
+azure-cli
+gcloud
+scout2
+prowler
+pacu
+cloudmapper
+cloud-enum
+
+# Container Security
+docker
+docker-compose
+kubernetes
+kube-hunter
+kube-bench
+clair
+anchore
+trivy
+
+# API Testing
+postman
+insomnia
+swagger
+burpsuite
+owasp-zap
+fuzzapi
+restler
+soapui
+
+# Log Analysis
+logstash
+elasticsearch
+kibana
+splunk
+graylog
+ossec
+aide
+tripwire
+
+# Malware Analysis
+cuckoo
+yara
+virustotal-cli
+peid
+upx
+malzilla
+remnux
+flare-vm
+
+# Hardware Security
+arduino
+raspberry-pi
+rtl-sdr
+hackrf
+proxmark3
+flipper-zero
+bus-pirate
+logic-analyzer
+
+# Reporting Tools
+dradis
+faraday
+serpico
+vulnreport
+writehat
+ghostwriter
+plextrac
+
+# Utility Tools
+tmux
+screen
+vim
+nano
+git
+curl
+wget
+netcat
+ncat
+socat
+
+# Development Tools
+python3
+python2
+ruby
+perl
+php
+nodejs
+go
+rust
+gcc
+make
+
+# System Tools
+htop
+iotop
+iftop
+nethogs
+ss
+lsof
+strace
+ltrace
+sysdig
