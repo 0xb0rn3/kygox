@@ -40,6 +40,7 @@ LOG_DIR="kygox_logs"
 MAIN_LOG="$LOG_DIR/installation.log"
 BACKUP_DIR="$LOG_DIR/backups"
 PACKAGE_LOG_DIR="$LOG_DIR/package_logs"
+DEFAULT_TOOLKIT="default.txt"
 
 # Version info - semantic versioning is for people who plan ahead
 VERSION="0.1.8"
@@ -112,6 +113,20 @@ declare -A tool_packages=(
     ["wget"]="wget"
 )
 
+# 2025 security toolkit priorities - because staying current matters
+declare -A priority_categories=(
+    ["recon"]="10"
+    ["exploitation"]="9"
+    ["webapp"]="9"
+    ["network"]="8"
+    ["wireless"]="8"
+    ["forensic"]="7"
+    ["crypto"]="7"
+    ["mobile"]="6"
+    ["hardware"]="5"
+    ["misc"]="3"
+)
+
 display_banner() {
     clear
     cat << 'EOF'
@@ -139,10 +154,12 @@ show_usage() {
     echo -e "  sudo $0 [OPTIONS]"
     echo
     echo -e "${BOLD}Options that actually matter:${RESET}"
+    echo -e "  -d, --default            Use the curated 2025 security toolkit (recommended)"
     echo -e "  -a, --all                Deploy everything (hope you have bandwidth)"
     echo -e "  -g, --group GROUP        Install specific tool category"
     echo -e "  -p, --packages FILE      Use your own damn package list"
     echo -e "  -q, --quiet              Shut up and install"
+    echo -e "  --generate-default       Generate default.txt and exit"
     echo -e "  --skip-aur               Skip AUR (for the impatient)"
     echo -e "  --no-sudo-cache          Disable sudo caching (for the paranoid)"
     echo
@@ -151,10 +168,12 @@ show_usage() {
     echo -e "  -v, --version            Version info nobody cares about"
     echo
     echo -e "${BOLD}Examples for the copy-paste warriors:${RESET}"
+    echo -e "  sudo $0 -d                          # 2025 security toolkit (smart choice)"
     echo -e "  sudo $0 -a                          # YOLO mode"
     echo -e "  sudo $0 -g exploitation             # Script kiddie starter pack"
     echo -e "  sudo $0 -g wireless                 # WiFi \"hacker\" essentials"
     echo -e "  sudo $0 -p my_tools.txt             # Your curated bloatware"
+    echo -e "  sudo $0 --generate-default          # Just build the toolkit list"
     echo
     echo -e "${BOLD}Tool categories (pick your poison):${RESET}"
     echo -e "  exploitation, wireless, webapp, scanner, forensic, crypto"
@@ -174,6 +193,7 @@ show_version() {
     echo
     echo -e "${BOLD}What this thing actually does:${RESET}"
     echo -e "  • Installs BlackArch repository (because you're too lazy)"
+    echo -e "  • Generates intelligent 2025 security toolkit (surpassing Kali/Parrot)"
     echo -e "  • Handles package conflicts (by breaking things properly)"
     echo -e "  • Manages AUR packages (without asking for passwords 50 times)"
     echo -e "  • Cleans up after itself (unlike you)"
@@ -222,6 +242,394 @@ check_root() {
     fi
     
     log_message "OK" "Running as root with actual user: $ORIGINAL_USER" "init"
+}
+
+# Intelligent BlackArch repository parser - because manually maintaining lists is for peasants
+generate_intelligent_toolkit() {
+    log_message "PROC" "Generating intelligent 2025 security toolkit..." "toolkit"
+    
+    # Create Python script for intelligent parsing
+    cat > "/tmp/toolkit_generator.py" << 'PYEOF'
+#!/usr/bin/env python3
+"""
+BlackArch Intelligent Toolkit Generator
+Because manually curating 2800+ tools is for masochists
+"""
+import subprocess
+import re
+import json
+import sys
+from collections import defaultdict, Counter
+
+class ToolkitGenerator:
+    def __init__(self):
+        self.categories = {
+            'recon': {
+                'priority': 10,
+                'keywords': ['nmap', 'masscan', 'zmap', 'subfinder', 'amass', 'nuclei', 'httpx', 
+                           'rustscan', 'shodan', 'censys', 'theharvester', 'recon-ng', 'dnsrecon',
+                           'dnsenum', 'fierce', 'sublist3r', 'assetfinder', 'findomain', 'gobuster',
+                           'dirb', 'dirbuster', 'wfuzz', 'ffuf', 'feroxbuster'],
+                'blacklist': ['recon-all', 'reconnoitre-ping']
+            },
+            'exploitation': {
+                'priority': 9,
+                'keywords': ['metasploit', 'exploit', 'payload', 'msfconsole', 'msfvenom', 'beef',
+                           'armitage', 'cobalt', 'empire', 'powersploit', 'shellcode', 'rop'],
+                'blacklist': ['exploit-suggester']
+            },
+            'webapp': {
+                'priority': 9,
+                'keywords': ['burp', 'sqlmap', 'nikto', 'skipfish', 'wapiti', 'w3af', 'zap',
+                           'commix', 'xsser', 'wpscan', 'joomscan', 'droopescan', 'davtest',
+                           'padbuster', 'nosqlmap', 'wfuzz', 'parameth', 'arjun', 'dalfox'],
+                'blacklist': ['webapp-config']
+            },
+            'wireless': {
+                'priority': 8,
+                'keywords': ['aircrack', 'wifite', 'kismet', 'bettercap', 'reaver', 'pixie',
+                           'wps', 'hostapd', 'airodump', 'aireplay', 'wash', 'cowpatty',
+                           'pyrit', 'hcxtools', 'hcxdumptool', 'wpa_supplicant'],
+                'blacklist': []
+            },
+            'network': {
+                'priority': 8,
+                'keywords': ['wireshark', 'tcpdump', 'ettercap', 'mitm', 'arp', 'netcat', 'socat',
+                           'proxychains', 'tor', 'i2p', 'stunnel', 'sslstrip', 'mitmproxy',
+                           'responder', 'impacket', 'crackmapexec', 'enum4linux', 'nbtscan'],
+                'blacklist': ['network-manager']
+            },
+            'crypto': {
+                'priority': 7,
+                'keywords': ['john', 'hashcat', 'hydra', 'medusa', 'ncrack', 'ophcrack',
+                           'rainbow', 'hash', 'crack', 'decrypt', 'cipher', 'steganography',
+                           'stego', 'openssl', 'gpg', 'truecrypt', 'veracrypt'],
+                'blacklist': ['hashcat-legacy']
+            },
+            'forensics': {
+                'priority': 7,
+                'keywords': ['volatility', 'autopsy', 'sleuthkit', 'binwalk', 'foremost',
+                           'testdisk', 'photorec', 'scalpel', 'bulk_extractor', 'regripper',
+                           'chkrootkit', 'rkhunter', 'lynis', 'clamav', 'yara'],
+                'blacklist': []
+            },
+            'mobile': {
+                'priority': 6,
+                'keywords': ['apktool', 'dex2jar', 'jadx', 'frida', 'objection', 'mobsf',
+                           'android', 'ios', 'mobile', 'adb', 'fastboot'],
+                'blacklist': []
+            },
+            'misc': {
+                'priority': 3,
+                'keywords': ['git', 'python', 'perl', 'ruby', 'gcc', 'make', 'cmake',
+                           'curl', 'wget', 'vim', 'tmux', 'screen'],
+                'blacklist': []
+            }
+        }
+        
+        # 2025 trending tools that should definitely be included
+        self.trending_2025 = [
+            'nuclei', 'httpx', 'subfinder', 'katana', 'naabu', 'dnsx', 'interactsh',
+            'rustscan', 'feroxbuster', 'gospider', 'hakrawler', 'waybackurls',
+            'gau', 'anew', 'notify', 'proxify', 'mapcidr', 'shuffledns',
+            'cloudlist', 'tlsx', 'asnmap', 'pdtm', 'uncover', 'chaos-client'
+        ]
+        
+        # Essential tools that must be included regardless
+        self.essential_tools = [
+            'nmap', 'wireshark-qt', 'metasploit', 'burpsuite', 'sqlmap',
+            'aircrack-ng', 'john', 'hashcat', 'hydra', 'gobuster',
+            'nikto', 'nuclei', 'volatility3', 'binwalk', 'radare2'
+        ]
+
+    def get_blackarch_packages(self):
+        """Get all BlackArch packages with their groups"""
+        try:
+            # Get all blackarch groups
+            groups_output = subprocess.check_output(['pacman', '-Sg'], universal_newlines=True)
+            blackarch_groups = [line.split()[0] for line in groups_output.split('\n') 
+                              if line.startswith('blackarch-')]
+            
+            packages_by_group = {}
+            all_packages = set()
+            
+            for group in blackarch_groups:
+                try:
+                    group_output = subprocess.check_output(['pacman', '-Sgq', group], 
+                                                         universal_newlines=True)
+                    packages = [pkg.strip() for pkg in group_output.split('\n') if pkg.strip()]
+                    packages_by_group[group] = packages
+                    all_packages.update(packages)
+                except subprocess.CalledProcessError:
+                    continue
+            
+            return packages_by_group, list(all_packages)
+        except subprocess.CalledProcessError as e:
+            print(f"Error getting BlackArch packages: {e}", file=sys.stderr)
+            return {}, []
+
+    def score_package(self, package_name, group_name):
+        """Score a package based on relevance for 2025 security testing"""
+        score = 0
+        
+        # Essential tools get maximum priority
+        if package_name in self.essential_tools:
+            return 1000
+        
+        # 2025 trending tools get high priority
+        if package_name in self.trending_2025:
+            score += 500
+        
+        # Category-based scoring
+        for category, info in self.categories.items():
+            if any(keyword in package_name.lower() for keyword in info['keywords']):
+                score += info['priority'] * 10
+                break
+        
+        # Group-based bonus
+        if group_name:
+            group_suffix = group_name.replace('blackarch-', '')
+            if group_suffix in self.categories:
+                score += self.categories[group_suffix]['priority'] * 5
+        
+        # Penalize blacklisted items
+        for category, info in self.categories.items():
+            if package_name in info['blacklist']:
+                score -= 100
+        
+        # Length penalty for overly specific tools
+        if len(package_name) > 20:
+            score -= 5
+        
+        return max(score, 0)
+
+    def filter_duplicates_and_conflicts(self, packages):
+        """Remove duplicate functionality and conflicting packages"""
+        filtered = []
+        seen_base_names = set()
+        
+        # Define tool families where we only want the best one
+        tool_families = {
+            'burpsuite': ['burpsuite', 'burpsuite-pro'],
+            'metasploit': ['metasploit', 'metasploit-framework'],
+            'wireshark': ['wireshark', 'wireshark-qt', 'wireshark-gtk'],
+            'hashcat': ['hashcat', 'hashcat-legacy', 'hashcat-utils'],
+            'volatility': ['volatility', 'volatility3', 'volatility-community'],
+            'radare': ['radare2', 'radare2-cutter', 'rizin'],
+            'john': ['john', 'johnny'],
+            'aircrack': ['aircrack-ng', 'aircrack-ng-scripts']
+        }
+        
+        for package in packages:
+            base_name = package.split('-')[0]
+            
+            # Handle tool families
+            family_found = False
+            for family, variants in tool_families.items():
+                if package in variants:
+                    if family not in seen_base_names:
+                        # Pick the best variant
+                        best_variant = variants[0]  # Usually the main package
+                        if package == best_variant:
+                            filtered.append(package)
+                            seen_base_names.add(family)
+                    family_found = True
+                    break
+            
+            if not family_found and base_name not in seen_base_names:
+                filtered.append(package)
+                seen_base_names.add(base_name)
+        
+        return filtered
+
+    def generate_toolkit(self, max_packages=150):
+        """Generate the ultimate 2025 security toolkit"""
+        packages_by_group, all_packages = self.get_blackarch_packages()
+        
+        if not all_packages:
+            print("Failed to get BlackArch packages", file=sys.stderr)
+            return []
+        
+        # Score all packages
+        scored_packages = []
+        for group, packages in packages_by_group.items():
+            for package in packages:
+                score = self.score_package(package, group)
+                if score > 0:
+                    scored_packages.append((package, score, group))
+        
+        # Sort by score descending
+        scored_packages.sort(key=lambda x: x[1], reverse=True)
+        
+        # Take top packages and filter
+        top_packages = [pkg[0] for pkg in scored_packages[:max_packages*2]]
+        filtered_packages = self.filter_duplicates_and_conflicts(top_packages)
+        
+        # Ensure essential tools are included
+        final_toolkit = list(self.essential_tools)
+        for pkg in filtered_packages:
+            if pkg not in final_toolkit and len(final_toolkit) < max_packages:
+                final_toolkit.append(pkg)
+        
+        return final_toolkit[:max_packages]
+
+if __name__ == "__main__":
+    generator = ToolkitGenerator()
+    toolkit = generator.generate_toolkit()
+    
+    if toolkit:
+        for tool in toolkit:
+            print(tool)
+    else:
+        sys.exit(1)
+PYEOF
+    
+    # Run the Python generator
+    if python3 /tmp/toolkit_generator.py > "$DEFAULT_TOOLKIT" 2>/dev/null; then
+        local count=$(wc -l < "$DEFAULT_TOOLKIT")
+        log_message "OK" "Generated intelligent toolkit with $count packages" "toolkit"
+        
+        # Add some metadata
+        {
+            echo "# KygoX v$VERSION - 2025 Security Toolkit"
+            echo "# Generated: $(date)"
+            echo "# Curated from BlackArch repository - because manual curation is for peasants"
+            echo "# This surpasses Kali and Parrot OS default toolkits"
+            echo "#"
+            cat "$DEFAULT_TOOLKIT"
+        } > "$DEFAULT_TOOLKIT.tmp" && mv "$DEFAULT_TOOLKIT.tmp" "$DEFAULT_TOOLKIT"
+        
+        log_message "OK" "Default toolkit saved to $DEFAULT_TOOLKIT" "toolkit"
+    else
+        log_message "FAIL" "Python toolkit generator failed, using fallback..." "toolkit"
+        generate_fallback_toolkit
+    fi
+    
+    # Cleanup
+    rm -f /tmp/toolkit_generator.py
+}
+
+generate_fallback_toolkit() {
+    log_message "INFO" "Using fallback toolkit generation..." "toolkit"
+    
+    # Fallback toolkit - curated manually for when Python fails
+    cat > "$DEFAULT_TOOLKIT" << 'TOOLEOF'
+# KygoX v0.1.8 - 2025 Security Toolkit (Fallback)
+# Because even fallbacks should be better than Kali defaults
+
+# Network Reconnaissance
+nmap
+masscan
+zmap
+rustscan
+nmap-scripts
+
+# Web Application Security
+burpsuite
+sqlmap
+nikto
+gobuster
+dirb
+wfuzz
+ffuf
+wpscan
+whatweb
+skipfish
+
+# Wireless Security
+aircrack-ng
+wifite
+kismet
+bettercap
+reaver
+pixie-dust
+wash
+cowpatty
+
+# Network Analysis
+wireshark-qt
+tcpdump
+ettercap-gtk
+netdiscover
+nbtscan
+enum4linux
+
+# Exploitation Frameworks
+metasploit
+beef
+armitage
+social-engineer-toolkit
+
+# Password Attacks
+john
+hashcat
+hydra
+medusa
+ncrack
+ophcrack
+
+# Forensics & Analysis
+volatility3
+autopsy
+binwalk
+foremost
+testdisk
+bulk-extractor
+chkrootkit
+rkhunter
+lynis
+
+# Reverse Engineering
+radare2
+ghidra
+jadx
+apktool
+dex2jar
+rizin
+
+# Mobile Security
+frida-tools
+objection
+mobsf
+android-sdk
+
+# Modern Recon Tools (2025)
+nuclei
+httpx
+subfinder
+amass
+theharvester
+recon-ng
+shodan
+censys
+
+# Crypto & Steganography
+steghide
+stegosuite
+outguess
+cryptcat
+
+# Network Pivoting
+proxychains-ng
+tor
+i2p
+stunnel
+
+# Essential Development
+python
+python-pip
+ruby
+perl
+git
+gcc
+make
+curl
+wget
+vim
+tmux
+TOOLEOF
+    
+    log_message "OK" "Fallback toolkit generated with $(grep -c '^[^#]' "$DEFAULT_TOOLKIT") packages" "toolkit"
 }
 
 # The magic sauce - sudo password caching that actually works
@@ -360,7 +768,7 @@ install_yay() {
         return 1
     fi
     
-    local build_dir="/tmp/yay-build-$$"
+    local build_dir="/tmp/yay-build-$"
     mkdir -p "$build_dir"
     cd "$build_dir"
     
@@ -441,7 +849,7 @@ install_aur_packages() {
     
     log_message "PROC" "Installing AUR packages..." "aur"
     
-    # Critical AUR packages
+    # Critical AUR packages for 2025 security toolkit
     local aur_packages=(
         "nuclei-bin"
         "httpx-bin"
@@ -474,6 +882,14 @@ install_aur_packages() {
         "gitleaks-bin"
         "shodan"
         "censys"
+        "feroxbuster-bin"
+        "rustscan-bin"
+        "ffuf-bin"
+        "chaos-client-bin"
+        "tlsx-bin"
+        "asnmap-bin"
+        "uncover-bin"
+        "shuffledns-bin"
     )
     
     local installed=0
@@ -511,6 +927,24 @@ get_blackarch_packages() {
     log_message "PROC" "Preparing package list..." "packages"
     
     case "$INSTALL_MODE" in
+        "default")
+            log_message "INFO" "Using intelligent 2025 security toolkit..." "packages"
+            
+            if [ ! -f "$DEFAULT_TOOLKIT" ]; then
+                log_message "INFO" "Default toolkit not found, generating..." "packages"
+                generate_intelligent_toolkit
+            fi
+            
+            if [ -f "$DEFAULT_TOOLKIT" ]; then
+                grep -v "^#" "$DEFAULT_TOOLKIT" | grep -v "^$" > blackarch_packages.txt
+                local count=$(wc -l < blackarch_packages.txt)
+                log_message "OK" "Loaded $count packages from default toolkit" "packages"
+            else
+                log_message "FAIL" "Failed to generate default toolkit" "packages"
+                return 1
+            fi
+            ;;
+            
         "all")
             log_message "INFO" "Fetching all BlackArch packages (this is insane)..." "packages"
             if pacman -Slq blackarch > blackarch_packages.txt 2>/dev/null; then
@@ -555,15 +989,44 @@ get_blackarch_packages() {
             ;;
     esac
     
-    # Add essential tools if missing
-    local essentials=("metasploit" "nmap" "wireshark-qt" "burpsuite")
-    for tool in "${essentials[@]}"; do
-        if ! grep -q "^$tool$" blackarch_packages.txt 2>/dev/null; then
-            echo "$tool" >> blackarch_packages.txt
-        fi
-    done
+    # Validate packages exist in repository
+    validate_packages_exist
     
     return 0
+}
+
+validate_packages_exist() {
+    log_message "PROC" "Validating package availability..." "validate"
+    
+    local valid_packages=()
+    local invalid_packages=()
+    local total=0
+    
+    while IFS= read -r package; do
+        [[ -z "$package" || "$package" =~ ^# ]] && continue
+        total=$((total + 1))
+        
+        # Check if package exists in any repository
+        if pacman -Si "$package" &>/dev/null || pacman -Ss "^$package$" &>/dev/null; then
+            valid_packages+=("$package")
+        else
+            invalid_packages+=("$package")
+            log_message "WARN" "Package not found: $package" "validate"
+        fi
+    done < blackarch_packages.txt
+    
+    # Rewrite with only valid packages
+    printf '%s\n' "${valid_packages[@]}" > blackarch_packages.txt
+    
+    local valid_count=${#valid_packages[@]}
+    local invalid_count=${#invalid_packages[@]}
+    
+    log_message "OK" "Package validation: $valid_count valid, $invalid_count invalid" "validate"
+    
+    if [ "$invalid_count" -gt 0 ]; then
+        printf '%s\n' "${invalid_packages[@]}" > "$LOG_DIR/invalid_packages.txt"
+        log_message "INFO" "Invalid packages logged to $LOG_DIR/invalid_packages.txt" "validate"
+    fi
 }
 
 handle_conflicts() {
@@ -697,6 +1160,7 @@ cleanup() {
     rm -f blackarch_packages.txt
     rm -rf /tmp/yay-build-*
     rm -rf /tmp/kygox-*
+    rm -f /tmp/toolkit_generator.py
     
     log_message "OK" "Cleanup complete" "cleanup"
 }
@@ -718,14 +1182,19 @@ parse_arguments() {
     QUIET_MODE="false"
     SKIP_AUR="false"
     NO_SUDO_CACHE="false"
-
+    GENERATE_ONLY="false"
+    
     if [ $# -eq 0 ]; then
         show_usage
         exit 0
     fi
-
+    
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            -d|--default)
+                INSTALL_MODE="default"
+                shift
+                ;;
             -a|--all)
                 INSTALL_MODE="all"
                 shift
@@ -756,6 +1225,10 @@ parse_arguments() {
                 QUIET_MODE="true"
                 shift
                 ;;
+            --generate-default)
+                GENERATE_ONLY="true"
+                shift
+                ;;
             --skip-aur)
                 SKIP_AUR="true"
                 shift
@@ -779,10 +1252,10 @@ parse_arguments() {
                 ;;
         esac
     done
-
-    if [ -z "$INSTALL_MODE" ]; then
+    
+    if [ "$GENERATE_ONLY" != "true" ] && [ -z "$INSTALL_MODE" ]; then
         echo -e "${FAIL} No installation mode selected"
-        echo -e "${INFO} Use -a, -g GROUP, or -p FILE"
+        echo -e "${INFO} Use -d (default), -a, -g GROUP, or -p FILE"
         show_usage
         exit 1
     fi
@@ -791,7 +1264,6 @@ parse_arguments() {
 show_summary() {
     local success_count=0
     local failed_count=0
-    local skipped_count=0
     
     [ -f "$LOG_DIR/successful_packages.txt" ] && success_count=$(wc -l < "$LOG_DIR/successful_packages.txt")
     [ -f "$LOG_DIR/failed_packages.txt" ] && failed_count=$(wc -l < "$LOG_DIR/failed_packages.txt")
@@ -813,6 +1285,10 @@ show_summary() {
         fi
         
         echo -e "${INFO} Full logs available in: $LOG_DIR"
+        echo -e "${INFO} Default toolkit: $DEFAULT_TOOLKIT"
+        echo
+        echo -e "${BOLD}Your 2025 security arsenal is now ready for deployment.${RESET}"
+        echo -e "${DIM}This setup surpasses Kali and Parrot OS default installations.${RESET}"
         echo
         echo -e "${DIM}KygoX v$VERSION | 0xbv1 | q4n0@proton.me${RESET}"
         echo -e "${DIM}If it worked, you're welcome. If it didn't, check the logs.${RESET}"
@@ -826,7 +1302,8 @@ verify_installation() {
     local tools_to_check=(
         "nmap" "wireshark" "aircrack-ng" "metasploit"
         "sqlmap" "john" "hashcat" "hydra"
-        "gobuster" "nikto" "burpsuite"
+        "gobuster" "nikto" "burpsuite" "nuclei"
+        "httpx" "subfinder" "ffuf"
     )
     
     local working=0
@@ -864,6 +1341,32 @@ main() {
     # Parse command line arguments
     parse_arguments "$@"
     
+    # Handle generate-only mode
+    if [ "$GENERATE_ONLY" == "true" ]; then
+        log_message "INFO" "Generating default toolkit only..." "main"
+        
+        # Need BlackArch repo for intelligent generation
+        if ! grep -q "^\[blackarch\]" /etc/pacman.conf; then
+            check_root
+            add_blackarch_repo || {
+                log_message "WARN" "BlackArch not available, using fallback" "main"
+            }
+        fi
+        
+        generate_intelligent_toolkit
+        
+        if [ -f "$DEFAULT_TOOLKIT" ]; then
+            local count=$(grep -c '^[^#]' "$DEFAULT_TOOLKIT")
+            echo -e "${OK} Default toolkit generated: $DEFAULT_TOOLKIT ($count packages)"
+            echo -e "${INFO} Use 'sudo $0 -d' to install this toolkit"
+        else
+            echo -e "${FAIL} Failed to generate default toolkit"
+            exit 1
+        fi
+        
+        exit 0
+    fi
+    
     # Redirect output if quiet mode
     if [ "$QUIET_MODE" == "true" ]; then
         exec 1>>"$MAIN_LOG" 2>&1
@@ -897,6 +1400,11 @@ main() {
     
     # Install dependencies
     install_base_dependencies
+    
+    # Generate default toolkit if using default mode
+    if [ "$INSTALL_MODE" == "default" ] && [ ! -f "$DEFAULT_TOOLKIT" ]; then
+        generate_intelligent_toolkit
+    fi
     
     # Install AUR packages (with sudo caching, no password prompts!)
     install_aur_packages
@@ -935,3 +1443,4 @@ fi
 # Contact: IG: theehiv3 | X: 0xbv1 | Threads: theehiv3 | Email: q4n0@proton.me
 # If you're reading this, you're probably trying to figure out what went wrong.
 # Check the logs first before complaining.
+# The default.txt toolkit was intelligently curated to surpass Kali and Parrot OS.
