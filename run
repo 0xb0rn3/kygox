@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# KYGOX - Advanced Arch Linux Penetration Testing Suite Installer
-# Version 0.1.8 Stable - The Dark Knight Edition
-# Created by 0xbv1 | 0xb0rn3 IG: theehiv3 | github.com/0xb0rn3
+# KYGOX - Because your pathetic security testing setup needs actual tools
+# Version 0.1.8 - When script kiddies graduate to something less embarrassing
+# Author: 0xbv1 | 0xb0rn3 
+# Contact: IG: theehiv3 | X: 0xbv1 | Threads: theehiv3 | Email: q4n0@proton.me
+# License: Do whatever the hell you want, but don't blame me when it breaks
 
+# Get the actual user before they sudo'd like an amateur
 ORIGINAL_USER=$SUDO_USER
+SUDO_ASKPASS_HELPER="/tmp/.kygox_askpass_$$"
 
-# Colors and formatting constants - The Dark Knight Palette
+# Terminal colors - because monochrome is for cowards
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
@@ -13,80 +17,48 @@ BLUE='\033[0;34m'
 PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 WHITE='\033[1;37m'
-DARK_GRAY='\033[1;30m'
-BLOOD_RED='\033[1;31m'
-NEON_GREEN='\033[1;32m'
-GOLD='\033[1;33m'
-ELECTRIC_BLUE='\033[1;34m'
-MAGENTA='\033[1;35m'
-NEON_CYAN='\033[1;36m'
+DARK='\033[1;30m'
+BRED='\033[1;31m'
+BGREEN='\033[1;32m'
+BYELLOW='\033[1;33m'
+BBLUE='\033[1;34m'
+BPURPLE='\033[1;35m'
+BCYAN='\033[1;36m'
 BOLD='\033[1m'
 DIM='\033[2m'
-UNDERLINE='\033[4m'
-BLINK='\033[5m'
 RESET='\033[0m'
 
-# Status symbols - Gotham City Style
-CHECK_MARK="${NEON_GREEN}⚡${RESET}"
-CROSS_MARK="${BLOOD_RED}💀${RESET}"
-ARROW="${NEON_CYAN}🦇${RESET}"
-INFO="${ELECTRIC_BLUE}🃏${RESET}"
-WARNING="${GOLD}⚠${RESET}"
-PROCESSING="${PURPLE}🌟${RESET}"
-SKULL="${BLOOD_RED}💀${RESET}"
-BAT="${DARK_GRAY}🦇${RESET}"
-BOMB="${BLOOD_RED}💣${RESET}"
-LIGHTNING="${GOLD}⚡${RESET}"
+# Status indicators - because emojis are apparently professional now
+OK="[${BGREEN}✓${RESET}]"
+FAIL="[${BRED}✗${RESET}]"
+INFO="[${BBLUE}*${RESET}]"
+WARN="[${BYELLOW}!${RESET}]"
+PROC="[${BPURPLE}↻${RESET}]"
 
-# Directory structure for organized logging and backups
+# Directories - organized chaos is still chaos
 LOG_DIR="kygox_logs"
 MAIN_LOG="$LOG_DIR/installation.log"
 BACKUP_DIR="$LOG_DIR/backups"
 PACKAGE_LOG_DIR="$LOG_DIR/package_logs"
 
-# Version information - The Dark Knight Rises
+# Version info - semantic versioning is for people who plan ahead
 VERSION="0.1.8"
-VERSION_TYPE="The Dark Knight"
+VERSION_NAME="Stop Asking For Passwords Edition"
 
-# Enhanced tool-to-package mapping for comprehensive coverage
-declare -A enhanced_tool_packages=(
+# Tool mappings - because package names make no damn sense
+declare -A tool_packages=(
     ["nmap"]="nmap"
     ["masscan"]="masscan"
     ["zmap"]="zmap"
     ["rustscan"]="rustscan"
-    ["unicornscan"]="unicornscan"
-    ["angry-ip-scanner"]="angry-ip-scanner"
-    ["fping"]="fping"
-    ["hping3"]="hping3"
-    ["netdiscover"]="netdiscover"
-    ["arp-scan"]="arp-scan"
-    ["p0f"]="p0f"
-    ["firewalk"]="firewalk"
-    ["netcat"]="netcat-openbsd"
-    ["ncat"]="nmap"
-    ["socat"]="socat"
     ["wireshark"]="wireshark-qt"
     ["tshark"]="wireshark-cli"
     ["tcpdump"]="tcpdump"
-    ["ntopng"]="ntopng"
-    ["darkstat"]="darkstat"
-    ["vnstat"]="vnstat"
-    ["bmon"]="bmon"
-    ["iftop"]="iftop"
-    ["nethogs"]="nethogs"
-    ["etherape"]="etherape"
-    ["networkminer"]="networkminer"
     ["aircrack-ng"]="aircrack-ng"
     ["bettercap"]="bettercap"
     ["kismet"]="kismet"
     ["wifite"]="wifite"
     ["reaver"]="reaver"
-    ["pixiewps"]="pixiewps"
-    ["wash"]="aircrack-ng"
-    ["cowpatty"]="cowpatty"
-    ["pyrit"]="pyrit"
-    ["hostapd"]="hostapd"
-    ["wpa_supplicant"]="wpa_supplicant"
     ["sqlmap"]="sqlmap"
     ["nikto"]="nikto"
     ["gobuster"]="gobuster"
@@ -95,87 +67,46 @@ declare -A enhanced_tool_packages=(
     ["ffuf"]="ffuf"
     ["whatweb"]="whatweb"
     ["wpscan"]="wpscan"
-    ["joomscan"]="joomscan"
-    ["droopescan"]="droopescan"
-    ["cmsmap"]="cmsmap"
     ["nuclei"]="nuclei"
     ["httpx"]="httpx"
-    ["katana"]="katana"
     ["subfinder"]="subfinder"
     ["john"]="john"
     ["hashcat"]="hashcat"
     ["hydra"]="hydra"
     ["medusa"]="medusa"
-    ["patator"]="patator"
-    ["ophcrack"]="ophcrack"
-    ["rainbowcrack"]="rainbowcrack"
-    ["hashid"]="hashid"
     ["msfconsole"]="metasploit"
     ["msfvenom"]="metasploit"
     ["searchsploit"]="exploitdb"
     ["impacket-smbserver"]="impacket"
-    ["impacket-secretsdump"]="impacket"
     ["theharvester"]="theharvester"
     ["recon-ng"]="recon-ng"
-    ["sublist3r"]="sublist3r"
     ["amass"]="amass"
     ["sherlock"]="sherlock-project"
-    ["socialscan"]="socialscan"
     ["phoneinfoga"]="phoneinfoga"
     ["volatility"]="volatility3"
     ["autopsy"]="autopsy"
-    ["sleuthkit"]="sleuthkit"
-    ["foremost"]="foremost"
     ["binwalk"]="binwalk"
     ["exiftool"]="perl-image-exiftool"
-    ["strings"]="binutils"
     ["ghidra"]="ghidra"
     ["radare2"]="radare2"
     ["rizin"]="rizin"
-    ["cutter"]="cutter"
-    ["objdump"]="binutils"
     ["gdb"]="gdb"
     ["ltrace"]="ltrace"
     ["strace"]="strace"
-    ["steghide"]="steghide"
-    ["outguess"]="outguess"
-    ["stegsolve"]="stegsolve"
-    ["gnupg"]="gnupg"
-    ["openssl"]="openssl"
-    ["age"]="age"
-    ["signify"]="signify"
     ["tor"]="tor"
-    ["torsocks"]="torsocks"
     ["proxychains"]="proxychains-ng"
-    ["polipo"]="polipo"
-    ["privoxy"]="privoxy"
     ["lynis"]="lynis"
-    ["tiger"]="tiger"
     ["chkrootkit"]="chkrootkit"
     ["rkhunter"]="rkhunter"
-    ["clamav"]="clamav"
-    ["fail2ban"]="fail2ban"
-    ["aide"]="aide"
     ["apktool"]="android-apktool"
-    ["dex2jar"]="dex2jar"
     ["jadx"]="jadx"
     ["frida"]="frida-tools"
-    ["awscli"]="aws-cli"
-    ["gcloud"]="google-cloud-cli"
-    ["azure-cli"]="azure-cli"
-    ["kubectl"]="kubectl"
-    ["helm"]="helm"
     ["docker"]="docker"
     ["python3"]="python"
-    ["python2"]="python2"
     ["ruby"]="ruby"
-    ["perl"]="perl"
-    ["php"]="php"
-    ["node"]="nodejs"
     ["go"]="go"
     ["rust"]="rust"
     ["gcc"]="gcc"
-    ["make"]="make"
     ["git"]="git"
     ["curl"]="curl"
     ["wget"]="wget"
@@ -183,185 +114,177 @@ declare -A enhanced_tool_packages=(
 
 display_banner() {
     clear
-    cat << 'EOFBANNER'
-██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██████╗ ██╗ █████╗ ██████╗██╗  ██╗
-██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗ ██╔══██╗██║ ██╔══██╗██╔════╝██║ ██╔╝
-█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ██████╔╝██║ ███████║██║     █████╔╝ 
-██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔══██╗██║ ██╔══██║██║     ██╔═██╗ 
-██║  ██╗   ██║   ╚██████╔╝╚██████╔╝ ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗
-╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
-▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-               THE DARK KNIGHT OF PENETRATION TESTING
-               ★ WHEN GOTHAM NEEDS A SECURITY AUDIT ★
-EOFBANNER
-
-    echo -e "                   ${BOLD}${BLOOD_RED}Version $VERSION | $VERSION_TYPE Edition${RESET}"
-    echo -e "           ${NEON_CYAN}Forged in Darkness by 0xbv1 | 0xb0rn3 ${BAT}${RESET}"
-    echo -e "${GOLD}▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀${RESET}"
-    echo
-    echo -e "${DIM}${ITALIC}\"${YELLOW}I am vengeance. I am the night. I am... your penetration testing suite.${RESET}${DIM}\"${RESET}"
+    cat << 'EOF'
+██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
+██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
+█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
+██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
+██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
+╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    PENETRATION TESTING TOOLKIT INSTALLER
+     Because clicking buttons is beneath you
+EOF
+    echo -e "          ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
+    echo -e "   ${DIM}0xbv1 | IG: theehiv3 | X: 0xbv1 | q4n0@proton.me${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
 }
 
 show_usage() {
-    echo -e "${BOLD}${NEON_CYAN}🦇 KYGOX v$VERSION - The Dark Knight's Arsenal 🦇${RESET}"
-    echo -e "${GOLD}═══════════════════════════════════════════════════${RESET}"
+    echo -e "${BOLD}KygoX v$VERSION - Stop wasting time with manual installs${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
-    echo -e "${BOLD}${BLOOD_RED}\"In Gotham's darkest hour, even the shadows need tools...\"${RESET}"
+    echo -e "${BOLD}Usage:${RESET}"
+    echo -e "  sudo $0 [OPTIONS]"
     echo
-    echo -e "${BOLD}Synopsis:${RESET}"
-    echo -e "  ${NEON_GREEN}sudo $0 [OPTION]${RESET}"
+    echo -e "${BOLD}Options that actually matter:${RESET}"
+    echo -e "  -a, --all                Deploy everything (hope you have bandwidth)"
+    echo -e "  -g, --group GROUP        Install specific tool category"
+    echo -e "  -p, --packages FILE      Use your own damn package list"
+    echo -e "  -q, --quiet              Shut up and install"
+    echo -e "  --skip-aur               Skip AUR (for the impatient)"
+    echo -e "  --no-sudo-cache          Disable sudo caching (for the paranoid)"
     echo
-    echo -e "${BOLD}${ELECTRIC_BLUE}The Dark Knight's Arsenal:${RESET}"
-    echo -e "  ${NEON_CYAN}-a, --all${RESET}                    ${YELLOW}Unleash the complete BlackArch armory${RESET}"
-    echo -e "  ${NEON_CYAN}-g, --group ${YELLOW}GROUP${RESET}           ${YELLOW}Deploy specific weapon categories${RESET}"
-    echo -e "  ${NEON_CYAN}-p, --packages ${YELLOW}FILE${RESET}         ${YELLOW}Load custom arsenal from the Batcave${RESET}"
+    echo -e "${BOLD}Options for people who read documentation:${RESET}"
+    echo -e "  -h, --help               This useless text"
+    echo -e "  -v, --version            Version info nobody cares about"
     echo
-    echo -e "${BOLD}${PURPLE}Stealth Operations:${RESET}"
-    echo -e "  ${NEON_CYAN}-q, --quiet${RESET}                  ${YELLOW}Silent guardian mode${RESET}"
-    echo -e "  ${NEON_CYAN}--auto-cleanup${RESET}               ${YELLOW}Leave no trace behind${RESET}"
-    echo -e "  ${NEON_CYAN}--verify-tools${RESET}               ${YELLOW}Test the blade's sharpness${RESET}"
+    echo -e "${BOLD}Examples for the copy-paste warriors:${RESET}"
+    echo -e "  sudo $0 -a                          # YOLO mode"
+    echo -e "  sudo $0 -g exploitation             # Script kiddie starter pack"
+    echo -e "  sudo $0 -g wireless                 # WiFi \"hacker\" essentials"
+    echo -e "  sudo $0 -p my_tools.txt             # Your curated bloatware"
     echo
-    echo -e "${BOLD}${DARK_GRAY}Intelligence Gathering:${RESET}"
-    echo -e "  ${NEON_CYAN}-h, --help${RESET}                   ${YELLOW}Oracle's knowledge database${RESET}"
-    echo -e "  ${NEON_CYAN}-v, --version${RESET}                ${YELLOW}Reveal the legend's chapter${RESET}"
+    echo -e "${BOLD}Tool categories (pick your poison):${RESET}"
+    echo -e "  exploitation, wireless, webapp, scanner, forensic, crypto"
+    echo -e "  Run 'pacman -Sg | grep blackarch' for the full list"
     echo
-    echo -e "${BOLD}${GOLD}Mission Examples:${RESET}"
-    echo -e "${BLOOD_RED}Total Domination:${RESET}"
-    echo -e "  ${NEON_GREEN}sudo $0 -a${RESET}                               ${DIM}# Gotham's complete arsenal${RESET}"
-    echo -e "  ${NEON_GREEN}sudo $0 -p default${RESET}                       ${DIM}# Batman's curated toolkit${RESET}"
-    echo
-    echo -e "${BLOOD_RED}Surgical Strikes:${RESET}"
-    echo -e "  ${NEON_GREEN}sudo $0 -g exploitation${RESET}                  ${DIM}# Bane's destructive tools${RESET}"
-    echo -e "  ${NEON_GREEN}sudo $0 -g wireless${RESET}                      ${DIM}# Signal interception gear${RESET}"
-    echo -e "  ${NEON_GREEN}sudo $0 -g webapp${RESET}                        ${DIM}# Joker's web chaos toolkit${RESET}"
-    echo
-    echo -e "${BOLD}${MAGENTA}Available Weapon Categories:${RESET}"
-    echo -e "${GOLD}Elite Arsenal:${RESET} exploitation, wireless, webapp, scanner, forensic, crypto"
-    echo -e "${GOLD}Full Inventory:${RESET} Run 'pacman -Sg | grep blackarch' to see all weapon caches"
-    echo
+    echo -e "${DIM}Author: 0xbv1 | Contact: q4n0@proton.me${RESET}"
 }
 
 show_version() {
-    echo -e "${BOLD}${NEON_CYAN}🦇 KYGOX - The Dark Knight of Security Testing 🦇${RESET}"
-    echo -e "${GOLD}════════════════════════════════════════════════════════${RESET}"
-    echo -e "${BOLD}Version:${RESET}        ${BLOOD_RED}$VERSION ($VERSION_TYPE)${RESET}"
-    echo -e "${BOLD}Forged:${RESET}         ${YELLOW}$(date '+%Y-%m-%d')${RESET}"
-    echo -e "${BOLD}Creator:${RESET}        ${NEON_CYAN}0xbv1 | 0xb0rn3 ${BAT}${RESET}"
-    echo -e "${BOLD}Lair:${RESET}           ${PURPLE}github.com/0xb0rn3/kygox${RESET}"
-    echo -e "${BOLD}Code:${RESET}           ${GREEN}Wayne Enterprises License${RESET}"
+    echo -e "${BOLD}KygoX - Penetration Testing Toolkit Installer${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${BOLD}Version:${RESET}     $VERSION ($VERSION_NAME)"
+    echo -e "${BOLD}Author:${RESET}      0xbv1 | 0xb0rn3"
+    echo -e "${BOLD}Contact:${RESET}     IG: theehiv3 | X: 0xbv1 | Threads: theehiv3"
+    echo -e "${BOLD}Email:${RESET}       q4n0@proton.me"
+    echo -e "${BOLD}Repository:${RESET}  github.com/0xb0rn3/kygox"
     echo
-    echo -e "${BOLD}${ELECTRIC_BLUE}The Dark Knight's Arsenal Features:${RESET}"
-    echo -e "  ${CHECK_MARK} ${WHITE}Advanced package warfare with conflict annihilation${RESET}"
-    echo -e "  ${CHECK_MARK} ${WHITE}${#enhanced_tool_packages[@]} weapons of digital destruction${RESET}"
-    echo -e "  ${CHECK_MARK} ${WHITE}Phoenix-like recovery from system failures${RESET}"
-    echo -e "  ${CHECK_MARK} ${WHITE}Evidence destruction and cleanup protocols${RESET}"
-    echo -e "  ${CHECK_MARK} ${WHITE}Multi-source armory integration (Official, BlackArch, AUR)${RESET}"
+    echo -e "${BOLD}What this thing actually does:${RESET}"
+    echo -e "  • Installs BlackArch repository (because you're too lazy)"
+    echo -e "  • Handles package conflicts (by breaking things properly)"
+    echo -e "  • Manages AUR packages (without asking for passwords 50 times)"
+    echo -e "  • Cleans up after itself (unlike you)"
+    echo -e "  • Supports ${#tool_packages[@]} tool mappings (that nobody asked for)"
     echo
-    echo -e "${DIM}${ITALIC}\"${YELLOW}The night is darkest just before the dawn...${RESET}${DIM}\"${RESET}"
-    echo
+    echo -e "${DIM}If it breaks, you get to keep both pieces.${RESET}"
 }
 
 log_message() {
     local level="$1"
     local message="$2"
+    local component="${3:-main}"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local caller="${3:-main}"
     
     mkdir -p "$LOG_DIR" "$PACKAGE_LOG_DIR"
-    
-    echo "[$timestamp] [$level] [$caller] $message" >> "$MAIN_LOG"
+    echo "[$timestamp] [$level] [$component] $message" >> "$MAIN_LOG"
     
     if [ "$QUIET_MODE" != "true" ]; then
         case "$level" in
-            "SUCCESS") echo -e "${CHECK_MARK} ${NEON_GREEN}$message${RESET}" ;;
-            "WARNING") echo -e "${WARNING} ${GOLD}$message${RESET}" ;;
-            "ERROR") echo -e "${CROSS_MARK} ${BLOOD_RED}$message${RESET}" ;;
-            "INFO") echo -e "${INFO} ${ELECTRIC_BLUE}$message${RESET}" ;;
-            "PROCESSING") echo -e "${PROCESSING} ${PURPLE}$message${RESET}" ;;
-            "BATMAN") echo -e "${BAT} ${DARK_GRAY}$message${RESET}" ;;
-            "JOKER") echo -e "${BOMB} ${BLOOD_RED}$message${RESET}" ;;
-            "BANE") echo -e "${SKULL} ${YELLOW}$message${RESET}" ;;
-            *) echo -e "${ARROW} $message" ;;
+            "OK") echo -e "$OK $message" ;;
+            "FAIL") echo -e "$FAIL $message" ;;
+            "INFO") echo -e "$INFO $message" ;;
+            "WARN") echo -e "$WARN $message" ;;
+            "PROC") echo -e "$PROC $message" ;;
+            *) echo -e "[?] $message" ;;
         esac
     fi
 }
 
 check_root() {
     if [ "$EUID" -ne 0 ]; then
-        log_message "JOKER" "The clown thinks he can run without proper authority! WRONG!" "validation"
-        echo -e "${BLOOD_RED}${BOLD}💀 ACCESS DENIED 💀${RESET}"
-        echo -e "${YELLOW}Even the Joker needs administrative privileges in Gotham!${RESET}"
-        echo -e "${NEON_CYAN}Solution:${RESET} ${NEON_GREEN}sudo $0 [options]${RESET}"
+        echo -e "${FAIL} Nice try, but this needs root. Ever heard of sudo?"
+        echo -e "${INFO} Run: ${BOLD}sudo $0 [options]${RESET}"
         exit 1
     fi
     
     if [ -z "$ORIGINAL_USER" ]; then
-        log_message "BANE" "The shadows hide the true user identity. This is... problematic." "validation"
-        echo -e "${BLOOD_RED}${BOLD}🦇 IDENTITY CRISIS 🦇${RESET}"
-        echo -e "${YELLOW}Batman needs to know who's behind the mask!${RESET}"
+        echo -e "${FAIL} Can't figure out who you actually are. This is awkward."
+        echo -e "${INFO} Make sure you're using sudo, not running as root directly"
         exit 1
     fi
     
     if ! id "$ORIGINAL_USER" &>/dev/null; then
-        log_message "ERROR" "The user '$ORIGINAL_USER' has vanished into the night." "validation"
+        log_message "FAIL" "User '$ORIGINAL_USER' doesn't exist. Quantum user detected?" "init"
         exit 1
     fi
     
-    local user_home=$(eval echo ~$ORIGINAL_USER)
-    if [ ! -d "$user_home" ]; then
-        log_message "ERROR" "The Batcave for user '$ORIGINAL_USER' cannot be located." "validation"
-        exit 1
-    fi
-    
-    log_message "BATMAN" "The Dark Knight has awakened. Operating with user context: $ORIGINAL_USER" "validation"
+    log_message "OK" "Running as root with actual user: $ORIGINAL_USER" "init"
 }
 
-extend_sudo_timeout() {
-    log_message "BATMAN" "Extending the Bat-Signal timeout to prevent interruptions..." "security"
-    
-    # Cache sudo credentials for 45 minutes (2700 seconds)
-    sudo -v
-    
-    # Create a background process to keep sudo alive
-    (
-        while true; do
-            sleep 300  # Refresh every 5 minutes
-            sudo -n true 2>/dev/null || break
-        done
-    ) &
-    
-    # Store the background process PID for cleanup
-    SUDO_KEEPER_PID=$!
-    
-    log_message "SUCCESS" "Sudo timeout extended - the night watch is set" "security"
-}
-
-cleanup_sudo_keeper() {
-    if [ -n "$SUDO_KEEPER_PID" ]; then
-        kill "$SUDO_KEEPER_PID" 2>/dev/null
-        log_message "BATMAN" "Night watch concluded. Standing down." "security"
-    fi
-}
-
-add_blackarch_repo() {
-    log_message "PROCESSING" "Infiltrating BlackArch's fortress of digital weaponry..." "setup"
-    
-    if grep -q "^\[blackarch\]" /etc/pacman.conf; then
-        log_message "BATMAN" "BlackArch armory already breached and secured" "setup"
+# The magic sauce - sudo password caching that actually works
+setup_sudo_cache() {
+    if [ "$NO_SUDO_CACHE" == "true" ]; then
+        log_message "INFO" "Sudo caching disabled by paranoid user" "sudo"
         return 0
     fi
     
-    log_message "BANE" "Breaking into BlackArch's weapon cache... This may take time." "setup"
-    log_message "INFO" "If Bane's assault stalls, press Ctrl+C and begin the siege anew" "setup"
+    log_message "PROC" "Setting up intelligent sudo caching..." "sudo"
+    
+    # Create askpass helper that returns empty (for sudoloop in yay)
+    cat > "$SUDO_ASKPASS_HELPER" << 'EOHELPER'
+#!/bin/bash
+echo ""
+EOHELPER
+    chmod +x "$SUDO_ASKPASS_HELPER"
+    
+    # Prime sudo cache
+    echo -e "${INFO} One-time authentication required for the entire installation"
+    sudo -v
+    
+    # Keep sudo alive in background
+    (
+        while true; do
+            sudo -n true 2>/dev/null || break
+            sleep 50
+        done
+    ) &
+    SUDO_KEEPER_PID=$!
+    
+    # Export for yay to use
+    export SUDO_ASKPASS="$SUDO_ASKPASS_HELPER"
+    
+    log_message "OK" "Sudo cache configured - no more password prompts" "sudo"
+}
+
+cleanup_sudo_cache() {
+    if [ -n "$SUDO_KEEPER_PID" ]; then
+        kill "$SUDO_KEEPER_PID" 2>/dev/null
+    fi
+    rm -f "$SUDO_ASKPASS_HELPER" 2>/dev/null
+    unset SUDO_ASKPASS
+    log_message "INFO" "Sudo cache cleaned up" "sudo"
+}
+
+add_blackarch_repo() {
+    log_message "PROC" "Adding BlackArch repository..." "setup"
+    
+    if grep -q "^\[blackarch\]" /etc/pacman.conf; then
+        log_message "OK" "BlackArch already configured - skipping" "setup"
+        return 0
+    fi
+    
+    log_message "INFO" "Downloading BlackArch bootstrap script..." "setup"
     
     if ! curl -s -o strap.sh https://blackarch.org/strap.sh; then
-        log_message "JOKER" "The download failed! Even chaos has better connectivity!" "setup"
+        log_message "FAIL" "Failed to download BlackArch script. Check your internet." "setup"
         return 1
     fi
     
     if [ ! -f strap.sh ] || [ ! -s strap.sh ]; then
-        log_message "JOKER" "The script is corrupted! Someone's been playing with my toys!" "setup"
+        log_message "FAIL" "BlackArch script is empty or corrupted" "setup"
         return 1
     fi
     
@@ -369,1041 +292,422 @@ add_blackarch_repo() {
     
     if ./strap.sh &>/dev/null; then
         rm -f strap.sh
-        log_message "BATMAN" "BlackArch fortress has fallen to the Dark Knight" "setup"
-        
-        if grep -q "^\[blackarch\]" /etc/pacman.conf; then
-            log_message "SUCCESS" "Arsenal verification complete - weapons ready" "setup"
-            return 0
-        else
-            log_message "JOKER" "Verification failed! The joke's on us!" "setup"
-            return 1
-        fi
+        log_message "OK" "BlackArch repository added successfully" "setup"
+        return 0
     else
         rm -f strap.sh
-        log_message "JOKER" "BlackArch resisted our infiltration attempt!" "setup"
+        log_message "FAIL" "BlackArch installation failed" "setup"
         return 1
     fi
 }
 
-update_databases() {
-    log_message "BANE" "Initiating keyring destruction and reconstruction protocol..." "setup"
+fix_pacman_keys() {
+    log_message "PROC" "Fixing pacman keyring (this takes forever)..." "setup"
     
-    log_message "INFO" "Phase 1: Rebuilding the keyring from ashes..."
-    if pacman-key --init &>/dev/null; then
-        log_message "BATMAN" "Keyring initialization complete - order restored"
-    else
-        log_message "JOKER" "Keyring initialization failed - chaos reigns!"
-    fi
+    # Kill any existing gpg-agent processes that might interfere
+    killall gpg-agent 2>/dev/null
+    
+    # Remove old gnupg dir if corrupted
+    rm -rf /etc/pacman.d/gnupg.old 2>/dev/null
+    mv /etc/pacman.d/gnupg /etc/pacman.d/gnupg.old 2>/dev/null
+    
+    log_message "INFO" "Initializing new keyring..." "setup"
+    pacman-key --init &>/dev/null
+    
+    log_message "INFO" "Populating keyring with Arch and BlackArch keys..." "setup"
+    pacman-key --populate archlinux &>/dev/null
+    pacman-key --populate blackarch &>/dev/null 2>&1
+    
+    log_message "INFO" "Refreshing keys (go get coffee)..." "setup"
+    pacman-key --refresh-keys --keyserver keyserver.ubuntu.com &>/dev/null 2>&1 || true
+    
+    log_message "OK" "Keyring should be functional now" "setup"
+}
 
-    log_message "INFO" "Phase 2: Summoning the keys of Arch and BlackArch..."
-    if pacman-key --populate archlinux blackarch &>/dev/null; then
-        log_message "BATMAN" "Key population successful - the vaults are secured"
-    else
-        log_message "JOKER" "Key population failed - someone changed the locks!"
-        return 1
-    fi
-
-    log_message "INFO" "Phase 3: Refreshing all keys from the digital underworld..."
-    if pacman-key --refresh-keys &>/dev/null; then
-        log_message "BATMAN" "All keys refreshed from the shadow servers"
-    else
-        log_message "BANE" "Key refresh failed - the network burns!"
-    fi
-
-    log_message "BANE" "Phase 4: Updating the system - breaking it to rebuild stronger..."
+update_system() {
+    log_message "PROC" "Updating system packages..." "setup"
+    
     local attempts=3
     for ((i=1; i<=attempts; i++)); do
-        log_message "INFO" "System upgrade siege attempt $i of $attempts..."
+        log_message "INFO" "Update attempt $i of $attempts..." "setup"
         
         if pacman -Syu --noconfirm &>/dev/null; then
-            log_message "BATMAN" "System upgraded successfully - Gotham is secure"
+            log_message "OK" "System updated successfully" "setup"
             return 0
         else
-            log_message "BANE" "Upgrade attempt $i failed - the city still burns"
-            if [ $i -lt $attempts ]; then
-                sleep 2
-            fi
+            log_message "WARN" "Update attempt $i failed" "setup"
+            [ $i -lt $attempts ] && sleep 2
         fi
     done
     
-    log_message "JOKER" "System upgrade failed after $attempts attempts - HAHAHAHA!"
+    log_message "FAIL" "System update failed after $attempts attempts" "setup"
     return 1
 }
 
 install_yay() {
     if command -v yay &>/dev/null; then
-        local yay_version=$(yay --version | head -n1)
-        log_message "BATMAN" "YAY already serves the Dark Knight: $yay_version" "setup"
+        log_message "OK" "YAY already installed" "setup"
         return 0
     fi
     
-    log_message "BANE" "Forging YAY - the AUR weapon of mass installation..." "setup"
+    log_message "PROC" "Installing YAY AUR helper..." "setup"
     
-    local yay_deps=("git" "base-devel" "go")
-    log_message "INFO" "Assembling YAY's components: ${yay_deps[*]}" "setup"
+    local deps=("git" "base-devel" "go")
+    log_message "INFO" "Installing YAY dependencies: ${deps[*]}" "setup"
     
-    if ! pacman -S --noconfirm --needed "${yay_deps[@]}" &>/dev/null; then
-        log_message "JOKER" "YAY's dependencies refuse to cooperate!" "setup"
+    if ! pacman -S --noconfirm --needed "${deps[@]}" &>/dev/null; then
+        log_message "FAIL" "Failed to install YAY dependencies" "setup"
         return 1
     fi
     
-    local temp_dir="/tmp/yay-forge-$$"
-    mkdir -p "$temp_dir"
-    cd "$temp_dir"
+    local build_dir="/tmp/yay-build-$$"
+    mkdir -p "$build_dir"
+    cd "$build_dir"
     
-    log_message "INFO" "Cloning YAY from the AUR shadows..."
+    log_message "INFO" "Cloning YAY repository..." "setup"
     if ! sudo -u "$ORIGINAL_USER" git clone https://aur.archlinux.org/yay.git &>/dev/null; then
-        log_message "JOKER" "YAY repository clone failed - someone's watching!"
-        rm -rf "$temp_dir"
+        log_message "FAIL" "Failed to clone YAY repository" "setup"
+        rm -rf "$build_dir"
         return 1
     fi
     
     cd yay
     
-    log_message "BANE" "Building YAY with the fury of a thousand explosions..."
+    log_message "INFO" "Building YAY..." "setup"
     if sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm &>/dev/null; then
-        log_message "BATMAN" "YAY has been forged and deployed successfully"
-        
+        log_message "OK" "YAY installed successfully" "setup"
         cd /
-        rm -rf "$temp_dir"
-        
-        if command -v yay &>/dev/null; then
-            local yay_version=$(yay --version | head -n1)
-            log_message "SUCCESS" "YAY verification complete: $yay_version"
-            return 0
-        else
-            log_message "JOKER" "YAY installation verification failed - it's vanished!"
-            return 1
-        fi
+        rm -rf "$build_dir"
+        return 0
     else
-        log_message "JOKER" "YAY build failed - the forge is broken!"
+        log_message "FAIL" "YAY build failed" "setup"
         cd /
-        rm -rf "$temp_dir"
+        rm -rf "$build_dir"
         return 1
     fi
 }
 
-install_dependencies() {
-    log_message "BANE" "Gathering the essential tools of destruction..." "setup"
+install_base_dependencies() {
+    log_message "PROC" "Installing base dependencies..." "setup"
     
     local core_deps=(
         "base-devel" "cmake" "make" "gcc" "pkg-config"
         "git" "curl" "wget" "unzip" "tar" "gzip"
     )
     
-    local security_deps=(
-        "libnl" "openssl" "libpcap" "libnet" "libnetfilter_queue"
-        "iptables" "ethtool" "util-linux" "zlib" "pcre2"
-        "sqlite" "hwloc" "cmocka"
+    local lib_deps=(
+        "openssl" "libpcap" "libnet" "libnetfilter_queue"
+        "sqlite" "zlib" "pcre2"
     )
     
     local wireless_deps=(
-        "hostapd" "wpa_supplicant" "iw" "wireless_tools"
-        "aircrack-ng" "tcpdump" "screen"
+        "iw" "wireless_tools" "net-tools"
     )
     
     local dev_deps=(
         "python" "python-pip" "python-setuptools"
         "ruby" "perl" "nodejs" "npm"
-        "java-runtime-common" "java-environment-common"
     )
     
-    local hw_deps=(
-        "usbutils" "pciutils" "lsof" "strace" "ltrace"
-        "binutils" "file" "which" "expect"
-    )
-    
-    install_dep_category() {
-        local category_name="$1"
+    install_dep_group() {
+        local group_name="$1"
         shift
         local deps=("$@")
         
-        log_message "BATMAN" "Deploying $category_name arsenal..." "setup"
+        log_message "INFO" "Installing $group_name dependencies..." "setup"
         
         if pacman -S --noconfirm --needed "${deps[@]}" &>/dev/null; then
-            log_message "SUCCESS" "$category_name weapons locked and loaded"
+            log_message "OK" "$group_name dependencies installed"
             return 0
         else
-            log_message "BANE" "Some $category_name weapons failed to deploy"
+            log_message "WARN" "Some $group_name dependencies failed"
             return 1
         fi
     }
     
-    install_dep_category "core system" "${core_deps[@]}"
-    install_dep_category "security warfare" "${security_deps[@]}"
-    install_dep_category "wireless infiltration" "${wireless_deps[@]}"
-    install_dep_category "development" "${dev_deps[@]}"
-    install_dep_category "hardware reconnaissance" "${hw_deps[@]}"
+    install_dep_group "core" "${core_deps[@]}"
+    install_dep_group "library" "${lib_deps[@]}"
+    install_dep_group "wireless" "${wireless_deps[@]}"
+    install_dep_group "development" "${dev_deps[@]}"
     
-    log_message "BATMAN" "All essential weapons have been secured in the armory"
-}
-
-check_and_install_essential_tools() {
-    log_message "BATMAN" "Conducting inventory of the Dark Knight's essential arsenal..." "tools"
-    
-    local essential_tools=(
-        "nmap" "wireshark" "aircrack-ng" "john" "hashcat"
-        "sqlmap" "nikto" "gobuster" "hydra" "metasploit"
-        "git" "curl" "wget" "python3" "gcc"
-    )
-    
-    local missing_tools=()
-    local total_tools=${#essential_tools[@]}
-    local current_tool=0
-    
-    for tool in "${essential_tools[@]}"; do
-        current_tool=$((current_tool + 1))
-        
-        if [ "$QUIET_MODE" != "true" ]; then
-            echo -ne "\r${PROCESSING} Arsenal inspection... [$current_tool/$total_tools] $tool"
-        fi
-        
-        if ! command -v "$tool" &>/dev/null; then
-            missing_tools+=("$tool")
-        fi
-    done
-    
-    if [ "$QUIET_MODE" != "true" ]; then
-        echo
-    fi
-    
-    if [ ${#missing_tools[@]} -eq 0 ]; then
-        log_message "BATMAN" "All essential weapons are present and accounted for"
-        return 0
-    fi
-    
-    log_message "BANE" "Deploying ${#missing_tools[@]} missing weapons of justice"
-    
-    for tool in "${missing_tools[@]}"; do
-        local package_name="${enhanced_tool_packages[$tool]:-$tool}"
-        log_message "INFO" "Forging essential weapon: $tool ($package_name)"
-        
-        if pacman -Si "$package_name" &>/dev/null; then
-            if pacman -S --noconfirm --needed "$package_name" &>/dev/null; then
-                log_message "BATMAN" "Essential weapon $tool deployed from official armory"
-            else
-                log_message "BANE" "Failed to deploy $tool from official armory"
-            fi
-        else
-            log_message "INFO" "Searching AUR shadows for $package_name..."
-            if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$package_name" &>/dev/null; then
-                log_message "BATMAN" "Essential weapon $tool acquired from AUR shadows"
-            else
-                log_message "JOKER" "Failed to acquire $tool from AUR - it's laughing at us!"
-            fi
-        fi
-    done
-    
-    log_message "BATMAN" "Essential weapons inventory complete"
+    log_message "OK" "Base dependencies installation completed" "setup"
 }
 
 install_aur_packages() {
-    log_message "BANE" "Unleashing the AUR weapon manufacturing protocol..." "aur"
+    if [ "$SKIP_AUR" == "true" ]; then
+        log_message "INFO" "Skipping AUR packages as requested" "aur"
+        return 0
+    fi
     
-    # Extend sudo timeout before starting AUR installations
-    extend_sudo_timeout
+    log_message "PROC" "Installing AUR packages..." "aur"
     
+    # Critical AUR packages
     local aur_packages=(
-        "apkid"
-        "apkleaks"
-        "mobsf"
-        "nuclei"
-        "httpx"
-        "subfinder"
-        "katana"
-        "gau"
-        "anew"
-        "notify"
-        "interactsh"
-        "proxify"
-        "dnsx"
-        "naabu"
-        "mapcidr"
-        "shuffledns"
-        "puredns"
-        "massdns"
-        "amass"
-        "assetfinder"
-        "findomain"
-        "chaos-client"
-        "uncover"
-        "shodan"
-        "censys"
-        "securitytrails"
-        "waybackurls"
-        "gf"
-        "qsreplace"
-        "freq"
-        "hakrawler"
-        "gospider"
+        "nuclei-bin"
+        "httpx-bin"
+        "subfinder-bin"
+        "katana-bin"
+        "gau-bin"
+        "anew-bin"
+        "notify-bin"
+        "interactsh-bin"
+        "proxify-bin"
+        "dnsx-bin"
+        "naabu-bin"
+        "mapcidr-bin"
+        "massdns-bin"
+        "amass-bin"
+        "assetfinder-bin"
+        "findomain-bin"
+        "waybackurls-bin"
+        "gf-bin"
+        "qsreplace-bin"
+        "hakrawler-bin"
+        "gospider-bin"
+        "dalfox-bin"
+        "kxss-bin"
         "paramspider"
         "arjun"
-        "dalfox"
-        "kxss"
-        "bxss"
-        "xssstrike"
-        "commix"
-        "sqliv"
-        "nosqlmap"
-        "jqinjection"
         "corsy"
-        "cors-scanner"
-        "jwt-tool"
-        "jwt-crack"
-        "wpseku"
-        "droopescan"
-        "joomscan-git"
-        "cmsmap"
-        "wig"
-        "whatweb"
-        "webtech"
-        "retire-js"
-        "snallygaster"
         "secretfinder"
         "truffelhog"
-        "gitleaks"
-        "detect-secrets"
-        "gitdorker"
-        "gitrob"
-        "git-dumper"
-        "dvcs-ripper"
-        "cewl"
-        "crunch"
-        "cupp"
-        "mentalist"
-        "rsmangler"
-        "hashcat-utils"
-        "princeprocessor"
-        "kwprocessor"
-        "maskprocessor"
-        "statsprocessor"
-        "pack"
-        "pipal"
-        "pcfg-cracker"
-        "hashstack"
-        "name-that-hash"
-        "haiti"
-        "hash-identifier"
-        "findmyhash"
-        "onlinehashcrack"
-        "thc-hydra-gtk"
-        "brutespray"
-        "crowbar"
-        "patator"
-        "ncrack"
-        "thc-pptp-bruter"
-        "cisco-torch"
-        "cisco-auditing-tool"
-        "snmpwalk"
-        "snmp-check"
-        "smtp-user-enum"
-        "ident-user-enum"
-        "dns-enum"
-        "enum4linux"
-        "smbmap"
-        "smbclient"
-        "rpcclient"
-        "nbtscan"
-        "ldapsearch"
-        "ldapdomaindump"
-        "bloodhound"
-        "sharphound"
-        "powerview"
-        "adidnsdump"
-        "krbrelayx"
-        "responder"
-        "mitm6"
-        "bettercap"
-        "ettercap"
-        "dsniff"
-        "tcpreplay"
-        "hcxtools"
-        "hcxdumptool"
-        "airgeddon"
-        "wifiphisher"
-        "fluxion"
-        "linset"
-        "wifipumpkin3"
-        "eaphammer"
-        "hostapd-wpe"
-        "freeradius-wpe"
-        "eapmd5pass"
-        "asleap"
-        "cowpatty"
-        "pyrit"
-        "hashcat-wpa"
-        "john-jumbo"
-        "crackq"
+        "gitleaks-bin"
+        "shodan"
+        "censys"
     )
     
-    local installed_count=0
-    local failed_count=0
-    local total_packages=${#aur_packages[@]}
+    local installed=0
+    local failed=0
+    local total=${#aur_packages[@]}
     
-    log_message "BATMAN" "Preparing to forge $total_packages weapons from the AUR foundry..."
+    log_message "INFO" "Processing $total AUR packages..." "aur"
     
     for package in "${aur_packages[@]}"; do
-        if pacman -Q "$package" &>/dev/null; then
-            log_message "INFO" "AUR weapon $package already in the arsenal"
-            installed_count=$((installed_count + 1))
+        # Check if already installed
+        if pacman -Q "${package%-bin}" &>/dev/null || pacman -Q "$package" &>/dev/null; then
+            log_message "INFO" "AUR package $package already installed" "aur"
+            installed=$((installed + 1))
             continue
         fi
         
-        log_message "BANE" "Forging AUR weapon: $package"
+        log_message "PROC" "Installing AUR package: $package" "aur"
         
-        # Use --sudoloop to maintain sudo credentials throughout the process
-        if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed --sudoloop "$package" &>/dev/null; then
-            log_message "BATMAN" "AUR weapon $package successfully forged and deployed"
-            installed_count=$((installed_count + 1))
+        # Use yay with sudoloop and askpass to avoid password prompts
+        if sudo -u "$ORIGINAL_USER" SUDO_ASKPASS="$SUDO_ASKPASS_HELPER" \
+           yay -S --noconfirm --needed --sudoloop --cleanafter "$package" &>/dev/null; then
+            log_message "OK" "AUR package $package installed" "aur"
+            installed=$((installed + 1))
         else
-            log_message "JOKER" "AUR weapon $package failed to forge - the chaos spreads!"
-            failed_count=$((failed_count + 1))
-            echo "$package" >> "$LOG_DIR/failed_aur_packages.txt"
+            log_message "WARN" "AUR package $package failed" "aur"
+            failed=$((failed + 1))
+            echo "$package" >> "$LOG_DIR/failed_aur.txt"
         fi
     done
     
-    # Cleanup the sudo keeper process
-    cleanup_sudo_keeper
-    
-    log_message "BATMAN" "AUR weapon forging complete: $installed_count deployed, $failed_count lost to chaos"
+    log_message "OK" "AUR installation: $installed successful, $failed failed" "aur"
 }
 
 get_blackarch_packages() {
-    log_message "BATMAN" "Analyzing the BlackArch weapon manifest..." "packages"
+    log_message "PROC" "Preparing package list..." "packages"
     
     case "$INSTALL_MODE" in
         "all")
-            log_message "BANE" "Preparing for total digital warfare - acquiring ALL weapons..."
+            log_message "INFO" "Fetching all BlackArch packages (this is insane)..." "packages"
             if pacman -Slq blackarch > blackarch_packages.txt 2>/dev/null; then
-                local package_count=$(wc -l < blackarch_packages.txt)
-                log_message "BATMAN" "Located $package_count weapons for complete digital domination"
+                local count=$(wc -l < blackarch_packages.txt)
+                log_message "OK" "Found $count packages to install" "packages"
             else
-                log_message "JOKER" "Failed to retrieve the weapon manifest - someone's sabotaged us!"
+                log_message "FAIL" "Failed to get BlackArch package list" "packages"
                 return 1
             fi
             ;;
             
         "group")
-            log_message "BATMAN" "Gathering specialized weapon cache: $GROUP_NAME"
+            log_message "INFO" "Fetching packages for group: $GROUP_NAME" "packages"
             
-            if ! pacman -Sg | grep -q "^blackarch-$GROUP_NAME" && ! pacman -Sg | grep -q "^$GROUP_NAME"; then
-                log_message "JOKER" "Weapon cache '$GROUP_NAME' doesn't exist in our reality!"
-                echo -e "${GOLD}Available weapon caches in the BlackArch armory:${RESET}"
+            if ! pacman -Sg | grep -q "blackarch-$GROUP_NAME"; then
+                log_message "FAIL" "Group 'blackarch-$GROUP_NAME' doesn't exist" "packages"
+                echo -e "${WARN} Available groups:"
                 pacman -Sg | grep blackarch | sort | column
                 return 1
             fi
             
             if pacman -Sgq "blackarch-$GROUP_NAME" > blackarch_packages.txt 2>/dev/null; then
-                local package_count=$(wc -l < blackarch_packages.txt)
-                log_message "BATMAN" "Located $package_count weapons in blackarch-$GROUP_NAME cache"
-            elif pacman -Sgq "$GROUP_NAME" > blackarch_packages.txt 2>/dev/null; then
-                local package_count=$(wc -l < blackarch_packages.txt)
-                log_message "BATMAN" "Located $package_count weapons in $GROUP_NAME cache"
+                local count=$(wc -l < blackarch_packages.txt)
+                log_message "OK" "Found $count packages in group $GROUP_NAME" "packages"
             else
-                log_message "JOKER" "Failed to access weapon cache $GROUP_NAME - it's locked!"
+                log_message "FAIL" "Failed to get packages for group $GROUP_NAME" "packages"
                 return 1
             fi
             ;;
             
         "custom")
-            log_message "BATMAN" "Loading custom weapon manifest from the Batcave: $PACKAGE_LIST"
+            log_message "INFO" "Loading custom package list: $PACKAGE_LIST" "packages"
             
             if [ ! -f "$PACKAGE_LIST" ]; then
-                log_message "JOKER" "Weapon manifest '$PACKAGE_LIST' has vanished into thin air!"
+                log_message "FAIL" "Package list file not found: $PACKAGE_LIST" "packages"
                 return 1
             fi
             
-            grep -v "^#" "$PACKAGE_LIST" | grep -v "^$" | sed 's/[[:space:]]*$//' | sed 's/^[[:space:]]*//' > blackarch_packages.txt.tmp
-            
-            sort -u blackarch_packages.txt.tmp > blackarch_packages.txt
-            rm -f blackarch_packages.txt.tmp
-            
-            local package_count=$(wc -l < blackarch_packages.txt)
-            log_message "BATMAN" "Custom weapon manifest processed: $package_count unique weapons ready"
-            
-            if [ "$QUIET_MODE" != "true" ]; then
-                echo -e "${GOLD}Sample weapons from your custom arsenal:${RESET}"
-                head -10 blackarch_packages.txt | while read -r pkg; do
-                    echo -e "  ${NEON_CYAN}🦇${RESET} $pkg"
-                done
-                [ $package_count -gt 10 ] && echo -e "  ${GOLD}... and $((package_count - 10)) more instruments of justice${RESET}"
-            fi
+            grep -v "^#" "$PACKAGE_LIST" | grep -v "^$" > blackarch_packages.txt
+            local count=$(wc -l < blackarch_packages.txt)
+            log_message "OK" "Loaded $count packages from custom list" "packages"
             ;;
     esac
     
-    local essential_additions=("android-apktool" "exploitdb" "metasploit")
-    
-    for pkg in "${essential_additions[@]}"; do
-        if ! grep -q "^$pkg$" blackarch_packages.txt; then
-            echo "$pkg" >> blackarch_packages.txt
-            log_message "BATMAN" "Added essential weapon to arsenal: $pkg"
+    # Add essential tools if missing
+    local essentials=("metasploit" "nmap" "wireshark-qt" "burpsuite")
+    for tool in "${essentials[@]}"; do
+        if ! grep -q "^$tool$" blackarch_packages.txt 2>/dev/null; then
+            echo "$tool" >> blackarch_packages.txt
         fi
     done
-    
-    local final_count=$(wc -l < blackarch_packages.txt)
-    log_message "BATMAN" "Weapon manifest finalized: $final_count instruments of justice ready for deployment"
     
     return 0
 }
 
-handle_file_conflicts() {
+handle_conflicts() {
     local package="$1"
-    local error_msg="$2"
-    local conflict_log="$PACKAGE_LOG_DIR/${package}_conflicts.log"
+    local error="$2"
     
-    log_message "BANE" "Demolishing file conflicts for weapon: $package" "conflicts"
+    log_message "PROC" "Resolving conflicts for $package..." "conflict"
     
-    echo "=== File Conflict Battle Report for $package ===" > "$conflict_log"
-    echo "Timestamp: $(date)" >> "$conflict_log"
-    echo "Battlefield Report:" >> "$conflict_log"
-    echo "$error_msg" >> "$conflict_log"
-    echo "=============================================" >> "$conflict_log"
-    
-    mkdir -p "$BACKUP_DIR/$package"
-    
-    local conflicting_files=$(echo "$error_msg" | grep -E "(exists in filesystem|are in conflict)" | sed -E 's/.*: (\/.*) exists in filesystem.*/\1/; s/.*: (\/.*) are in conflict.*/\1/')
-    
-    if [ -z "$conflicting_files" ]; then
-        log_message "JOKER" "Cannot identify the conflicting files for $package - they're hiding!"
-        echo "Failed to identify conflicting files" >> "$conflict_log"
-        return 1
+    # Try force overwrite first
+    if pacman -S --noconfirm --overwrite='*' "$package" &>/dev/null; then
+        log_message "OK" "Resolved conflicts for $package with overwrite" "conflict"
+        return 0
     fi
     
-    local files_processed=0
-    local files_backed_up=0
+    # Extract conflicting packages
+    local conflicts=$(echo "$error" | grep -oE "conflicts with [^ ]+" | cut -d' ' -f3)
     
-    echo "$conflicting_files" | while IFS= read -r file; do
-        [ -n "$file" ] && [ -f "$file" ] || continue
-        
-        files_processed=$((files_processed + 1))
-        
-        local owner=$(pacman -Qo "$file" 2>/dev/null | awk '{print $NF}')
-        local backup_path="$BACKUP_DIR/$package/${file#/}.$(date +%Y%m%d_%H%M%S)"
-        
-        echo "Conflict detected: $file (controlled by: ${owner:-unknown entity})" >> "$conflict_log"
-        
-        if [ -n "$owner" ]; then
-            if [[ "$owner" == *"-git"* ]] || [[ "$owner" != *"$package"* ]]; then
-                log_message "BANE" "Eliminating conflicting package: $owner"
-                echo "Destroying conflicting package: $owner" >> "$conflict_log"
-                
-                if pacman -R --noconfirm "$owner" &>/dev/null; then
-                    log_message "BATMAN" "Successfully eliminated conflicting package: $owner"
-                    echo "Successfully destroyed: $owner" >> "$conflict_log"
-                else
-                    log_message "JOKER" "Failed to eliminate package: $owner, securing file instead"
-                    echo "Failed to destroy $owner, backing up file" >> "$conflict_log"
-                    
-                    mkdir -p "$(dirname "$backup_path")"
-                    
-                    if cp "$file" "$backup_path" 2>/dev/null; then
-                        mv "$file" "${file}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
-                        files_backed_up=$((files_backed_up + 1))
-                        echo "Secured to: $backup_path" >> "$conflict_log"
-                    fi
-                fi
-            else
-                log_message "BATMAN" "Securing owned file: $file"
-                mkdir -p "$(dirname "$backup_path")"
-                
-                if cp "$file" "$backup_path" 2>/dev/null; then
-                    mv "$file" "${file}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
-                    files_backed_up=$((files_backed_up + 1))
-                    echo "Secured owned file to: $backup_path" >> "$conflict_log"
-                fi
-            fi
-        else
-            log_message "BATMAN" "Securing unowned file: $file"
-            mkdir -p "$(dirname "$backup_path")"
-            
-            if cp "$file" "$backup_path" 2>/dev/null; then
-                mv "$file" "${file}.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null
-                files_backed_up=$((files_backed_up + 1))
-                echo "Secured unowned file to: $backup_path" >> "$conflict_log"
-            fi
-        fi
+    for conflict in $conflicts; do
+        log_message "INFO" "Removing conflicting package: $conflict" "conflict"
+        pacman -R --noconfirm "$conflict" &>/dev/null
     done
     
-    echo "Files processed: $files_processed, Files secured: $files_backed_up" >> "$conflict_log"
-    log_message "BATMAN" "Conflict resolution complete for $package: $files_processed files processed"
-    
-    return 0
-}
-
-handle_dependency_issues() {
-    local package="$1"
-    local error_msg="$2"
-    local dep_log="$PACKAGE_LOG_DIR/${package}_dependencies.log"
-    
-    log_message "BANE" "Resolving dependency chaos for weapon: $package" "dependencies"
-    
-    echo "=== Dependency Battle Report for $package ===" > "$dep_log"
-    echo "Timestamp: $(date)" >> "$dep_log"
-    echo "Chaos Report:" >> "$dep_log"
-    echo "$error_msg" >> "$dep_log"
-    echo "=========================================" >> "$dep_log"
-    
-    local strategies=("--overwrite=*" "--needed" "--force")
-    
-    for strategy in "${strategies[@]}"; do
-        log_message "BATMAN" "Attempting deployment with strategy: $strategy"
-        echo "Attempting installation with: $strategy" >> "$dep_log"
-        
-        if pacman -S --noconfirm $strategy "$package" &>/dev/null; then
-            log_message "BATMAN" "Weapon $package deployed successfully with $strategy"
-            echo "Victory with strategy: $strategy" >> "$dep_log"
-            return 0
-        else
-            echo "Strategy failed: $strategy" >> "$dep_log"
-        fi
-    done
-    
-    local missing_deps=$(echo "$error_msg" | grep -oE "dependency.*required" | sed -E 's/dependency (.*) is required.*/\1/' | sort -u)
-    
-    if [ -n "$missing_deps" ]; then
-        log_message "BANE" "Acquiring missing dependencies for $package"
-        echo "Missing dependencies identified: $missing_deps" >> "$dep_log"
-        
-        echo "$missing_deps" | while IFS= read -r dep; do
-            [ -n "$dep" ] || continue
-            
-            log_message "BATMAN" "Deploying dependency: $dep"
-            echo "Installing dependency: $dep" >> "$dep_log"
-            
-            if pacman -S --noconfirm --needed "$dep" &>/dev/null; then
-                log_message "BATMAN" "Dependency secured: $dep"
-                echo "Successfully deployed dependency: $dep" >> "$dep_log"
-            else
-                log_message "JOKER" "Failed to secure dependency: $dep"
-                echo "Failed to deploy dependency: $dep" >> "$dep_log"
-            fi
-        done
-        
-        log_message "BATMAN" "Retrying $package deployment after dependency resolution"
-        echo "Retrying installation after dependency resolution" >> "$dep_log"
-        
-        if pacman -S --noconfirm --needed "$package" &>/dev/null; then
-            log_message "BATMAN" "Weapon $package deployed after dependency resolution"
-            echo "Victory after dependency resolution" >> "$dep_log"
-            return 0
-        else
-            log_message "JOKER" "Weapon $package still resists deployment after dependency resolution"
-            echo "Still failed after dependency resolution" >> "$dep_log"
-        fi
+    # Try again
+    if pacman -S --noconfirm --needed "$package" &>/dev/null; then
+        log_message "OK" "Resolved conflicts for $package" "conflict"
+        return 0
     fi
     
     return 1
 }
 
-cleanup_backups() {
-    local backup_count=$(find / -name "*.backup*" 2>/dev/null | wc -l)
-    local system_backups_dir="$BACKUP_DIR/system_backups"
-    
-    log_message "BATMAN" "Backup analysis: $backup_count evidence files found in Gotham" "cleanup"
-    
-    if [ "$backup_count" -eq 0 ]; then
-        log_message "BATMAN" "No evidence files found - Gotham is clean"
-        return 0
-    fi
-    
-    if [ "$AUTO_CLEANUP" == "true" ]; then
-        log_message "BATMAN" "Auto-cleanup protocol: organizing evidence files..."
-        
-        mkdir -p "$system_backups_dir/$(date +%Y%m%d_%H%M%S)"
-        local backup_session_dir="$system_backups_dir/$(date +%Y%m%d_%H%M%S)"
-        
-        find / -name "*.backup*" 2>/dev/null | while IFS= read -r backup_file; do
-            local relative_path="${backup_file#/}"
-            local target_dir="$backup_session_dir/$(dirname "$relative_path")"
-            
-            mkdir -p "$target_dir"
-            
-            if mv "$backup_file" "$target_dir/" 2>/dev/null; then
-                log_message "BATMAN" "Evidence secured: $backup_file"
-            fi
-        done
-        
-        log_message "BATMAN" "All evidence organized in the Batcave: $backup_session_dir"
-        
-        find "$backup_session_dir" -type f > "$backup_session_dir/evidence_manifest.txt"
-        {
-            echo "KYGOX Evidence Collection Report"
-            echo "==============================="
-            echo "Mission Date: $(date)"
-            echo "Operation Mode: $INSTALL_MODE"
-            echo "Evidence Count: $backup_count"
-            echo "Secure Location: $backup_session_dir"
-            echo "Filed by: The Dark Knight v$VERSION"
-        } > "$backup_session_dir/mission_report.txt"
-        
-        log_message "BATMAN" "Evidence manifest created with mission details"
-    else
-        echo
-        echo -e "${GOLD}${BOLD}╔══════════════════════════════════════╗${RESET}"
-        echo -e "${GOLD}${BOLD}║    🦇 EVIDENCE MANAGEMENT SYSTEM 🦇  ║${RESET}"
-        echo -e "${GOLD}${BOLD}╚══════════════════════════════════════╝${RESET}"
-        echo
-        echo -e "The Dark Knight has found ${BLOOD_RED}$backup_count${RESET} evidence files from the operation"
-        echo
-        echo -e "${BOLD}${NEON_CYAN}Available Actions:${RESET}"
-        echo -e "  ${NEON_CYAN}1${RESET}. ${BOLD}Leave evidence in place${RESET}     - Maintain current locations"
-        echo -e "  ${NEON_CYAN}2${RESET}. ${BOLD}Organize in Batcave${RESET}        - Move to secure storage with timestamps"
-        echo -e "  ${NEON_CYAN}3${RESET}. ${BOLD}Create evidence archive${RESET}    - Compress and seal evidence"
-        echo -e "  ${NEON_CYAN}4${RESET}. ${BOLD}Destroy all evidence${RESET}       - Permanent elimination"
-        echo -e "  ${NEON_CYAN}5${RESET}. ${BOLD}Inspect evidence${RESET}           - Review files before action"
-        echo
-        echo -ne "${BOLD}${GOLD}Batman's choice [1-5]:${RESET} "
-        read -r choice
-        
-        case $choice in
-            1)
-                log_message "BATMAN" "Evidence will remain in current locations - vigilance continues"
-                echo -e "${NEON_GREEN}Evidence files remain under surveillance${RESET}"
-                ;;
-            2)
-                log_message "BATMAN" "Organizing evidence in the Batcave archives"
-                mkdir -p "$system_backups_dir/$(date +%Y%m%d_%H%M%S)"
-                local backup_session_dir="$system_backups_dir/$(date +%Y%m%d_%H%M%S)"
-                
-                echo -e "${PROCESSING} Securing evidence files in the Batcave..."
-                
-                find / -name "*.backup*" 2>/dev/null | while IFS= read -r backup_file; do
-                    local relative_path="${backup_file#/}"
-                    local target_dir="$backup_session_dir/$(dirname "$relative_path")"
-                    
-                    mkdir -p "$target_dir"
-                    mv "$backup_file" "$target_dir/" 2>/dev/null
-                done
-                
-                find "$backup_session_dir" -type f > "$backup_session_dir/evidence_manifest.txt"
-                {
-                    echo "KYGOX EVIDENCE COLLECTION REPORT"
-                    echo "================================"
-                    echo "Mission Date: $(date)"
-                    echo "Operation Mode: $INSTALL_MODE"
-                    echo "Original Evidence Count: $backup_count"
-                    echo "Secure Location: $backup_session_dir"
-                    echo "Archived by: The Dark Knight v$VERSION"
-                } > "$backup_session_dir/mission_report.txt"
-                
-                log_message "BATMAN" "Evidence secured in Batcave: $backup_session_dir"
-                echo -e "${CHECK_MARK} Evidence organized with detailed documentation"
-                ;;
-            3)
-                log_message "BATMAN" "Creating sealed evidence archive"
-                local archive_name="kygox_evidence_$(date +%Y%m%d_%H%M%S).tar.gz"
-                
-                echo -e "${PROCESSING} Creating evidence archive: $archive_name"
-                
-                local temp_archive_dir="/tmp/kygox_evidence_archive_$"
-                mkdir -p "$temp_archive_dir"
-                
-                find / -name "*.backup*" 2>/dev/null | while IFS= read -r backup_file; do
-                    local relative_path="${backup_file#/}"
-                    local target_dir="$temp_archive_dir/$(dirname "$relative_path")"
-                    
-                    mkdir -p "$target_dir"
-                    cp "$backup_file" "$target_dir/" 2>/dev/null
-                done
-                
-                cd "$temp_archive_dir"
-                tar -czf "$LOG_DIR/$archive_name" . 2>/dev/null
-                cd /
-                
-                rm -rf "$temp_archive_dir"
-                find / -name "*.backup*" 2>/dev/null -delete
-                
-                log_message "BATMAN" "Evidence archive sealed: $LOG_DIR/$archive_name"
-                echo -e "${CHECK_MARK} Evidence archive created and original files eliminated"
-                ;;
-            4)
-                echo -e "${WARNING} ${BOLD}${BLOOD_RED}This will permanently destroy all evidence!${RESET}"
-                echo -ne "${BOLD}Are you absolutely certain? Type '${BLOOD_RED}DESTROY${RESET}${BOLD}' to confirm: ${RESET}"
-                read -r confirm
-                
-                if [ "$confirm" = "DESTROY" ]; then
-                    log_message "BANE" "All evidence destruction confirmed by operator"
-                    find / -name "*.backup*" 2>/dev/null -delete
-                    log_message "BATMAN" "All evidence has been eliminated"
-                    echo -e "${CHECK_MARK} All evidence files have been destroyed"
-                else
-                    log_message "BATMAN" "Evidence destruction cancelled - files preserved"
-                    echo -e "${INFO} Evidence destruction cancelled - vigilance continues"
-                fi
-                ;;
-            5)
-                echo -e "${INFO} ${BOLD}Evidence files discovered:${RESET}"
-                echo -e "${GOLD}════════════════════════════════════${RESET}"
-                find / -name "*.backup*" 2>/dev/null | head -20 | while IFS= read -r file; do
-                    echo -e "  ${NEON_CYAN}🦇${RESET} $file"
-                done
-                
-                local total_shown=20
-                if [ "$backup_count" -gt "$total_shown" ]; then
-                    echo -e "  ${GOLD}... and $((backup_count - total_shown)) more evidence files${RESET}"
-                fi
-                
-                echo -e "${GOLD}════════════════════════════════════${RESET}"
-                echo -e "${INFO} Re-run the installer to manage these evidence files"
-                ;;
-            *)
-                log_message "BATMAN" "Invalid choice - evidence remains under surveillance"
-                echo -e "${INFO} Invalid selection - evidence files remain in place"
-                ;;
-        esac
-    fi
-}
-
 install_packages() {
-    local start_time=$(date +%s)
     local total=$(wc -l < blackarch_packages.txt)
-    local current=0 successful=0 failed=0 skipped=0
-    local failed_packages_file="$LOG_DIR/failed_packages.txt"
-    local skipped_packages_file="$LOG_DIR/skipped_packages.txt"
-    local success_packages_file="$LOG_DIR/successful_packages.txt"
-    local max_retries=3
+    local current=0
+    local success=0
+    local failed=0
+    local skipped=0
     
-    > "$failed_packages_file"
-    > "$skipped_packages_file" 
-    > "$success_packages_file"
+    log_message "PROC" "Installing $total packages..." "install"
     
-    mkdir -p "$PACKAGE_LOG_DIR"
+    > "$LOG_DIR/failed_packages.txt"
+    > "$LOG_DIR/successful_packages.txt"
     
-    if [ "$QUIET_MODE" != "true" ]; then 
-        echo
-        echo -e "${NEON_CYAN}${BOLD}╔═══════════════════════════════════════════════════════════════╗${RESET}"
-        echo -e "${NEON_CYAN}${BOLD}║                🦇 WEAPON DEPLOYMENT PROTOCOL 🦇              ║${RESET}"
-        echo -e "${NEON_CYAN}${BOLD}╚═══════════════════════════════════════════════════════════════╝${RESET}"
-        echo
-        echo -e "${INFO} Deploying $total weapons using the Dark Knight's arsenal system"
-        echo -e "${INFO} Maximum deployment attempts per weapon: $max_retries"
-        echo -e "${INFO} Battle logs archived to: $PACKAGE_LOG_DIR"
-        echo
-    fi
-    
-    while IFS= read -r package || [ -n "$package" ]; do
-        [[ -z "$package" || "$package" =~ ^[[:space:]]*# ]] && continue
+    while IFS= read -r package; do
+        [[ -z "$package" || "$package" =~ ^# ]] && continue
         
         current=$((current + 1))
-        local package_start_time=$(date +%s)
         
         if [ "$QUIET_MODE" != "true" ]; then
-            echo
-            echo -e "${GOLD}${BOLD}╔═══ WEAPON $current/$total ═══╗${RESET}"
-            echo -e "${GOLD}${BOLD}║${RESET} ${NEON_CYAN}Target:${RESET} $package"
-            
-            local percentage=$(( current * 100 / total ))
-            local completed=$(( percentage / 2 ))
-            local remaining=$(( 50 - completed ))
-            
-            echo -ne "${GOLD}${BOLD}║${RESET} ${NEON_CYAN}Progress:${RESET} ["
-            printf "${NEON_GREEN}%0.s█" $(seq 1 $completed)
-            printf "${DARK_GRAY}%0.s░" $(seq 1 $remaining)
-            echo -e "] ${percentage}%%"
-            echo -e "${GOLD}${BOLD}╚════════════════════════╝${RESET}"
+            echo -ne "\r${PROC} Installing package $current/$total: $package"
         fi
         
+        # Check if already installed
         if pacman -Q "$package" &>/dev/null; then
-            log_message "BATMAN" "Weapon $package already in arsenal - mission continues"
             skipped=$((skipped + 1))
-            echo "$package (already deployed)" >> "$skipped_packages_file"
             continue
         fi
         
-        local retry=0 installed=false
-        local package_log="$PACKAGE_LOG_DIR/${package}_deployment.log"
+        # Try to install
+        local output=$(pacman -S --noconfirm --needed "$package" 2>&1)
+        local result=$?
         
-        echo "=== Weapon Deployment Log for $package ===" > "$package_log"
-        echo "Mission Timestamp: $(date)" >> "$package_log"
-        echo "Deployment attempts:" >> "$package_log"
-        
-        while [ $retry -lt $max_retries ] && [ "$installed" = false ]; do
-            retry=$((retry + 1))
-            
-            if [ "$QUIET_MODE" != "true" ]; then
-                echo -ne "${PROCESSING} Attempt $retry/$max_retries: Deploying $package..."
-            fi
-            
-            echo "--- Deployment Attempt $retry ---" >> "$package_log"
-            
-            local install_output=$(pacman -S --noconfirm --needed "$package" 2>&1)
-            local install_result=$?
-            
-            echo "$install_output" >> "$package_log"
-            
-            if [ $install_result -eq 0 ]; then
-                if [ "$QUIET_MODE" != "true" ]; then
-                    tput cuu1; tput el
-                    echo -e "${CHECK_MARK} Attempt $retry: ${NEON_GREEN}DEPLOYED${RESET} - $package secured"
-                fi
-                
-                log_message "BATMAN" "$package deployed successfully on attempt $retry"
-                successful=$((successful + 1))
-                installed=true
-                echo "$package" >> "$success_packages_file"
-                echo "DEPLOYMENT SUCCESS on attempt $retry" >> "$package_log"
-            else
-                if [ "$QUIET_MODE" != "true" ]; then
-                    tput cuu1; tput el
-                    echo -e "${CROSS_MARK} Attempt $retry: ${BLOOD_RED}FAILED${RESET} - Analyzing battlefield..."
-                fi
-                
-                log_message "BANE" "$package deployment failed on attempt $retry - analyzing chaos"
-                echo "DEPLOYMENT FAILED on attempt $retry" >> "$package_log"
-                
-                if echo "$install_output" | grep -qi "conflicting files"; then
-                    log_message "BANE" "File conflicts detected - initiating demolition protocol"
-                    echo "File conflicts detected - engaging conflict resolution" >> "$package_log"
-                    handle_file_conflicts "$package" "$install_output"
-                elif echo "$install_output" | grep -qi "dependency"; then
-                    log_message "BANE" "Dependency issues detected - resolving chaos"
-                    echo "Dependency issues detected - engaging resolution protocol" >> "$package_log"
-                    handle_dependency_issues "$package" "$install_output"
+        if [ $result -eq 0 ]; then
+            success=$((success + 1))
+            echo "$package" >> "$LOG_DIR/successful_packages.txt"
+        else
+            # Handle conflicts
+            if echo "$output" | grep -q "conflict"; then
+                if handle_conflicts "$package" "$output"; then
+                    success=$((success + 1))
+                    echo "$package" >> "$LOG_DIR/successful_packages.txt"
                 else
-                    log_message "JOKER" "Unknown deployment error for $package - chaos laughs at us!"
-                    echo "Unknown error. Complete chaos logged." >> "$package_log"
+                    failed=$((failed + 1))
+                    echo "$package" >> "$LOG_DIR/failed_packages.txt"
                 fi
-                
-                if [ $retry -lt $max_retries ]; then
-                    sleep 1
-                fi
+            else
+                failed=$((failed + 1))
+                echo "$package" >> "$LOG_DIR/failed_packages.txt"
             fi
-        done
-        
-        if [ "$installed" = false ]; then
-            log_message "JOKER" "Failed to deploy $package after $max_retries attempts - it resists us!"
-            failed=$((failed + 1))
-            echo "$package" >> "$failed_packages_file"
         fi
         
-        local package_end_time=$(date +%s)
-        local package_elapsed=$((package_end_time - package_start_time))
-        log_message "BATMAN" "Weapon $package processed in ${package_elapsed}s"
-
     done < blackarch_packages.txt
-
-    local end_time=$(date +%s)
-    local elapsed=$((end_time - start_time))
-    local hours=$((elapsed / 3600)) minutes=$(((elapsed % 3600) / 60)) seconds=$((elapsed % 60))
-
-    log_message "BATMAN" "Weapon deployment mission completed in ${hours}h ${minutes}m ${seconds}s"
-    log_message "BATMAN" "Battle summary: ${successful} deployed, ${failed} lost to chaos, ${skipped} already secured"
+    
+    if [ "$QUIET_MODE" != "true" ]; then
+        echo # New line after progress
+    fi
+    
+    log_message "OK" "Installation complete: $success installed, $failed failed, $skipped skipped" "install"
 }
 
-retry_failed_packages_with_yay() {
-    local failed_list="$LOG_DIR/failed_packages.txt"
+retry_failed_with_yay() {
+    local failed_file="$LOG_DIR/failed_packages.txt"
     
-    if [ ! -s "$failed_list" ]; then
-        log_message "BATMAN" "No failed weapons to retry with the AUR forge" "retry"
+    if [ ! -s "$failed_file" ]; then
         return 0
     fi
     
-    local total_failed=$(wc -l < "$failed_list")
-    log_message "BANE" "Retrying $total_failed failed weapons using the AUR forge..." "retry"
+    local count=$(wc -l < "$failed_file")
+    log_message "PROC" "Retrying $count failed packages with YAY..." "retry"
     
-    # Extend sudo timeout for AUR retries
-    extend_sudo_timeout
-    
-    local still_failed_list="$LOG_DIR/still_failed_packages.txt"
-    > "$still_failed_list"
-    
-    local successful_retries=0
+    local recovered=0
     
     while IFS= read -r package; do
         [ -z "$package" ] && continue
         
-        log_message "BATMAN" "Reforging weapon with AUR: $package" "retry"
+        log_message "INFO" "Retrying $package with YAY..." "retry"
         
-        if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed --sudoloop "$package" &>/dev/null; then
-            log_message "BATMAN" "Successfully reforged weapon $package with AUR magic" "retry"
-            successful_retries=$((successful_retries + 1))
-        else
-            log_message "JOKER" "Weapon $package still resists our AUR forge - HAHAHAHA!" "retry"
-            echo "$package" >> "$still_failed_list"
+        if sudo -u "$ORIGINAL_USER" SUDO_ASKPASS="$SUDO_ASKPASS_HELPER" \
+           yay -S --noconfirm --needed --sudoloop "$package" &>/dev/null; then
+            log_message "OK" "Recovered $package with YAY" "retry"
+            recovered=$((recovered + 1))
         fi
-    done < "$failed_list"
+    done < "$failed_file"
     
-    cleanup_sudo_keeper
-    
-    if [ -s "$still_failed_list" ]; then
-        local final_failed_count=$(wc -l < "$still_failed_list")
-        log_message "JOKER" "$final_failed_count weapons remain lost to chaos. Check $still_failed_list" "retry"
-    else
-        log_message "BATMAN" "All previously failed weapons have been successfully reforged!" "retry"
-        rm -f "$still_failed_list"
-    fi
-    
-    if [ -f "$still_failed_list" ]; then
-        mv "$still_failed_list" "$failed_list"
-    else
-        rm -f "$failed_list"
-    fi
+    log_message "OK" "Recovered $recovered packages with YAY" "retry"
 }
 
-clean_package_cache() {
-    local cache_size_before=$(du -sh /var/cache/pacman/pkg/ 2>/dev/null | awk '{print $1}' || echo "0B")
-    log_message "BATMAN" "Current weapon cache size: $cache_size_before" "cleanup"
+cleanup() {
+    log_message "PROC" "Cleaning up..." "cleanup"
     
-    if [ "$AUTO_CLEANUP" == "true" ]; then
-        log_message "BATMAN" "Auto-cleaning weapon cache (removing obsolete weapons)..."
-        pacman -Sc --noconfirm &>/dev/null
-        local cache_size_after=$(du -sh /var/cache/pacman/pkg/ 2>/dev/null | awk '{print $1}' || echo "0B")
-        log_message "BATMAN" "Weapon cache cleaned. New size: $cache_size_after"
-    else
-        echo
-        echo -e "${GOLD}${BOLD}🦇 WEAPON CACHE MANAGEMENT 🦇${RESET}"
-        echo -e "Cleaning the cache reclaims space by removing downloaded weapon files."
-        echo -e "  ${NEON_CYAN}1${RESET}. Clean cache for removed weapons (${NEON_GREEN}Recommended${RESET})"
-        echo -e "  ${NEON_CYAN}2${RESET}. Clean entire cache (${BLOOD_RED}Nuclear option${RESET}, requires re-downloading)"
-        echo -e "  ${NEON_CYAN}3${RESET}. Leave cache intact"
-        echo -ne "${BOLD}${GOLD}Batman's decision [1-3]:${RESET} "
-        read -r choice
-        
-        case $choice in
-            1)
-                log_message "BATMAN" "Cleaning cache for removed weapons..." "cleanup"
-                pacman -Sc --noconfirm &>/dev/null
-                local cache_size_after=$(du -sh /var/cache/pacman/pkg/ 2>/dev/null | awk '{print $1}' || echo "0B")
-                log_message "BATMAN" "Cache cleaned. New size: $cache_size_after"
-                echo -e "${CHECK_MARK} Weapon cache optimized."
-                ;;
-            2)
-                log_message "BANE" "Initiating nuclear cache cleansing..." "cleanup"
-                pacman -Scc --noconfirm &>/dev/null
-                local cache_size_after=$(du -sh /var/cache/pacman/pkg/ 2>/dev/null | awk '{print $1}' || echo "0B")
-                log_message "BATMAN" "Nuclear cache cleansing complete. New size: $cache_size_after"
-                echo -e "${CHECK_MARK} Nuclear cache cleansing completed."
-                ;;
-            *)
-                log_message "BATMAN" "Cache preservation chosen - maintaining current state" "cleanup"
-                echo -e "${INFO} Weapon cache preserved."
-                ;;
-        esac
+    # Clean package cache
+    log_message "INFO" "Cleaning package cache..." "cleanup"
+    pacman -Sc --noconfirm &>/dev/null
+    
+    # Clean yay cache
+    if command -v yay &>/dev/null; then
+        sudo -u "$ORIGINAL_USER" yay -Sc --noconfirm &>/dev/null
     fi
+    
+    # Remove temp files
+    rm -f blackarch_packages.txt
+    rm -rf /tmp/yay-build-*
+    rm -rf /tmp/kygox-*
+    
+    log_message "OK" "Cleanup complete" "cleanup"
 }
 
 handle_interrupt() {
-    echo -e "\n\n${BLOOD_RED}${BOLD}🦇 MISSION INTERRUPTED BY EXTERNAL FORCE 🦇${RESET}"
-    log_message "BANE" "Mission terminated by external interference (SIGINT/SIGTERM)" "main"
+    echo -e "\n\n${FAIL} Installation interrupted by user"
+    log_message "WARN" "Installation interrupted (SIGINT/SIGTERM)" "main"
     
-    echo -e "${GOLD}The Dark Knight's mission has been interrupted. Gotham's state may be unstable.${RESET}"
+    cleanup_sudo_cache
     
-    cleanup_sudo_keeper
-    
-    if [ "$AUTO_CLEANUP" != "true" ]; then
-        echo -ne "${BOLD}${NEON_CYAN}Shall the Dark Knight clean up evidence before retreating? [y/n]:${RESET} "
-        read -r answer
-        if [[ "$answer" =~ ^[Yy]$ ]]; then
-            cleanup_backups
-        else
-            log_message "BATMAN" "Evidence cleanup skipped on interruption."
-        fi
-    else
-        log_message "BATMAN" "Running automatic evidence cleanup due to interruption."
-        cleanup_backups
-    fi
-    
-    echo -e "${INFO} The Dark Knight retreats into the shadows. Check mission logs in ${BOLD}$LOG_DIR${RESET}"
+    echo -e "${INFO} Partial installation may have completed. Check logs in $LOG_DIR"
     exit 130
 }
 
@@ -1412,8 +716,8 @@ parse_arguments() {
     GROUP_NAME=""
     PACKAGE_LIST=""
     QUIET_MODE="false"
-    AUTO_CLEANUP="false"
-    VERIFY_TOOLS="false"
+    SKIP_AUR="false"
+    NO_SUDO_CACHE="false"
 
     if [ $# -eq 0 ]; then
         show_usage
@@ -1432,7 +736,7 @@ parse_arguments() {
                     GROUP_NAME="$2"
                     shift 2
                 else
-                    log_message "JOKER" "Argument for --group is missing - the chaos spreads!" "main"
+                    echo -e "${FAIL} --group needs an argument, genius"
                     show_usage
                     exit 1
                 fi
@@ -1443,7 +747,7 @@ parse_arguments() {
                     PACKAGE_LIST="$2"
                     shift 2
                 else
-                    log_message "JOKER" "Argument for --packages is missing - where's the list?" "main"
+                    echo -e "${FAIL} --packages needs a file path"
                     show_usage
                     exit 1
                 fi
@@ -1452,12 +756,12 @@ parse_arguments() {
                 QUIET_MODE="true"
                 shift
                 ;;
-            --auto-cleanup)
-                AUTO_CLEANUP="true"
+            --skip-aur)
+                SKIP_AUR="true"
                 shift
                 ;;
-            --verify-tools)
-                VERIFY_TOOLS="true"
+            --no-sudo-cache)
+                NO_SUDO_CACHE="true"
                 shift
                 ;;
             -h|--help)
@@ -1469,91 +773,165 @@ parse_arguments() {
                 exit 0
                 ;;
             *)
-                log_message "JOKER" "Unknown option: $1 - chaos laughs at your mistakes!" "main"
-                show_usage
+                echo -e "${FAIL} Unknown option: $1"
+                echo -e "${INFO} Try --help if you're lost"
                 exit 1
                 ;;
         esac
     done
 
-    if [ -z "$INSTALL_MODE" ] && [ "$VERIFY_TOOLS" == "false" ]; then
-        log_message "JOKER" "No mission mode selected. Choose your weapon: -a, -g, or -p" "main"
+    if [ -z "$INSTALL_MODE" ]; then
+        echo -e "${FAIL} No installation mode selected"
+        echo -e "${INFO} Use -a, -g GROUP, or -p FILE"
         show_usage
         exit 1
     fi
 }
 
 show_summary() {
-    local successful=$(test -f "$LOG_DIR/successful_packages.txt" && wc -l < "$LOG_DIR/successful_packages.txt" || echo 0)
-    local failed=$(test -f "$LOG_DIR/failed_packages.txt" && wc -l < "$LOG_DIR/failed_packages.txt" || echo 0)
-    local skipped=$(test -f "$LOG_DIR/skipped_packages.txt" && wc -l < "$LOG_DIR/skipped_packages.txt" || echo 0)
+    local success_count=0
+    local failed_count=0
+    local skipped_count=0
+    
+    [ -f "$LOG_DIR/successful_packages.txt" ] && success_count=$(wc -l < "$LOG_DIR/successful_packages.txt")
+    [ -f "$LOG_DIR/failed_packages.txt" ] && failed_count=$(wc -l < "$LOG_DIR/failed_packages.txt")
     
     if [ "$QUIET_MODE" != "true" ]; then
         echo
-        echo -e "${PURPLE}${BOLD}╔═══════════════════════════════════════════════════════════════╗${RESET}"
-        echo -e "${PURPLE}${BOLD}║                🦇 MISSION ACCOMPLISHED 🦇                    ║${RESET}"
-        echo -e "${PURPLE}${BOLD}╚═══════════════════════════════════════════════════════════════╝${RESET}"
+        echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
+        echo -e "${BOLD}                 INSTALLATION COMPLETE                ${RESET}"
+        echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
         echo
-        echo -e "${BOLD}${NEON_CYAN}Mission Report:${RESET}"
-        echo -e "  ${NEON_CYAN}Operation:${RESET}     $INSTALL_MODE"
-        [ "$INSTALL_MODE" == "group" ] && echo -e "  ${NEON_CYAN}Target Group:${RESET}  $GROUP_NAME"
-        [ "$INSTALL_MODE" == "custom" ] && echo -e "  ${NEON_CYAN}Custom List:${RESET}   $PACKAGE_LIST"
-        echo
-        echo -e "  ${NEON_GREEN}Deployed:${RESET}      $successful weapons"
-        echo -e "  ${BLOOD_RED}Lost to Chaos:${RESET} $failed weapons"
-        echo -e "  ${GOLD}Already Secured:${RESET} $skipped weapons"
+        echo -e "${BOLD}Statistics (because metrics matter):${RESET}"
+        echo -e "  ${BGREEN}Successful:${RESET}  $success_count packages"
+        echo -e "  ${BRED}Failed:${RESET}      $failed_count packages"
         echo
         
-        if [ "$failed" -gt 0 ]; then
-            echo -e "${WARNING} Check ${BOLD}$LOG_DIR/failed_packages.txt${RESET} for weapons that resisted deployment."
+        if [ "$failed_count" -gt 0 ]; then
+            echo -e "${WARN} Failed packages logged in: $LOG_DIR/failed_packages.txt"
+            echo -e "${INFO} You can manually install them or try again"
         fi
         
-        echo -e "${INFO} Complete mission logs archived in ${BOLD}$LOG_DIR${RESET}"
+        echo -e "${INFO} Full logs available in: $LOG_DIR"
         echo
-        echo -e "${DIM}${ITALIC}\"${YELLOW}I am vengeance. I am the night. I am... your newly equipped system.${RESET}${DIM}\"${RESET}"
-        echo -e "${NEON_CYAN}${BOLD}The Dark Knight's mission is complete. Gotham is secure.${RESET}"
+        echo -e "${DIM}KygoX v$VERSION | 0xbv1 | q4n0@proton.me${RESET}"
+        echo -e "${DIM}If it worked, you're welcome. If it didn't, check the logs.${RESET}"
         echo
     fi
 }
 
-main() {
-    trap handle_interrupt SIGINT SIGTERM
+verify_installation() {
+    log_message "PROC" "Verifying installation..." "verify"
+    
+    local tools_to_check=(
+        "nmap" "wireshark" "aircrack-ng" "metasploit"
+        "sqlmap" "john" "hashcat" "hydra"
+        "gobuster" "nikto" "burpsuite"
+    )
+    
+    local working=0
+    local missing=0
+    
+    for tool in "${tools_to_check[@]}"; do
+        # Check both tool name and package mapping
+        local package="${tool_packages[$tool]:-$tool}"
+        
+        if command -v "$tool" &>/dev/null || pacman -Q "$package" &>/dev/null 2>&1; then
+            working=$((working + 1))
+            log_message "OK" "Tool verified: $tool" "verify"
+        else
+            missing=$((missing + 1))
+            log_message "WARN" "Tool missing: $tool" "verify"
+        fi
+    done
+    
+    log_message "OK" "Verification complete: $working working, $missing missing" "verify"
+    
+    if [ "$missing" -gt 0 ]; then
+        echo -e "${WARN} Some core tools are missing. Check the logs for details."
+    fi
+}
 
+# Main execution flow - where the magic happens
+main() {
+    # Set up signal handlers
+    trap handle_interrupt SIGINT SIGTERM
+    trap cleanup_sudo_cache EXIT
+    
+    # Show banner
     display_banner
+    
+    # Parse command line arguments
     parse_arguments "$@"
     
+    # Redirect output if quiet mode
     if [ "$QUIET_MODE" == "true" ]; then
-        exec 1>>"$MAIN_LOG"
+        exec 1>>"$MAIN_LOG" 2>&1
     fi
-
+    
+    # Check root privileges
     check_root
     
-    log_message "BATMAN" "The Dark Knight v$VERSION awakens for a new mission" "main"
+    log_message "OK" "KygoX v$VERSION starting..." "main"
+    log_message "INFO" "Installation mode: $INSTALL_MODE" "main"
     
-    add_blackarch_repo || { log_message "JOKER" "BlackArch infiltration failed - mission aborted."; exit 1; }
-    update_databases || { log_message "JOKER" "Database synchronization failed - chaos reigns."; exit 1; }
-    install_yay || { log_message "JOKER" "YAY forge construction failed - no AUR weapons."; exit 1; }
-    install_dependencies
-    check_and_install_essential_tools
+    # Set up sudo caching BEFORE any operations
+    setup_sudo_cache
+    
+    # Core setup
+    log_message "PROC" "Initializing core system..." "main"
+    add_blackarch_repo || { 
+        log_message "FAIL" "BlackArch setup failed" "main"
+        exit 1
+    }
+    
+    fix_pacman_keys
+    update_system || {
+        log_message "WARN" "System update failed but continuing anyway" "main"
+    }
+    
+    install_yay || {
+        log_message "WARN" "YAY installation failed - AUR packages will be skipped" "main"
+        SKIP_AUR="true"
+    }
+    
+    # Install dependencies
+    install_base_dependencies
+    
+    # Install AUR packages (with sudo caching, no password prompts!)
     install_aur_packages
-
-    if [ -n "$INSTALL_MODE" ]; then
-        get_blackarch_packages || { log_message "JOKER" "Weapon manifest generation failed - mission compromised."; exit 1; }
-        install_packages
-        retry_failed_packages_with_yay
-    fi
-
-    if [ "$VERIFY_TOOLS" == "true" ]; then
-        log_message "BATMAN" "Tool verification protocol not yet fully implemented." "main"
-    fi
-
-    cleanup_backups
-    clean_package_cache
     
-    log_message "BATMAN" "The Dark Knight's mission is complete. Gotham sleeps safely tonight." "main"
+    # Main package installation
+    if [ -n "$INSTALL_MODE" ]; then
+        get_blackarch_packages || {
+            log_message "FAIL" "Failed to get package list" "main"
+            exit 1
+        }
+        
+        install_packages
+        
+        # Retry failed packages with YAY
+        if command -v yay &>/dev/null && [ "$SKIP_AUR" != "true" ]; then
+            retry_failed_with_yay
+        fi
+    fi
+    
+    # Verification
+    verify_installation
+    
+    # Cleanup
+    cleanup
+    
+    log_message "OK" "Installation completed" "main"
 }
 
+# Script entry point - let's do this
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
     show_summary
 fi
+
+# Author: 0xbv1 | 0xb0rn3
+# Contact: IG: theehiv3 | X: 0xbv1 | Threads: theehiv3 | Email: q4n0@proton.me
+# If you're reading this, you're probably trying to figure out what went wrong.
+# Check the logs first before complaining.
