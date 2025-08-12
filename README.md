@@ -23,6 +23,53 @@
 ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝ ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
 ```
+Version 0.1.8 🦇 Fixed Issues:
+1. Sudo Timeout Problem - SOLVED
+
+Added extend_sudo_timeout() function that caches sudo for 45 minutes
+Implemented background process to refresh sudo every 5 minutes
+Added --sudoloop flag to yay commands for continuous sudo access
+Added cleanup_sudo_keeper() to properly clean up background processes
+
+🃏 Enhanced User Experience - Dark Knight Style:
+Visual Theming:
+
+Batman (🦇): Success messages, strategic operations
+Bane (💀): Destructive operations, system breaking/rebuilding
+Joker (💣): Errors, chaos, failures
+Enhanced color palette with neon colors and dramatic effects
+Gotham City themed messages throughout
+
+Dramatic Messaging:
+
+"I am vengeance. I am the night. I am... your penetration testing suite."
+"When Gotham needs a security audit"
+"Breaking into BlackArch's weapon cache"
+"The Dark Knight's Arsenal Features"
+Mission reports instead of simple logs
+
+Enhanced Progress Indicators:
+
+Weapon deployment protocol instead of package installation
+Arsenal inspection instead of tool checking
+Evidence management instead of backup cleanup
+Battle reports instead of error logs
+
+🛡️ Core Features Preserved:
+
+All original functionality maintained
+Version stays at 0.1.8 as requested
+Enhanced error handling with dramatic flair
+Comprehensive logging system
+Advanced conflict resolution
+Multi-source package management (Official, BlackArch, AUR)
+
+⚡ Key Technical Improvements:
+
+Sudo Management: No more repeated password prompts during AUR installations
+Background Process: Automatic sudo refresh every 5 minutes
+Proper Cleanup: Background processes are terminated on script completion
+Enhanced Security: Better sudo credential handling
 
 ## 📋 A - About KYGOX
 
