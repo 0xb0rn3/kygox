@@ -136,7 +136,7 @@ display_banner() {
 ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
 ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     PENETRATION TESTING TOOLKIT INSTALLER
      Because clicking buttons is beneath you
 EOF
@@ -269,60 +269,123 @@ class ToolkitGenerator:
                 'keywords': ['nmap', 'masscan', 'zmap', 'subfinder', 'amass', 'nuclei', 'httpx', 
                            'rustscan', 'shodan', 'censys', 'theharvester', 'recon-ng', 'dnsrecon',
                            'dnsenum', 'fierce', 'sublist3r', 'assetfinder', 'findomain', 'gobuster',
-                           'dirb', 'dirbuster', 'wfuzz', 'ffuf', 'feroxbuster'],
+                           'dirb', 'dirbuster', 'wfuzz', 'ffuf', 'feroxbuster', 'katana', 'hakrawler',
+                           'gospider', 'waybackurls', 'gau', 'paramspider', 'arjun', 'meg', 'unfurl',
+                           'anew', 'notify', 'interactsh', 'dnsx', 'naabu', 'mapcidr', 'shuffledns',
+                           'chaos', 'uncover', 'asnmap', 'tlsx', 'cloudlist', 'pdtm'],
                 'blacklist': ['recon-all', 'reconnoitre-ping']
             },
             'exploitation': {
                 'priority': 9,
                 'keywords': ['metasploit', 'exploit', 'payload', 'msfconsole', 'msfvenom', 'beef',
-                           'armitage', 'cobalt', 'empire', 'powersploit', 'shellcode', 'rop'],
+                           'armitage', 'cobalt', 'empire', 'powersploit', 'shellcode', 'rop',
+                           'covenant', 'sliver', 'pupy', 'koadic', 'silenttrinity', 'mythic',
+                           'villain', 'havoc', 'bruteratel', 'nighthawk', 'poshc2', 'merlin',
+                           'donut', 'scarecrow', 'veil', 'shellter', 'unicorn', 'invoke',
+                           'powercat', 'nishang', 'powerview', 'bloodhound', 'sharpview'],
                 'blacklist': ['exploit-suggester']
             },
             'webapp': {
                 'priority': 9,
                 'keywords': ['burp', 'sqlmap', 'nikto', 'skipfish', 'wapiti', 'w3af', 'zap',
                            'commix', 'xsser', 'wpscan', 'joomscan', 'droopescan', 'davtest',
-                           'padbuster', 'nosqlmap', 'wfuzz', 'parameth', 'arjun', 'dalfox'],
+                           'padbuster', 'nosqlmap', 'wfuzz', 'parameth', 'arjun', 'dalfox',
+                           'xsstrike', 'xsshunter', 'beef-xss', 'sqlninja', 'bbqsql', 'jsql',
+                           'ghauri', 'blind-sql', 'xxeinjector', 'ssti', 'tplmap', 'retire',
+                           'wappalyzer', 'builtwith', 'wafw00f', 'cloudflare-enum', 'subjack',
+                           'subzy', 'can-i-take-over-xyz', 'nuclei-templates', 'jaeles',
+                           'qsreplace', 'urldedupe', 'uro', 'x8', 'param-miner', 'backslash'],
                 'blacklist': ['webapp-config']
             },
             'wireless': {
                 'priority': 8,
                 'keywords': ['aircrack', 'wifite', 'kismet', 'bettercap', 'reaver', 'pixie',
                            'wps', 'hostapd', 'airodump', 'aireplay', 'wash', 'cowpatty',
-                           'pyrit', 'hcxtools', 'hcxdumptool', 'wpa_supplicant'],
+                           'pyrit', 'hcxtools', 'hcxdumptool', 'wpa_supplicant', 'fern',
+                           'wifiphisher', 'fluxion', 'eaphammer', 'hostapd-wpe', 'freeradius-wpe',
+                           'wifi-honey', 'wifipumpkin3', 'pwnagotchi', 'wardriving', 'wigle',
+                           'bluetooth', 'bluez', 'ubertooth', 'hackrf', 'gr-gsm', 'gqrx',
+                           'rtl-sdr', 'sdrsharp', 'gnuradio', 'inspectrum', 'universal-radio-hacker',
+                           'urh', 'rfcat', 'yard-stick', 'proxmark3', 'chameleon', 'flipper'],
                 'blacklist': []
             },
             'network': {
                 'priority': 8,
                 'keywords': ['wireshark', 'tcpdump', 'ettercap', 'mitm', 'arp', 'netcat', 'socat',
                            'proxychains', 'tor', 'i2p', 'stunnel', 'sslstrip', 'mitmproxy',
-                           'responder', 'impacket', 'crackmapexec', 'enum4linux', 'nbtscan'],
+                           'responder', 'impacket', 'crackmapexec', 'enum4linux', 'nbtscan',
+                           'netdiscover', 'arp-scan', 'alive6', 'thc-ipv6', 'atk6', 'exploit6',
+                           'fuzz6', 'implementation6', 'fake6', 'flood6', 'smurf6', 'rsmurf6',
+                           'dnsdict6', 'inverse_lookup6', 'node_query6', 'passive_discovery6',
+                           'redir6', 'toobig6', 'trace6', 'alive6', 'detect-new-ip6',
+                           'dos-new-ip6', 'parasite6', 'sendpees6', 'sendpeesmp6', 'randicmp6'],
                 'blacklist': ['network-manager']
             },
             'crypto': {
                 'priority': 7,
                 'keywords': ['john', 'hashcat', 'hydra', 'medusa', 'ncrack', 'ophcrack',
                            'rainbow', 'hash', 'crack', 'decrypt', 'cipher', 'steganography',
-                           'stego', 'openssl', 'gpg', 'truecrypt', 'veracrypt'],
+                           'stego', 'openssl', 'gpg', 'truecrypt', 'veracrypt', 'hashid',
+                           'hash-identifier', 'name-that-hash', 'haiti', 'crackstation',
+                           'rockyou', 'seclists', 'wordlists', 'cupp', 'cewl', 'crunch',
+                           'maskprocessor', 'hashcat-utils', 'princeprocessor', 'kwprocessor',
+                           'pack', 'pipal', 'mentalist', 'rsmangler', 'duplicut', 'rli',
+                           'dehashed', 'h8mail', 'holehe', 'sherlock', 'maigret', 'socialscan'],
                 'blacklist': ['hashcat-legacy']
             },
             'forensics': {
                 'priority': 7,
                 'keywords': ['volatility', 'autopsy', 'sleuthkit', 'binwalk', 'foremost',
                            'testdisk', 'photorec', 'scalpel', 'bulk_extractor', 'regripper',
-                           'chkrootkit', 'rkhunter', 'lynis', 'clamav', 'yara'],
+                           'chkrootkit', 'rkhunter', 'lynis', 'clamav', 'yara', 'plaso',
+                           'log2timeline', 'psort', 'psteal', 'timesketch', 'dff', 'xmount',
+                           'afflib', 'libewf', 'libbde', 'libfvde', 'libfsapfs', 'libfsext',
+                           'libfshfs', 'libfsntfs', 'libfsvhdi', 'libfswim', 'libodraw',
+                           'libqcow', 'libsigscan', 'libsmdev', 'libsmraw', 'libvhdi',
+                           'libvmdk', 'libvshadow', 'libvslvm', 'libfwnt', 'libfwsi'],
                 'blacklist': []
             },
             'mobile': {
                 'priority': 6,
                 'keywords': ['apktool', 'dex2jar', 'jadx', 'frida', 'objection', 'mobsf',
-                           'android', 'ios', 'mobile', 'adb', 'fastboot'],
+                           'android', 'ios', 'mobile', 'adb', 'fastboot', 'aapt', 'aapt2',
+                           'baksmali', 'smali', 'dex-tools', 'enjarify', 'procyon', 'cfr',
+                           'fernflower', 'krakatau', 'bytecode-viewer', 'gda', 'qark',
+                           'mobsfscan', 'semgrep', 'bandit', 'safety', 'piprot', 'cyclonedx',
+                           'drozer', 'needle', 'passionfruit', 'mobileaudit', 'house',
+                           'ostorlab', 'qark', 'super', 'mariana-trench', 'infer', 'sonarqube'],
+                'blacklist': []
+            },
+            'reverse': {
+                'priority': 8,
+                'keywords': ['ghidra', 'radare2', 'rizin', 'ida', 'x64dbg', 'ollydbg', 'gdb',
+                           'pwndbg', 'gef', 'peda', 'voltron', 'angr', 'z3', 'capstone',
+                           'keystone', 'unicorn', 'triton', 'miasm', 'barf', 'manticore',
+                           'symbolic', 'execution', 'binary', 'analysis', 'disassembly',
+                           'decompiler', 'hex-rays', 'retdec', 'snowman', 'boomerang',
+                           'reko', 'pharos', 'mcsema', 'remill', 'lifter', 'llvm',
+                           'bindiff', 'diaphora', 'turbodiff', 'patchdiff2', 'binsec'],
+                'blacklist': []
+            },
+            'osint': {
+                'priority': 8,
+                'keywords': ['maltego', 'spiderfoot', 'recon-ng', 'theharvester', 'shodan',
+                           'censys', 'zoomeye', 'fofa', 'binaryedge', 'onyphe', 'hunter',
+                           'clearbit', 'fullcontact', 'pipl', 'spokeo', 'whitepages',
+                           'intelius', 'beenverified', 'truthfinder', 'instantcheckmate',
+                           'peoplefinders', 'facebook', 'linkedin', 'twitter', 'instagram',
+                           'tiktok', 'youtube', 'telegram', 'discord', 'reddit', 'github',
+                           'gitlab', 'bitbucket', 'stackoverflow', 'medium', 'wordpress',
+                           'blogger', 'tumblr', 'pinterest', 'flickr', 'deviantart'],
                 'blacklist': []
             },
             'misc': {
                 'priority': 3,
                 'keywords': ['git', 'python', 'perl', 'ruby', 'gcc', 'make', 'cmake',
-                           'curl', 'wget', 'vim', 'tmux', 'screen'],
+                           'curl', 'wget', 'vim', 'tmux', 'screen', 'zsh', 'bash',
+                           'fish', 'powershell', 'pwsh', 'docker', 'podman', 'kubernetes',
+                           'vagrant', 'virtualbox', 'vmware', 'qemu', 'kvm', 'xen',
+                           'ansible', 'terraform', 'packer', 'consul', 'vault', 'nomad'],
                 'blacklist': []
             }
         }
@@ -332,14 +395,63 @@ class ToolkitGenerator:
             'nuclei', 'httpx', 'subfinder', 'katana', 'naabu', 'dnsx', 'interactsh',
             'rustscan', 'feroxbuster', 'gospider', 'hakrawler', 'waybackurls',
             'gau', 'anew', 'notify', 'proxify', 'mapcidr', 'shuffledns',
-            'cloudlist', 'tlsx', 'asnmap', 'pdtm', 'uncover', 'chaos-client'
+            'cloudlist', 'tlsx', 'asnmap', 'pdtm', 'uncover', 'chaos-client',
+            'dalfox', 'x8', 'param-miner', 'qsreplace', 'uro', 'urldedupe',
+            'jaeles', 'ghauri', 'sqlmap', 'commix', 'xsstrike', 'retire',
+            'wafw00f', 'subjack', 'subzy', 'takeover', 'nuclei-templates',
+            'crackmapexec', 'bloodhound', 'sharphound', 'rubeus', 'mimikatz',
+            'impacket', 'responder', 'enum4linux-ng', 'kerbrute', 'sprayhound',
+            'sliver', 'covenant', 'mythic', 'havoc', 'villain', 'poshc2',
+            'donut', 'scarecrow', 'veil', 'shellter', 'unicorn', 'invoke-obfuscation',
+            'powerview', 'powerup', 'powersploit', 'nishang', 'empire', 'starkiller',
+            'volatility3', 'rekall', 'lime', 'avml', 'fmem', 'linpmem',
+            'plaso', 'timesketch', 'grr', 'velociraptor', 'osquery', 'fleet',
+            'yara', 'yara-python', 'yaralyzer', 'yargen', 'signature-base',
+            'frida', 'objection', 'mobsf', 'qark', 'drozer', 'needle',
+            'passionfruit', 'house', 'mobileaudit', 'super', 'mariana-trench',
+            'semgrep', 'bandit', 'safety', 'piprot', 'cyclonedx', 'syft',
+            'grype', 'trivy', 'clair', 'anchore', 'twistlock', 'aqua',
+            'ghidra', 'radare2', 'rizin', 'angr', 'z3-solver', 'capstone',
+            'keystone-engine', 'unicorn-engine', 'triton-framework', 'miasm',
+            'barf-project', 'manticore', 'symbolic-execution', 'binary-ninja',
+            'cutter', 'x64dbg', 'gdb', 'pwndbg', 'gef', 'peda'
         ]
         
         # Essential tools that must be included regardless
         self.essential_tools = [
             'nmap', 'wireshark-qt', 'metasploit', 'burpsuite', 'sqlmap',
             'aircrack-ng', 'john', 'hashcat', 'hydra', 'gobuster',
-            'nikto', 'nuclei', 'volatility3', 'binwalk', 'radare2'
+            'nikto', 'nuclei', 'volatility3', 'binwalk', 'radare2',
+            'ghidra', 'frida', 'impacket', 'responder', 'crackmapexec',
+            'bloodhound', 'enum4linux', 'theharvester', 'recon-ng',
+            'wpscan', 'whatweb', 'skipfish', 'w3af', 'owasp-zap',
+            'masscan', 'zmap', 'rustscan', 'httpx', 'subfinder',
+            'amass', 'katana', 'feroxbuster', 'ffuf', 'wfuzz',
+            'dirb', 'dirbuster', 'gobuster', 'dalfox', 'xsstrike',
+            'commix', 'ghauri', 'retire', 'wafw00f', 'subjack',
+            'subzy', 'takeover', 'bettercap', 'ettercap', 'mitmproxy',
+            'proxychains-ng', 'tor', 'i2p', 'stunnel', 'sslstrip',
+            'netdiscover', 'nbtscan', 'arp-scan', 'tcpdump', 'netcat',
+            'socat', 'chisel', 'ligolo', 'rpivot', 'sshuttle',
+            'wifite', 'kismet', 'reaver', 'pixiewps', 'cowpatty',
+            'pyrit', 'hcxtools', 'hcxdumptool', 'wpa-supplicant',
+            'fern-wifi-cracker', 'wifiphisher', 'fluxion', 'eaphammer',
+            'autopsy', 'sleuthkit', 'foremost', 'testdisk', 'photorec',
+            'scalpel', 'bulk-extractor', 'regripper', 'plaso', 'log2timeline',
+            'chkrootkit', 'rkhunter', 'lynis', 'clamav', 'yara',
+            'medusa', 'ncrack', 'ophcrack', 'rainbow-crack', 'hashid',
+            'hash-identifier', 'name-that-hash', 'haiti', 'crackstation',
+            'rockyou', 'seclists', 'wordlists', 'cupp', 'cewl',
+            'crunch', 'maskprocessor', 'hashcat-utils', 'princeprocessor',
+            'apktool', 'dex2jar', 'jadx', 'objection', 'mobsf',
+            'qark', 'drozer', 'needle', 'android-sdk', 'aapt',
+            'baksmali', 'smali', 'dex-tools', 'enjarify', 'procyon',
+            'maltego', 'spiderfoot', 'shodan', 'censys', 'zoomeye',
+            'sherlock', 'maigret', 'holehe', 'socialscan', 'phoneinfoga',
+            'osrframework', 'twint', 'instaloader', 'gallery-dl',
+            'git', 'python', 'python-pip', 'ruby', 'perl', 'nodejs',
+            'npm', 'go', 'rust', 'gcc', 'make', 'cmake', 'curl',
+            'wget', 'vim', 'tmux', 'screen', 'zsh', 'docker'
         ]
 
     def get_blackarch_packages(self):
@@ -442,7 +554,7 @@ class ToolkitGenerator:
         
         return filtered
 
-    def generate_toolkit(self, max_packages=150):
+    def generate_toolkit(self, max_packages=300):
         """Generate the ultimate 2025 security toolkit"""
         packages_by_group, all_packages = self.get_blackarch_packages()
         
@@ -512,127 +624,795 @@ PYEOF
 generate_fallback_toolkit() {
     log_message "INFO" "Using fallback toolkit generation..." "toolkit"
     
-    # Fallback toolkit - curated manually for when Python fails
+    # Comprehensive fallback toolkit - manually curated for maximum coverage
     cat > "$DEFAULT_TOOLKIT" << 'TOOLEOF'
-# KygoX v0.1.8 - 2025 Security Toolkit (Fallback)
+# KygoX v0.1.8 - 2025 Security Toolkit (Comprehensive Fallback)
 # Because even fallbacks should be better than Kali defaults
 
-# Network Reconnaissance
+# Network Reconnaissance & Discovery
 nmap
+nmap-scripts
 masscan
 zmap
 rustscan
-nmap-scripts
+netdiscover
+arp-scan
+nbtscan
+enum4linux
+enum4linux-ng
+alive6
+fping
+hping3
+netcat
+socat
+proxychains-ng
+chisel
+ligolo-ng
+rpivot
+sshuttle
+
+# DNS & Subdomain Enumeration
+subfinder
+amass
+assetfinder
+findomain
+sublist3r
+dnsrecon
+dnsenum
+fierce
+dnsmap
+dnstwist
+massdns
+shuffledns
+puredns
+dnsx
+chaos-client
+uncover
+asnmap
 
 # Web Application Security
 burpsuite
+owasp-zap
 sqlmap
+commix
+ghauri
 nikto
-gobuster
-dirb
+skipfish
+wapiti
+w3af
+wpscan
+joomscan
+droopescan
+davtest
+padbuster
+nosqlmap
 wfuzz
 ffuf
-wpscan
+gobuster
+dirb
+dirbuster
+feroxbuster
+katana
+hakrawler
+gospider
+meg
+paramspider
+arjun
+dalfox
+xsstrike
+xsshunter-express
+beef-xss
+retire
 whatweb
-skipfish
+wafw00f
+cloudflare-enum
+subjack
+subzy
+can-i-take-over-xyz
+nuclei
+nuclei-templates
+jaeles
+qsreplace
+urldedupe
+uro
+x8
+param-miner
+backslash-powered-scanner
+
+# Network Analysis & Monitoring
+wireshark-qt
+wireshark-cli
+tcpdump
+ettercap-gtk
+bettercap
+mitmproxy
+sslstrip
+sslsplit
+dnsspoof
+arpspoof
+driftnet
+ngrep
+chaosreader
+tcpflow
+tcpreplay
+tcptrace
+ssldump
+p0f
+prads
 
 # Wireless Security
 aircrack-ng
 wifite
 kismet
-bettercap
 reaver
-pixie-dust
+pixiewps
 wash
 cowpatty
+pyrit
+hcxtools
+hcxdumptool
+wpa-supplicant
+fern-wifi-cracker
+wifiphisher
+fluxion
+eaphammer
+hostapd-wpe
+freeradius-wpe
+wifi-honey
+wifipumpkin3
+pwnagotchi
+wardriving
+wigle-wifi-wardriving
 
-# Network Analysis
-wireshark-qt
-tcpdump
-ettercap-gtk
-netdiscover
-nbtscan
-enum4linux
+# Software Defined Radio & RF
+hackrf
+rtl-sdr
+gqrx
+gnuradio
+inspectrum
+universal-radio-hacker
+rfcat
+yard-stick-one
+proxmark3
+chameleon-mini
+flipper-zero
+ubertooth-one
+gr-gsm
+kalibrate-rtl
 
 # Exploitation Frameworks
 metasploit
 beef
 armitage
 social-engineer-toolkit
+covenant
+sliver
+pupy
+koadic
+silenttrinity
+mythic-c2
+villain
+havoc-c2
+bruteratel-c4
+nighthawk-c2
+poshc2
+merlin-c2
+empire
+starkiller
+powershell-empire
 
-# Password Attacks
+# Payload Generators & Obfuscators
+msfvenom
+donut
+scarecrow
+veil
+shellter
+unicorn
+invoke-obfuscation
+chameleon
+phantom-evasion
+avet
+sharpshooter
+macro-pack
+darkarmour
+crypter
+
+# Password Attacks & Hash Cracking
 john
 hashcat
+hashcat-utils
 hydra
 medusa
 ncrack
+patator
+crowbar
+brutespray
+crackmapexec
+kerbrute
+sprayhound
+lsassy
+pypykatz
+impacket-secretsdump
+mimikatz
+lazagne
 ophcrack
+rainbow-crack
+hashid
+hash-identifier
+name-that-hash
+haiti
+
+# Wordlist Generation & Management
+cupp
+cewl
+crunch
+maskprocessor
+princeprocessor
+kwprocessor
+pack
+pipal
+mentalist
+rsmangler
+duplicut
+rli
+wordlist-maker
+username-anarchy
+namemash
+
+# Windows Post-Exploitation
+impacket
+responder
+bloodhound
+sharphound
+rubeus
+powerview
+powerup
+powersploit
+nishang
+invoke-mimikatz
+powercat
+powershell-mafia
+empire-powershell
+inveigh
+kerberoast
+asreproast
+goldenpac
+psexec
+smbexec
+wmiexec
+dcomexec
+atexec
+
+# Linux Post-Exploitation
+linpeas
+linenum
+linux-exploit-suggester
+unix-privesc-check
+traitor
+gtfobins
+lse
+pspy
+linux-smart-enumeration
+bashark
+uptux
 
 # Forensics & Analysis
 volatility3
+rekall
+lime-forensics
+avml
+fmem
+linpmem
 autopsy
-binwalk
+sleuthkit
 foremost
 testdisk
+photorec
+scalpel
 bulk-extractor
+regripper
+plaso
+log2timeline
+psort
+psteal
+timesketch
+dff
+xmount
+afflib
+libewf
+
+# Memory Analysis
+volatility
+volatility3
+rekall
+lime
+avml
+fmem
+linpmem
+memoryze
+mandiant-redline
+winpmem
+
+# Digital Forensics Tools
+autopsy
+sleuthkit
+foremost
+testdisk
+photorec
+scalpel
+bulk-extractor
+recoverjpeg
+safecopy
+ddrescue
+dc3dd
+dcfldd
+ewftools
+afftools
+disktype
+file
+hexdump
+xxd
+binwalk
+
+# Anti-Forensics & Privacy
+bleachbit
+wipe
+secure-delete
+shred
+dban
+nwipe
+truecrypt
+veracrypt
+cryptsetup
+steghide
+outguess
+stegosuite
+openstego
+steganabara
+stegsolve
+
+# System Security & Hardening
+lynis
 chkrootkit
 rkhunter
-lynis
+clamav
+tiger
+aide
+samhain
+tripwire
+ossec
+wazuh
+suricata
+snort
+bro
+zeek
 
-# Reverse Engineering
-radare2
+# Reverse Engineering & Binary Analysis
 ghidra
-jadx
-apktool
-dex2jar
+radare2
 rizin
+cutter
+x64dbg
+ollydbg
+immunity-debugger
+gdb
+pwndbg
+gef
+peda
+voltron
+angr
+z3-solver
+capstone
+keystone-engine
+unicorn-engine
+triton-framework
+miasm
+barf-project
+manticore
+symbolic-execution
+binary-ninja
+retdec
+snowman-decompiler
+boomerang-decompiler
+reko-decompiler
 
 # Mobile Security
+apktool
+dex2jar
+jadx
+frida
 frida-tools
 objection
 mobsf
+qark
+drozer
+needle
+passionfruit
+house
+mobileaudit
+ostorlab
+super
+mariana-trench
 android-sdk
+aapt
+aapt2
+baksmali
+smali
+dex-tools
+enjarify
+procyon
+cfr
+fernflower
+krakatau
+bytecode-viewer
+gda
 
-# Modern Recon Tools (2025)
-nuclei
-httpx
-subfinder
-amass
-theharvester
+# OSINT & Information Gathering
+maltego
+spiderfoot
 recon-ng
+theharvester
 shodan
 censys
+zoomeye
+fofa
+binaryedge
+onyphe
+hunter-io
+clearbit-connect
+fullcontact
+pipl
+spokeo
+whitepages
+intelius
+beenverified
+truthfinder
+instantcheckmate
+peoplefinders
+sherlock
+maigret
+holehe
+socialscan
+phoneinfoga
+osrframework
+twint
+instaloader
+gallery-dl
+youtube-dl
+metagoofil
+foca
+exiftool
 
-# Crypto & Steganography
-steghide
-stegosuite
-outguess
-cryptcat
+# Social Engineering
+social-engineer-toolkit
+king-phisher
+gophish
+evilginx2
+modlishka
+phishery
+beef
+browser-exploitation-framework
+social-mapper
+phishing-frenzy
+lucy
+simplyemail
+theharvestor
+creepy
+datasploit
 
-# Network Pivoting
+# Cloud Security
+prowler
+scout-suite
+cloudsploit
+pacu
+weirdaal
+cloudmapper
+cartography
+cs-suite
+cloud-enum
+cloud-service-enum
+gcp-enum
+azure-enum
+aws-enum
+s3-bucket-finder
+lazys3
+s3recon
+cloudscraper
+
+# Container Security
+docker-bench-security
+clair
+anchore
+twistlock
+aqua-scanner
+falco
+sysdig
+grype
+trivy
+syft
+docker-compose
+podman
+buildah
+skopeo
+dive
+hadolint
+
+# Vulnerability Scanners
+openvas
+nessus
+nexpose
+qualys
+rapid7
+nuclei
+nmap-vulners
+vulscan
+vulners
+searchsploit
+exploit-db
+metasploit-framework
+nmap-scripts
+nikto
+skipfish
+w3af
+wapiti
+arachni
+
+# Network Tunneling & Pivoting
 proxychains-ng
 tor
 i2p
 stunnel
+sslh
+ssh
+autossh
+sshuttle
+chisel
+ligolo-ng
+rpivot
+plink
+ngrok
+localtunnel
+serveo
+expose
+pagekite
+cloudflare-tunnel
 
-# Essential Development
+# Development Tools & Utilities
+git
 python
+python3
 python-pip
 ruby
 perl
-git
+nodejs
+npm
+yarn
+go
+rust
 gcc
+g++
+clang
 make
+cmake
+autotools-dev
+build-essential
+pkg-config
 curl
 wget
-vim
+httpie
+jq
+yq
+xmlstarlet
+html-xml-utils
+parallel
 tmux
+screen
+zsh
+fish
+vim
+nano
+emacs
+code
+sublime-text
+
+# Database Tools
+mysql-client
+postgresql-client
+mongodb-tools
+redis-tools
+sqlitebrowser
+dbeaver
+adminer
+phpmyadmin
+pgadmin
+robomongo
+nosqlbooster
+sqlmap
+sqsh
+isql
+tsql
+osql
+
+# Virtualization & Emulation
+virtualbox
+vmware-workstation
+qemu
+kvm
+xen
+docker
+podman
+lxc
+lxd
+vagrant
+packer
+multipass
+parallels
+
+# Monitoring & Logging
+wireshark
+tcpdump
+ntopng
+nagios
+zabbix
+icinga
+cacti
+observium
+librenms
+pandora-fms
+centreon
+check-mk
+sensu
+grafana
+prometheus
+elk-stack
+splunk
+graylog
+rsyslog
+syslog-ng
+
+# Backup & Recovery
+rsync
+rclone
+duplicity
+borgbackup
+restic
+bacula
+amanda
+tar
+gzip
+bzip2
+xz
+7zip
+rar
+unrar
+zip
+unzip
+
+# Network Services
+apache2
+nginx
+lighttpd
+mysql-server
+postgresql
+mongodb
+redis-server
+memcached
+elasticsearch
+kibana
+logstash
+rabbitmq
+activemq
+kafka
+zookeeper
+consul
+etcd
+nomad
+vault
+
+# Text Processing & Analysis
+grep
+sed
+awk
+sort
+uniq
+cut
+tr
+head
+tail
+less
+more
+cat
+tee
+wc
+diff
+patch
+strings
+hexdump
+xxd
+od
+base64
+openssl
+gpg
+
+# Archive & Compression
+tar
+gzip
+gunzip
+bzip2
+bunzip2
+xz
+unxz
+7zip
+zip
+unzip
+rar
+unrar
+compress
+uncompress
+zstd
+lz4
+
+# System Information & Monitoring
+htop
+iotop
+nethogs
+iftop
+nload
+bmon
+vnstat
+lsof
+ss
+netstat
+ps
+top
+free
+df
+du
+lscpu
+lshw
+lspci
+lsusb
+dmidecode
+hwinfo
+inxi
+neofetch
+
+# File System Tools
+fdisk
+parted
+gparted
+mkfs
+fsck
+mount
+umount
+losetup
+cryptsetup
+lvm2
+mdadm
+smartmontools
+hdparm
+sdparm
+sg3-utils
+
+# Scheduling & Automation
+cron
+at
+systemd
+ansible
+puppet
+chef
+saltstack
+fabric
+invoke
+make
+cmake
+ninja
+scons
 TOOLEOF
     
-    log_message "OK" "Fallback toolkit generated with $(grep -c '^[^#]' "$DEFAULT_TOOLKIT") packages" "toolkit"
+    log_message "OK" "Comprehensive fallback toolkit generated with $(grep -c '^[^#]' "$DEFAULT_TOOLKIT") packages" "toolkit"
 }
 
-# The magic sauce - sudo password caching that actually works
 setup_sudo_cache() {
     if [ "$NO_SUDO_CACHE" == "true" ]; then
         log_message "INFO" "Sudo caching disabled by paranoid user" "sudo"
@@ -855,19 +1635,20 @@ install_aur_packages() {
         "httpx-bin"
         "subfinder-bin"
         "katana-bin"
-        "gau-bin"
-        "anew-bin"
-        "notify-bin"
+        "naabu-bin"
+        "dnsx-bin"
         "interactsh-bin"
         "proxify-bin"
-        "dnsx-bin"
-        "naabu-bin"
         "mapcidr-bin"
+        "shuffledns-bin"
         "massdns-bin"
         "amass-bin"
         "assetfinder-bin"
         "findomain-bin"
         "waybackurls-bin"
+        "gau-bin"
+        "anew-bin"
+        "notify-bin"
         "gf-bin"
         "qsreplace-bin"
         "hakrawler-bin"
@@ -889,7 +1670,236 @@ install_aur_packages() {
         "tlsx-bin"
         "asnmap-bin"
         "uncover-bin"
-        "shuffledns-bin"
+        "pdtm-bin"
+        "cloudlist-bin"
+        "x8"
+        "param-miner"
+        "retire"
+        "wafw00f"
+        "subjack-bin"
+        "subzy-bin"
+        "takeover"
+        "jaeles-bin"
+        "ghauri"
+        "xsstrike"
+        "commix"
+        "uro"
+        "urldedupe"
+        "backslash-powered-scanner"
+        "ligolo-ng-bin"
+        "chisel-bin"
+        "rpivot"
+        "kerbrute-bin"
+        "sprayhound"
+        "enum4linux-ng"
+        "lsassy"
+        "pypykatz"
+        "bloodhound-bin"
+        "sharphound-bin"
+        "crackmapexec"
+        "impacket"
+        "responder"
+        "sliver-bin"
+        "covenant"
+        "mythic-bin"
+        "havoc-bin"
+        "villain"
+        "poshc2"
+        "donut-bin"
+        "scarecrow-bin"
+        "veil"
+        "shellter"
+        "unicorn"
+        "invoke-obfuscation"
+        "volatility3"
+        "rekall"
+        "lime-forensics"
+        "avml"
+        "plaso"
+        "log2timeline"
+        "timesketch"
+        "grr-client"
+        "velociraptor"
+        "osquery"
+        "yara"
+        "yara-python"
+        "yaralyzer"
+        "yargen"
+        "signature-base"
+        "frida-tools"
+        "objection"
+        "mobsf"
+        "qark"
+        "drozer"
+        "needle"
+        "passionfruit"
+        "house"
+        "mobileaudit"
+        "super"
+        "mariana-trench"
+        "semgrep"
+        "bandit"
+        "safety"
+        "piprot"
+        "cyclonedx-cli"
+        "syft"
+        "grype"
+        "trivy"
+        "clair"
+        "anchore-cli"
+        "ghidra"
+        "radare2-cutter"
+        "angr"
+        "z3-solver"
+        "capstone-tool"
+        "keystone-tool"
+        "unicorn-engine"
+        "triton-framework"
+        "miasm"
+        "barf-project"
+        "manticore"
+        "binary-ninja-demo"
+        "retdec"
+        "snowman-decompiler"
+        "boomerang-decompiler"
+        "reko-decompiler"
+        "maltego"
+        "spiderfoot"
+        "sherlock-project"
+        "maigret"
+        "holehe"
+        "socialscan"
+        "phoneinfoga"
+        "osrframework"
+        "twint"
+        "instaloader"
+        "gallery-dl"
+        "youtube-dl"
+        "metagoofil"
+        "exiftool"
+        "social-engineer-toolkit"
+        "king-phisher"
+        "gophish"
+        "evilginx2"
+        "modlishka"
+        "phishery"
+        "social-mapper"
+        "prowler"
+        "scout-suite"
+        "cloudsploit"
+        "pacu"
+        "weirdaal"
+        "cloudmapper"
+        "cs-suite"
+        "cloud-enum"
+        "s3-bucket-finder"
+        "lazys3"
+        "s3recon"
+        "cloudscraper"
+        "docker-bench-security"
+        "hadolint"
+        "dive"
+        "buildah"
+        "skopeo"
+        "podman-compose"
+        "openvas"
+        "nexpose"
+        "nmap-vulners"
+        "vulscan"
+        "vulners"
+        "nmap-scripts"
+        "cupp"
+        "cewl"
+        "crunch"
+        "maskprocessor"
+        "princeprocessor"
+        "kwprocessor"
+        "pack"
+        "pipal"
+        "mentalist"
+        "rsmangler"
+        "duplicut"
+        "rli"
+        "wordlist-maker"
+        "username-anarchy"
+        "namemash"
+        "linpeas"
+        "linenum"
+        "linux-exploit-suggester"
+        "unix-privesc-check"
+        "traitor"
+        "pspy"
+        "linux-smart-enumeration"
+        "bashark"
+        "uptux"
+        "powerview"
+        "powerup"
+        "powersploit"
+        "nishang"
+        "rubeus"
+        "mimikatz"
+        "lazagne"
+        "hashid"
+        "hash-identifier"
+        "name-that-hash"
+        "haiti"
+        "rockyou"
+        "seclists"
+        "wifite2"
+        "wifiphisher"
+        "fluxion"
+        "eaphammer"
+        "pwnagotchi"
+        "hackrf"
+        "rtl-sdr"
+        "gqrx"
+        "gnuradio"
+        "inspectrum"
+        "universal-radio-hacker"
+        "rfcat"
+        "proxmark3"
+        "ubertooth"
+        "flipper-zero-firmware"
+        "autopsy"
+        "sleuthkit"
+        "foremost"
+        "testdisk"
+        "photorec"
+        "scalpel"
+        "bulk-extractor"
+        "regripper"
+        "chkrootkit"
+        "rkhunter"
+        "lynis"
+        "clamav"
+        "tiger"
+        "aide"
+        "samhain"
+        "tripwire"
+        "ossec"
+        "wazuh"
+        "suricata"
+        "snort"
+        "zeek"
+        "steghide"
+        "outguess"
+        "stegosuite"
+        "openstego"
+        "steganabara"
+        "stegsolve"
+        "bleachbit"
+        "wipe"
+        "secure-delete"
+        "dban"
+        "nwipe"
+        "truecrypt"
+        "veracrypt"
+        "pwndbg"
+        "gef"
+        "peda"
+        "voltron"
+        "x64dbg"
+        "immunity-debugger"
     )
     
     local installed=0
@@ -1270,9 +2280,9 @@ show_summary() {
     
     if [ "$QUIET_MODE" != "true" ]; then
         echo
-        echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
-        echo -e "${BOLD}                 INSTALLATION COMPLETE                ${RESET}"
-        echo -e "${BOLD}════════════════════════════════════════════════════${RESET}"
+        echo -e "${BOLD}╔════════════════════════════════════════════════════╗${RESET}"
+        echo -e "${BOLD}║                 INSTALLATION COMPLETE                ║${RESET}"
+        echo -e "${BOLD}╚════════════════════════════════════════════════════╝${RESET}"
         echo
         echo -e "${BOLD}Statistics (because metrics matter):${RESET}"
         echo -e "  ${BGREEN}Successful:${RESET}  $success_count packages"
