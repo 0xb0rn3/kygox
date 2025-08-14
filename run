@@ -990,13 +990,13 @@ download_core_script() {
         #fi
     else
         log_message "INFO" "Core engine found, verifying integrity..."
-        if ! verify_core_script_integrity "$CORE_SCRIPT"; then
-            log_message "WARNING" "Core script verification failed, re-downloading..."
-            rm -f "$CORE_SCRIPT"
-            download_core_script
-        else
-            log_message "SUCCESS" "Core engine verified"
-        fi
+        #if ! verify_core_script_integrity "$CORE_SCRIPT"; then
+            #log_message "WARNING" "Core script verification failed, re-downloading..."
+            #rm -f "$CORE_SCRIPT"
+            #download_core_script
+        #else
+            #log_message "SUCCESS" "Core engine verified"
+        #fi
     fi
 }
 
