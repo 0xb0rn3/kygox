@@ -414,3 +414,371 @@ class KeyringManager:
                 blackarch_repo = "\n[blackarch]\nServer = https://blackarch.org/blackarch/$repo/os/$arch\n"
                 
                 # Backup original
+                backup_path = pacman_conf.with_suffix('.bak')
+                shutil.copy2(pacman_conf, backup_path)
+                self.logger.log("INFO", f"Backed up pacman.conf to {backup_path}", "keyring")
+                
+                # Add BlackArch repository
+                with open(pacman_conf, "a") as f:
+                    f.write(blackarch_repo)
+                
+                self.logger.log("SUCCESS", "BlackArch repository added to pacman.conf", "keyring")
+                
+                # Update package databases
+                result = subprocess.run(
+                    ["pacman", "-Sy"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                
+                if result.returncode == 0:
+                    self.logger.log("SUCCESS", "Package databases updated", "keyring")
+                else:
+                    self.logger.log("WARNING", f"Failed to update databases: {result.stderr}", "keyring")
+            else:
+                self.logger.log("INFO", "BlackArch repository already configured", "keyring")
+                
+        except Exception as e:
+            self.logger.log("ERROR", f"Failed to configure BlackArch repository: {str(e)}", "keyring")
+
+class PackageManager:
+    """Advanced package management and installation"""
+    
+    def __init__(self, logger: Logger):
+        self.logger = logger
+        self.installed_packages = set()
+        self.failed_packages = set()
+        
+    def install_packages(self, packages: List[str], max_workers: int = 4) -> Dict[str, bool]:
+        """Install packages with parallel execution"""
+        self.logger.log("PROCESS", f"Installing {len(packages)} packages with {max_workers} workers", "installer")
+        
+        results = {}
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_package = {
+                executor.submit(self._install_single_package, pkg): pkg 
+                for pkg in packages
+            }
+            
+            for future in as_completed(future_to_package):
+                package = future_to_package[future]
+                try:
+                    success = future.result()
+                    results[package] = success
+                    
+                    if success:
+                        self.installed_packages.add(package)
+                        self.logger.log_package(package, "success")
+                    else:
+                        self.failed_packages.add(package)
+                        
+                except Exception as e:
+                    self.logger.log("ERROR", f"Exception during installation of {package}: {str(e)}", "installer")
+                    results[package] = False
+                    self.failed_packages.add(package)
+        
+        return results
+    
+    def _install_single_package(self, package: str) -> bool:
+        """Install a single package"""
+        try:
+            self.logger.log("PROCESS", f"Installing {package}...", "installer", display=False)
+            
+            # Check if already installed
+            check_result = subprocess.run(
+                ["pacman", "-Qi", package],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if check_result.returncode == 0:
+                self.logger.log("INFO", f"{package} already installed", "installer", display=False)
+                return True
+            
+            # Install package
+            install_result = subprocess.run(
+                ["pacman", "-S", "--noconfirm", "--needed", package],
+                capture_output=True,
+                text=True,
+                timeout=600
+            )
+            
+            if install_result.returncode == 0:
+                self.logger.log("SUCCESS", f"Installed {package}", "installer", display=False)
+                return True
+            else:
+                error_msg = install_result.stderr.strip() or "Unknown error"
+                self.logger.log("ERROR", f"Failed to install {package}: {error_msg}", "installer", display=False)
+                self.logger.log_package(package, "failed", error_msg)
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self.logger.log("ERROR", f"Installation of {package} timed out", "installer")
+            self.logger.log_package(package, "failed", "Installation timeout")
+            return False
+        except Exception as e:
+            self.logger.log("ERROR", f"Exception installing {package}: {str(e)}", "installer")
+            self.logger.log_package(package, "failed", str(e))
+            return False
+
+class KygoXCore:
+    """Main KygoX toolkit engine"""
+    
+    def __init__(self):
+        self.config = KygoXConfig()
+        self.logger = Logger(self.config.LOG_DIR)
+        self.system_info = SystemInfo()
+        self.keyring_manager = KeyringManager(self.logger, self.config.CACHE_DIR)
+        self.package_manager = PackageManager(self.logger)
+        
+        # Signal handlers
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+    
+    def _signal_handler(self, signum, frame):
+        """Handle interruption signals"""
+        self.logger.log("WARNING", "Installation interrupted by user", "system")
+        self.cleanup()
+        sys.exit(130)
+    
+    def cleanup(self):
+        """Cleanup temporary files and resources"""
+        try:
+            # Clean cache if exists
+            if self.config.CACHE_DIR.exists():
+                temp_files = list(self.config.CACHE_DIR.glob("*.tmp"))
+                for temp_file in temp_files:
+                    temp_file.unlink()
+        except Exception as e:
+            self.logger.log("WARNING", f"Cleanup warning: {str(e)}", "system")
+    
+    def run(self):
+        """Main execution method"""
+        try:
+            self._display_banner()
+            self._check_prerequisites()
+            self._setup_environment()
+            self._install_toolkit()
+            self._generate_report()
+            
+        except KeyboardInterrupt:
+            self.logger.log("WARNING", "Installation interrupted by user", "system")
+            self.cleanup()
+            sys.exit(130)
+        except Exception as e:
+            self.logger.log("ERROR", f"Fatal error: {str(e)}", "system")
+            self.cleanup()
+            sys.exit(1)
+    
+    def _display_banner(self):
+        """Display application banner"""
+        banner = f"""
+{ColorManager.CYAN}
+██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
+██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
+███████╔╝ ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
+██╔══██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
+██║  ██║   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
+╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+{ColorManager.RESET}
+{ColorManager.BOLD}ARCH LINUX PENETRATION TESTING TOOLKIT{ColorManager.RESET}
+{ColorManager.DIM}Professional Security Arsenal Deployment{ColorManager.RESET}
+
+{ColorManager.BOLD}Version: {self.config.VERSION} | {self.config.VERSION_NAME}{ColorManager.RESET}
+{ColorManager.DIM}Repository: {self.config.REPO_URL}{ColorManager.RESET}
+"""
+        print(banner)
+    
+    def _check_prerequisites(self):
+        """Check system prerequisites"""
+        self.logger.log("PROCESS", "Checking system prerequisites", "system")
+        
+        # Check if running as root
+        if os.geteuid() != 0:
+            self.logger.log("ERROR", "KygoX must be run as root", "system")
+            sys.exit(1)
+        
+        # Check Arch compatibility
+        if not self.system_info.is_arch_based:
+            self.logger.log("ERROR", "KygoX requires Arch Linux or Arch-based distribution", "system")
+            sys.exit(1)
+        
+        # Display system information
+        self.logger.log("INFO", f"Distribution: {self.system_info.distro_info['name']}", "system")
+        self.logger.log("INFO", f"Pacman version: {self.system_info.pacman_version}", "system")
+        self.logger.log("INFO", f"RAM: {self.system_info.system_specs['ram_mb']}MB", "system")
+        self.logger.log("INFO", f"CPU cores: {self.system_info.system_specs['cpu_cores']}", "system")
+        self.logger.log("INFO", f"Free disk space: {self.system_info.system_specs['disk_free_gb']}GB", "system")
+        
+        self.logger.log("SUCCESS", "Prerequisites check completed", "system")
+    
+    def _setup_environment(self):
+        """Setup installation environment"""
+        self.logger.log("PROCESS", "Setting up installation environment", "system")
+        
+        # Create directories
+        self.config.LOG_DIR.mkdir(parents=True, exist_ok=True)
+        self.config.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        self.config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Update system
+        self.logger.log("PROCESS", "Updating system packages", "system")
+        update_result = subprocess.run(
+            ["pacman", "-Syu", "--noconfirm"],
+            capture_output=True,
+            text=True,
+            timeout=600
+        )
+        
+        if update_result.returncode == 0:
+            self.logger.log("SUCCESS", "System updated successfully", "system")
+        else:
+            self.logger.log("WARNING", f"System update warning: {update_result.stderr}", "system")
+        
+        # Setup BlackArch keyring
+        if not self.keyring_manager.setup_blackarch_keyring():
+            self.logger.log("WARNING", "BlackArch keyring setup failed, continuing with core tools only", "system")
+        
+        self.logger.log("SUCCESS", "Environment setup completed", "system")
+    
+    def _install_toolkit(self):
+        """Install security toolkit"""
+        self.logger.log("PROCESS", "Starting toolkit installation", "installer")
+        
+        # Combine core and trending tools
+        all_tools = list(set(self.config.CORE_TOOLS + self.config.TRENDING_2025))
+        
+        self.logger.log("INFO", f"Installing {len(all_tools)} security tools", "installer")
+        
+        # Install packages
+        results = self.package_manager.install_packages(all_tools, max_workers=2)
+        
+        # Summary
+        successful = sum(1 for success in results.values() if success)
+        failed = len(results) - successful
+        
+        self.logger.log("INFO", f"Installation completed: {successful} successful, {failed} failed", "installer")
+    
+    def _generate_report(self):
+        """Generate installation report"""
+        self.logger.log("PROCESS", "Generating installation report", "system")
+        
+        report_file = self.config.LOG_DIR / "installation_report.txt"
+        
+        with open(report_file, 'w') as f:
+            f.write(f"KygoX Installation Report\n")
+            f.write(f"=" * 50 + "\n\n")
+            f.write(f"Version: {self.config.VERSION} ({self.config.VERSION_NAME})\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"System: {self.system_info.distro_info['name']}\n\n")
+            
+            f.write(f"Installed Packages: {len(self.package_manager.installed_packages)}\n")
+            f.write(f"Failed Packages: {len(self.package_manager.failed_packages)}\n\n")
+            
+            if self.package_manager.installed_packages:
+                f.write("Successfully Installed:\n")
+                f.write("-" * 30 + "\n")
+                for pkg in sorted(self.package_manager.installed_packages):
+                    f.write(f"  ✓ {pkg}\n")
+            
+            if self.package_manager.failed_packages:
+                f.write("\nFailed Installations:\n")
+                f.write("-" * 30 + "\n")
+                for pkg in sorted(self.package_manager.failed_packages):
+                    f.write(f"  ✗ {pkg}\n")
+            
+            f.write(f"\nLog files location: {self.config.LOG_DIR}\n")
+            f.write(f"Cache directory: {self.config.CACHE_DIR}\n")
+        
+        self.logger.log("SUCCESS", f"Installation report saved to {report_file}", "system")
+        self.logger.log("SUCCESS", "KygoX installation completed!", "system")
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(
+        description="KygoX - Arch Linux Penetration Testing Toolkit",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=f"""
+Examples:
+  python3 {sys.argv[0]}              # Full installation
+  python3 {sys.argv[0]} --core-only  # Core tools only
+  python3 {sys.argv[0]} --check      # System check only
+  
+Categories available: {', '.join(KygoXConfig.BLACKARCH_CATEGORIES.keys())}
+
+For more information: {KygoXConfig.REPO_URL}
+        """
+    )
+    
+    parser.add_argument(
+        "--core-only",
+        action="store_true",
+        help="Install only core security tools"
+    )
+    
+    parser.add_argument(
+        "--category",
+        choices=list(KygoXConfig.BLACKARCH_CATEGORIES.keys()),
+        help="Install tools from specific category"
+    )
+    
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check system compatibility and exit"
+    )
+    
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"KygoX {KygoXConfig.VERSION} ({KygoXConfig.VERSION_NAME})"
+    )
+    
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=2,
+        help="Maximum number of parallel installation workers (default: 2)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Initialize core engine
+    kygox = KygoXCore()
+    
+    # Handle check mode
+    if args.check:
+        kygox._display_banner()
+        kygox._check_prerequisites()
+        print(f"\n{ColorManager.SUCCESS} System check completed successfully!")
+        sys.exit(0)
+    
+    # Modify configuration based on arguments
+    if args.core_only:
+        kygox.config.TRENDING_2025 = []  # Skip trending tools
+    
+    if args.category:
+        # This would require category-based filtering implementation
+        kygox.logger.log("WARNING", "Category filtering not yet implemented", "system")
+    
+    if args.max_workers:
+        # This would be passed to package manager
+        pass
+    
+    # Run main installation
+    try:
+        kygox.run()
+    except KeyboardInterrupt:
+        print(f"\n{ColorManager.WARNING} Installation interrupted by user")
+        kygox.cleanup()
+        sys.exit(130)
+    except Exception as e:
+        print(f"\n{ColorManager.ERROR} Fatal error: {str(e)}")
+        kygox.cleanup()
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
