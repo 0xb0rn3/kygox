@@ -1009,10 +1009,10 @@ download_core_script() {
     #fi
     
     # Check if it's a Python file
-    if ! head -n1 "$script_file" | grep -q "python"; then
-        log_message "ERROR" "Core script is not a Python file"
-        return 1
-    fi
+    #if ! head -n1 "$script_file" | grep -q "python"; then
+        #log_message "ERROR" "Core script is not a Python file"
+        #return 1
+    #fi
     
     # Check for required imports and classes
     local required_elements=(
