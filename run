@@ -130,6 +130,9 @@ animated_loading() {
     printf "\r"
 }
 
+# ---
+# CORRECTED interactive_menu function
+# ---
 interactive_menu() {
     local title="$1"
     shift
@@ -148,30 +151,35 @@ interactive_menu() {
             fi
         done
         
+        # Robustly read key presses, including escape sequences for arrow keys
         read -rsn1 key
+        if [[ "$key" == $'\e' ]]; then # If it's an escape character
+            read -rsn2 -t 0.1 key_seq # Read the rest of the sequence with a timeout
+            key+="$key_seq"
+        fi
+        
         case "$key" in
-            $'\x1b')
-                read -rsn2 key
-                case "$key" in
-                    '[A') # Up arrow
-                        ((selected > 0)) && ((selected--))
-                        ;;
-                    '[B') # Down arrow
-                        ((selected < ${#options[@]} - 1)) && ((selected++))
-                        ;;
-                esac
+            $'\e[A') # Up arrow
+                if ((selected > 0)); then
+                    ((selected--))
+                fi
+                ;;
+            $'\e[B') # Down arrow
+                if ((selected < ${#options[@]} - 1)); then
+                    ((selected++))
+                fi
                 ;;
             '') # Enter
                 echo
                 return $selected
                 ;;
-            'q'|'Q')
+            'q'|'Q'|$'\e') # Quit on q, Q, or a lone ESC key
                 echo -e "\n${INFO} Exiting..."
                 exit 0
                 ;;
         esac
         
-        # Clear previous menu
+        # Clear previous menu for redraw
         for ((i=0; i<${#options[@]}; i++)); do
             echo -e "\033[1A\033[K"
         done
@@ -223,7 +231,9 @@ def get_current_version():
 def version_compare(v1, v2):
     """Compare version strings (returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal)"""
     def normalize(v):
-        return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+        # Adjusted to handle beta tags like '0.1.9-beta' by splitting on '-'
+        v_parts = v.split('-')[0]
+        return [int(x) for x in re.sub(r'(\.0+)*$','', v_parts).split(".")]
     
     norm_v1, norm_v2 = normalize(v1), normalize(v2)
     
@@ -237,6 +247,9 @@ def version_compare(v1, v2):
     elif norm_v1 < norm_v2:
         return -1
     else:
+        # Basic check for pre-releases if main versions are equal
+        if '-beta' in v2 and '-beta' not in v1: return 1
+        if '-beta' in v1 and '-beta' not in v2: return -1
         return 0
 
 def download_update(url, output_path):
@@ -306,8 +319,10 @@ PYEOF
     
     # Run update checker
     local script_path="$0"
-    local update_result=$(python3 /tmp/kygox_update_checker.py "$script_path" "check" 2>/dev/null)
+    local update_result
+    update_result=$(python3 /tmp/kygox_update_checker.py "$script_path" "check" 2>/dev/null)
     local exit_code=$?
+    
     # Clean up temporary file
     rm -f /tmp/kygox_update_checker.py
     
@@ -396,7 +411,9 @@ def get_current_version():
 def version_compare(v1, v2):
     """Compare version strings (returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal)"""
     def normalize(v):
-        return [int(x) for x in re.sub(r'(\.0+)*$','', v).split(".")]
+        # Adjusted to handle beta tags like '0.1.9-beta' by splitting on '-'
+        v_parts = v.split('-')[0]
+        return [int(x) for x in re.sub(r'(\.0+)*$','', v_parts).split(".")]
     
     norm_v1, norm_v2 = normalize(v1), normalize(v2)
     
@@ -410,6 +427,9 @@ def version_compare(v1, v2):
     elif norm_v1 < norm_v2:
         return -1
     else:
+        # Basic check for pre-releases if main versions are equal
+        if '-beta' in v2 and '-beta' not in v1: return 1
+        if '-beta' in v1 and '-beta' not in v2: return -1
         return 0
 
 def download_update(url, output_path):
@@ -472,8 +492,10 @@ if __name__ == "__main__":
 PYEOF
     
     local script_path="$0"
-    local update_result=$(python3 /tmp/kygox_updater.py "$script_path" "download" 2>/dev/null)
+    local update_result
+    update_result=$(python3 /tmp/kygox_updater.py "$script_path" "download" 2>/dev/null)
     local exit_code=$?
+    
     rm -f /tmp/kygox_updater.py
     
     if [[ $exit_code -ne 0 ]]; then
@@ -512,7 +534,8 @@ log_message() {
     local level="$1"
     local message="$2"
     local component="${3:-system}"
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
     mkdir -p "$LOG_DIR"
     echo "[$timestamp] [$level] [$component] $message" >> "$MAIN_LOG"
@@ -543,7 +566,7 @@ display_banner() {
     ARCH LINUX PENETRATION TESTING TOOLKIT
       Professional Security Arsenal Deployment
 EOF
-    echo -e "           ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
+    echo -e "            ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
     echo -e "   ${DIM}0xbv1 | IG: theehiv3 | X: 0xbv1 | q4n0@proton.me${RESET}"
     echo -e "      ${DIM}Repository: $REPO_URL${RESET}"
     echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
@@ -641,6 +664,7 @@ interactive_installation() {
     
     interactive_menu "Select Installation Mode:" "${main_options[@]}"
     local main_choice=$?
+    
     case $main_choice in
         0)
             INSTALL_MODE="default"
@@ -668,6 +692,7 @@ interactive_installation() {
             
             interactive_menu "Select Tool Category:" "${categories[@]}"
             local cat_choice=$?
+            
             GROUP_NAME="${categories[$cat_choice]}"
             INSTALL_MODE="group"
             log_message "INFO" "Interactive mode: Category $GROUP_NAME selected" "interactive"
@@ -709,6 +734,7 @@ interactive_installation() {
         
         interactive_menu "Additional Options:" "${addon_options[@]}"
         local addon_choice=$?
+        
         case $addon_choice in
             0)
                 QUIET_MODE=true
@@ -869,7 +895,7 @@ detect_distribution() {
         log_message "WARNING" "Detected Debian-based system: $distro_name" "distro"
         echo -e "${WARNING} KygoX is designed specifically for Arch Linux systems."
         echo
-        echo -e "${INFO} For Debian/Ubuntu/Kali/Parrot systems, we recommend alternative installer:"
+        echo -e "${INFO} For Debian/Ubuntu/Kali/Parrot systems, we recommend an alternative installer:"
         echo -e "   ${CYAN}Repository: $ALT_REPO${RESET}"
         echo -e "   ${CYAN}Features: Same professional experience for Debian-based systems${RESET}"
         echo
@@ -893,10 +919,12 @@ detect_distribution() {
                     else
                         echo -e "${INFO} Please visit: ${CYAN}$ALT_REPO${RESET}"
                     fi
+                    
                     echo
                     echo -e "${INFO} Installation command for alternative installer:"
                     echo -e "   ${GREEN}git clone $ALT_REPO && cd krilin && sudo ./run${RESET}"
                     echo
+                    
                     exit 0
                     ;;
                 [Nn]|[Nn][Oo]|"")
@@ -981,6 +1009,7 @@ detect_distribution() {
             ;;
     esac
 }
+
 check_system_requirements() {
     log_message "PROCESS" "Checking system requirements..." "system"
     
@@ -1012,7 +1041,8 @@ check_system_requirements() {
     fi
     
     # Check available disk space (minimum 10GB)
-    local available_space=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
+    local available_space
+    available_space=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
     if [[ $available_space -lt 10 ]]; then
         log_message "WARNING" "Low disk space: ${available_space}GB available" "system"
         if [[ "$FORCE_CONTINUE" != "true" ]]; then
@@ -1085,9 +1115,11 @@ add_blackarch_repository() {
     # Download and execute BlackArch bootstrap
     log_message "INFO" "Downloading BlackArch bootstrap script..." "repo"
     
-    local bootstrap_script=$(mktemp)
+    local bootstrap_script
+    bootstrap_script=$(mktemp)
     if ! curl -fsSL https://blackarch.org/strap.sh -o "$bootstrap_script"; then
         log_message "ERROR" "Failed to download bootstrap script" "repo"
+        rm -f "$bootstrap_script"
         return 1
     fi
     
@@ -1168,7 +1200,7 @@ fix_pacman_keys() {
         # Manual keyring installation
         local temp_dir="/tmp/blackarch_keyring_$$"
         mkdir -p "$temp_dir"
-        cd "$temp_dir"
+        cd "$temp_dir" || return 1
         
         if curl -s -O "https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.xz" 2>/dev/null; then
             if pacman -U --noconfirm blackarch-keyring.pkg.tar.xz &>/dev/null; then
@@ -1176,7 +1208,7 @@ fix_pacman_keys() {
             fi
         fi
         
-        cd - >/dev/null
+        cd - >/dev/null || return 1
         rm -rf "$temp_dir"
     fi
     
@@ -1208,8 +1240,8 @@ handle_signature_verification() {
         /^\[blackarch\]/ { in_blackarch = 1; print; next }
         /^\[/ && in_blackarch { in_blackarch = 0 }
         in_blackarch && /^SigLevel/ { next }
-        in_blackarch && NF == 0 { print "SigLevel = Optional TrustAll"; print; next }
-        in_blackarch && /^Server/ { print "SigLevel = Optional TrustAll"; print; next }
+        # Add SigLevel if it is missing, typically after the [blackarch] line
+        in_blackarch && !/SigLevel/ { print; print "SigLevel = Optional TrustAll"; in_blackarch = 0; next }
         { print }
         ' "$pacman_conf" > "${pacman_conf}.tmp" && mv "${pacman_conf}.tmp" "$pacman_conf"
         
@@ -1320,15 +1352,15 @@ install_yay_helper() {
     fi
     
     # Build and install YAY
-    cd "$build_dir"
+    cd "$build_dir" || return 1
     if sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm 2>&1 | tee -a "$MAIN_LOG"; then
         log_message "SUCCESS" "YAY AUR helper installed successfully" "aur"
-        cd - >/dev/null
+        cd - >/dev/null || return 1
         rm -rf "$build_dir"
         return 0
     else
         log_message "ERROR" "YAY installation failed" "aur"
-        cd - >/dev/null
+        cd - >/dev/null || return 1
         rm -rf "$build_dir"
         return 1
     fi
@@ -1463,7 +1495,8 @@ $(printf '%s\n' "${TRENDING_2025[@]}")
 
 EOF
     
-    local tool_count=$(grep -c '^[^#]' "$toolkit_file" | grep -v '^$' || echo "0")
+    local tool_count
+    tool_count=$(grep -c '^[^#]' "$toolkit_file" | grep -v '^$' || echo "0")
     log_message "SUCCESS" "Security toolkit generated with $tool_count tools" "toolkit"
     
     echo -e "${INFO} Toolkit saved to: ${BOLD}$toolkit_file${RESET}"
@@ -1570,7 +1603,8 @@ validate_package_availability() {
 install_packages_batch() {
     log_message "PROCESS" "Starting batch package installation..." "install"
     
-    local total_packages=$(wc -l < package_list.tmp)
+    local total_packages
+    total_packages=$(wc -l < package_list.tmp)
     local success_count=0
     local failure_count=0
     local batch_size=10
@@ -1587,7 +1621,7 @@ install_packages_batch() {
         fi
         
         # Process batch when full or at end of file
-        if [[ ${#current_batch[@]} -eq $batch_size ]] || [[ -z "$package" && ${#current_batch[@]} -gt 0 ]]; then
+        if [[ ${#current_batch[@]} -eq $batch_size ]] || { [[ -z "$package" ]] && [[ ${#current_batch[@]} -gt 0 ]]; }; then
             log_message "PROCESS" "Installing batch $batch_number (${#current_batch[@]} packages)..." "install"
             
             # Attempt batch installation
@@ -1615,7 +1649,7 @@ install_packages_batch() {
             # Progress display
             local processed=$((success_count + failure_count))
             if [[ "$QUIET_MODE" != "true" ]]; then
-                show_progress $processed $total_packages
+                show_progress "$processed" "$total_packages"
             fi
             
             # Reset batch
@@ -1749,7 +1783,7 @@ display_installation_summary() {
     
     echo
     echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo -e "${BOLD}                 INSTALLATION COMPLETE                       ${RESET}"
+    echo -e "${BOLD}                 INSTALLATION COMPLETE                        ${RESET}"
     echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
     echo -e "${BOLD}INSTALLATION STATISTICS:${RESET}"
