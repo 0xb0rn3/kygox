@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 echo -e "  sudo $0 --check --no-colors     # Compatibility check without colors"
     echo -e "  sudo $0 -u --force-update     # Force update to latest version"
     echo -e "  sudo $0 --cleanup --verbose   # Cleanup with detailed output"
