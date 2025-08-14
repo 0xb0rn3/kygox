@@ -82,10 +82,10 @@ declare AUTO_INSTALL_REQUIREMENTS=true
 declare -a CORE_PYTHON_PACKAGES=(
     "requests>=2.25.0"
     "urllib3>=1.26.0"
-    "colorama>=0.4.4"
     "tqdm>=4.60.0"
     "cryptography>=3.4.0"
     "packaging>=20.0"
+    "colorama"
 )
 
 # Enhanced UI packages - for better user experience
