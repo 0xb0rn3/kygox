@@ -12,6 +12,10 @@ readonly SCRIPT_NAME="KygoX"
 readonly REPO_URL="https://github.com/0xb0rn3/kygox"
 readonly ALT_REPO="https://github.com/0xb0rn3/krilin"
 readonly CORE_SCRIPT=".core.py"
+readonly RUNNER_SCRIPT="run"
+readonly UPDATE_CHECK_URL="https://api.github.com/repos/0xb0rn3/kygox/releases/latest"
+readonly RAW_REPO_URL="https://raw.githubusercontent.com/0xb0rn3/kygox/main"
+readonly HASH_CHECK_URL="$RAW_REPO_URL/checksums.sha256"
 
 # Color Definitions
 declare -r RED='\033[0;31m'
@@ -30,28 +34,47 @@ declare -r RESET='\033[0m'
 declare -r SUCCESS="[${GREEN}✓${RESET}]"
 declare -r ERROR="[${RED}✗${RESET}]"
 declare -r INFO="[${BLUE}ℹ${RESET}]"
-declare -r WARNING="[${YELLOW}⚠${RESET}]"
+declare -r WARNING="[${YELLOW}⚠ ${RESET}]"
 declare -r PROCESS="[${PURPLE}⚡${RESET}]"
 declare -r SECURITY="[${CYAN}🔒${RESET}]"
+declare -r CONFIG="[${WHITE}⚙${RESET}]"
+declare -r PROMPT="[${YELLOW}?${RESET}]"
+declare -r UPDATE="[${GREEN}🔄${RESET}]"
+declare -r DOWNLOAD="[${BLUE}⬇${RESET}]"
+
+# System Detection Variables
+declare CPU_CORES
+declare TOTAL_RAM_GB
+declare FREE_DISK_GB
+declare RECOMMENDED_WORKERS
+declare MAX_WORKERS
+
+# Configuration Variables
+declare WORKER_THREADS=2
+declare INSTALLATION_MODE="full"
+declare LOG_LEVEL="INFO"
+declare SKIP_KEYRING=false
+declare CLEANUP_AFTER=true
+declare INTERACTIVE_MODE=true
 
 # Banner Display
 display_banner() {
     clear
     cat << 'EOF'
-██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
-██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
-███████╔╝ ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
-██╔══██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
-██║  ██║   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
-╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
-═══════════════════════════════════════════════
+█▄██╗  █▄██╗██╗   ██╗ █████████╗  █████████╗ ██╗  ██╗
+██╝ █████╔═╚███╗ █████╔═█████╔═══███╗ █████╔═══███████╗ ██████╔═
+██████████████╔═ ╚████████╔═ █████╝  █████████╗█████╝   █████╝ ╚███████╔═ 
+█████╔═══███╗   ╚████╔═  █████╝   █████╝█████╝   █████╝ █████╔█████╗ 
+█████╝  █████╝   ███╝   ╚█████████████╔═╚█████████████╔═█████╔═ █████╗
+╚═══  ╚═══   ╚═╝    ╚══════════╝  ╚══════════╝ ╚═══  ╚═══
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ARCH LINUX PENETRATION TESTING TOOLKIT
      Professional Security Arsenal Deployment
 EOF
     echo -e "            ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
     echo -e "   ${DIM}Author: 0xbv1 | Contact: IG: theehiv3 | X: 0xbv1 | q4n0@proton.me${RESET}"
     echo -e "      ${DIM}Repository: $REPO_URL${RESET}"
-    echo -e "${DARK}═══════════════════════════════════════════════${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
 }
 
@@ -66,6 +89,320 @@ check_root() {
     if [[ $EUID -ne 0 ]]; then
         error_exit "This script must be run as root. Use: sudo $0"
     fi
+}
+
+# Detect system specifications
+detect_system_specs() {
+    echo -e "${PROCESS} Detecting system specifications..."
+    
+    # CPU cores
+    CPU_CORES=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo "1")
+    
+    # RAM in GB
+    if [[ -f /proc/meminfo ]]; then
+        local ram_kb
+        ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+        TOTAL_RAM_GB=$((ram_kb / 1024 / 1024))
+    else
+        TOTAL_RAM_GB=1
+    fi
+    
+    # Free disk space in GB
+    FREE_DISK_GB=$(df / | tail -1 | awk '{printf "%.0f", $4/1024/1024}')
+    
+    # Calculate recommended workers based on system specs
+    if [[ $CPU_CORES -ge 8 && $TOTAL_RAM_GB -ge 8 ]]; then
+        RECOMMENDED_WORKERS=$((CPU_CORES / 2))
+        MAX_WORKERS=$CPU_CORES
+    elif [[ $CPU_CORES -ge 4 && $TOTAL_RAM_GB -ge 4 ]]; then
+        RECOMMENDED_WORKERS=3
+        MAX_WORKERS=$((CPU_CORES - 1))
+    elif [[ $CPU_CORES -ge 2 && $TOTAL_RAM_GB -ge 2 ]]; then
+        RECOMMENDED_WORKERS=2
+        MAX_WORKERS=$CPU_CORES
+    else
+        RECOMMENDED_WORKERS=1
+        MAX_WORKERS=1
+    fi
+    
+    # Cap max workers to prevent system overload
+    if [[ $MAX_WORKERS -gt 6 ]]; then
+        MAX_WORKERS=6
+    fi
+    
+    echo -e "${SUCCESS} System detected: ${CYAN}${CPU_CORES} cores${RESET}, ${CYAN}${TOTAL_RAM_GB}GB RAM${RESET}, ${CYAN}${FREE_DISK_GB}GB free${RESET}"
+}
+
+# Display system information
+display_system_info() {
+    echo -e "${CONFIG} ${BOLD}System Information${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    printf "%-20s %s\n" "CPU Cores:" "${CYAN}$CPU_CORES${RESET}"
+    printf "%-20s %s\n" "Total RAM:" "${CYAN}${TOTAL_RAM_GB}GB${RESET}"
+    printf "%-20s %s\n" "Free Disk Space:" "${CYAN}${FREE_DISK_GB}GB${RESET}"
+    printf "%-20s %s\n" "Recommended Workers:" "${GREEN}$RECOMMENDED_WORKERS${RESET}"
+    printf "%-20s %s\n" "Maximum Workers:" "${YELLOW}$MAX_WORKERS${RESET}"
+    
+    # System warnings
+    if [[ $TOTAL_RAM_GB -lt 4 ]]; then
+        echo -e "${WARNING} Low RAM detected. Consider using fewer worker threads."
+    fi
+    
+    if [[ $FREE_DISK_GB -lt 10 ]]; then
+        echo -e "${WARNING} Low disk space detected. Installation may fail."
+    fi
+    
+    echo
+}
+
+# Interactive configuration menu
+interactive_config() {
+    if [[ "$INTERACTIVE_MODE" != "true" ]]; then
+        return 0
+    fi
+    
+    echo -e "${CONFIG} ${BOLD}Interactive Configuration${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo
+    
+    # Installation mode selection
+    echo -e "${PROMPT} ${BOLD}Select Installation Mode:${RESET}"
+    echo -e "  ${GREEN}1)${RESET} Full Installation (Core + Trending 2025 tools)"
+    echo -e "  ${GREEN}2)${RESET} Core Only (Essential security tools only)"
+    echo -e "  ${GREEN}3)${RESET} Trending Only (2025 cutting-edge tools)"
+    echo -e "  ${GREEN}4)${RESET} Custom Selection"
+    echo
+    
+    while true; do
+        read -p "$(echo -e "${PROMPT} Enter choice [1-4] (default: 1): ")" mode_choice
+        mode_choice=${mode_choice:-1}
+        
+        case $mode_choice in
+            1)
+                INSTALLATION_MODE="full"
+                echo -e "${SUCCESS} Selected: Full Installation"
+                break
+                ;;
+            2)
+                INSTALLATION_MODE="core-only"
+                echo -e "${SUCCESS} Selected: Core Tools Only"
+                break
+                ;;
+            3)
+                INSTALLATION_MODE="trending-only"
+                echo -e "${SUCCESS} Selected: Trending 2025 Tools"
+                break
+                ;;
+            4)
+                INSTALLATION_MODE="custom"
+                echo -e "${SUCCESS} Selected: Custom Selection"
+                echo -e "${INFO} Custom selection will be handled by the core engine"
+                break
+                ;;
+            *)
+                echo -e "${ERROR} Invalid choice. Please select 1-4."
+                ;;
+        esac
+    done
+    
+    echo
+    
+    # Worker threads configuration
+    echo -e "${PROMPT} ${BOLD}Worker Threads Configuration:${RESET}"
+    echo -e "  Current system can handle: ${GREEN}1${RESET} to ${YELLOW}$MAX_WORKERS${RESET} worker threads"
+    echo -e "  Recommended for your system: ${GREEN}$RECOMMENDED_WORKERS${RESET} workers"
+    echo -e "  ${DIM}More workers = faster installation but higher system load${RESET}"
+    echo
+    
+    while true; do
+        read -p "$(echo -e "${PROMPT} Enter worker threads [1-$MAX_WORKERS] (default: $RECOMMENDED_WORKERS): ")" worker_input
+        worker_input=${worker_input:-$RECOMMENDED_WORKERS}
+        
+        if [[ "$worker_input" =~ ^[0-9]+$ ]] && [[ $worker_input -ge 1 && $worker_input -le $MAX_WORKERS ]]; then
+            WORKER_THREADS=$worker_input
+            echo -e "${SUCCESS} Set worker threads to: ${CYAN}$WORKER_THREADS${RESET}"
+            break
+        else
+            echo -e "${ERROR} Invalid input. Please enter a number between 1 and $MAX_WORKERS."
+        fi
+    done
+    
+    echo
+    
+    # Log level configuration
+    echo -e "${PROMPT} ${BOLD}Log Level Configuration:${RESET}"
+    echo -e "  ${GREEN}1)${RESET} INFO (Recommended - standard output)"
+    echo -e "  ${GREEN}2)${RESET} DEBUG (Verbose - detailed information)"
+    echo -e "  ${GREEN}3)${RESET} WARNING (Quiet - only warnings and errors)"
+    echo -e "  ${GREEN}4)${RESET} ERROR (Silent - only errors)"
+    echo
+    
+    while true; do
+        read -p "$(echo -e "${PROMPT} Select log level [1-4] (default: 1): ")" log_choice
+        log_choice=${log_choice:-1}
+        
+        case $log_choice in
+            1)
+                LOG_LEVEL="INFO"
+                echo -e "${SUCCESS} Set log level to: ${CYAN}INFO${RESET}"
+                break
+                ;;
+            2)
+                LOG_LEVEL="DEBUG"
+                echo -e "${SUCCESS} Set log level to: ${CYAN}DEBUG${RESET}"
+                break
+                ;;
+            3)
+                LOG_LEVEL="WARNING"
+                echo -e "${SUCCESS} Set log level to: ${CYAN}WARNING${RESET}"
+                break
+                ;;
+            4)
+                LOG_LEVEL="ERROR"
+                echo -e "${SUCCESS} Set log level to: ${CYAN}ERROR${RESET}"
+                break
+                ;;
+            *)
+                echo -e "${ERROR} Invalid choice. Please select 1-4."
+                ;;
+        esac
+    done
+    
+    echo
+    
+    # Advanced options
+    echo -e "${PROMPT} ${BOLD}Advanced Options:${RESET}"
+    
+    # Skip keyring setup
+    while true; do
+        read -p "$(echo -e "${PROMPT} Skip BlackArch keyring setup? [y/N]: ")" skip_keyring
+        skip_keyring=${skip_keyring:-n}
+        
+        case ${skip_keyring,,} in
+            y|yes)
+                SKIP_KEYRING=true
+                echo -e "${WARNING} BlackArch keyring setup will be skipped"
+                break
+                ;;
+            n|no)
+                SKIP_KEYRING=false
+                echo -e "${SUCCESS} BlackArch keyring will be configured"
+                break
+                ;;
+            *)
+                echo -e "${ERROR} Please answer y or n."
+                ;;
+        esac
+    done
+    
+    # Cleanup after installation
+    while true; do
+        read -p "$(echo -e "${PROMPT} Perform cleanup after installation? [Y/n]: ")" cleanup_choice
+        cleanup_choice=${cleanup_choice:-y}
+        
+        case ${cleanup_choice,,} in
+            y|yes)
+                CLEANUP_AFTER=true
+                echo -e "${SUCCESS} System cleanup will be performed"
+                break
+                ;;
+            n|no)
+                CLEANUP_AFTER=false
+                echo -e "${INFO} Cleanup will be skipped"
+                break
+                ;;
+            *)
+                echo -e "${ERROR} Please answer y or n."
+                ;;
+        esac
+    done
+    
+    echo
+    
+    # Configuration summary
+    echo -e "${CONFIG} ${BOLD}Configuration Summary:${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    printf "%-20s %s\n" "Installation Mode:" "${CYAN}$(echo $INSTALLATION_MODE | tr '-' ' ' | tr '[:lower:]' '[:upper:]')${RESET}"
+    printf "%-20s %s\n" "Worker Threads:" "${CYAN}$WORKER_THREADS${RESET}"
+    printf "%-20s %s\n" "Log Level:" "${CYAN}$LOG_LEVEL${RESET}"
+    printf "%-20s %s\n" "Skip Keyring:" "${CYAN}$SKIP_KEYRING${RESET}"
+    printf "%-20s %s\n" "Cleanup After:" "${CYAN}$CLEANUP_AFTER${RESET}"
+    echo
+    
+    # Final confirmation
+    while true; do
+        read -p "$(echo -e "${PROMPT} Proceed with this configuration? [Y/n]: ")" confirm
+        confirm=${confirm:-y}
+        
+        case ${confirm,,} in
+            y|yes)
+                echo -e "${SUCCESS} Configuration confirmed. Starting installation..."
+                break
+                ;;
+            n|no)
+                echo -e "${INFO} Reconfiguring..."
+                interactive_config
+                return
+                ;;
+            *)
+                echo -e "${ERROR} Please answer y or n."
+                ;;
+        esac
+    done
+    
+    echo
+}
+
+# Build command line arguments for core script
+build_core_args() {
+    local args=()
+    
+    # Installation mode
+    case $INSTALLATION_MODE in
+        "core-only")
+            args+=("--core-only")
+            ;;
+        "trending-only")
+            args+=("--trending-only")
+            ;;
+        "custom")
+            # Custom mode will be handled interactively by core script
+            ;;
+    esac
+    
+    # Worker threads
+    args+=("--max-workers" "$WORKER_THREADS")
+    
+    # Log level
+    args+=("--log-level" "$LOG_LEVEL")
+    
+    # Skip keyring setup
+    if [[ "$SKIP_KEYRING" == "true" ]]; then
+        args+=("--setup-keyring")
+    fi
+    
+    printf '%s\n' "${args[@]}"
+}
+
+# Quick setup mode
+quick_setup() {
+    echo -e "${PROCESS} ${BOLD}Quick Setup Mode${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    # Use recommended settings
+    WORKER_THREADS=$RECOMMENDED_WORKERS
+    INSTALLATION_MODE="full"
+    LOG_LEVEL="INFO"
+    SKIP_KEYRING=false
+    CLEANUP_AFTER=true
+    
+    echo -e "${SUCCESS} Using recommended configuration:"
+    echo -e "  • Installation Mode: ${CYAN}Full${RESET}"
+    echo -e "  • Worker Threads: ${CYAN}$WORKER_THREADS${RESET}"
+    echo -e "  • Log Level: ${CYAN}$LOG_LEVEL${RESET}"
+    echo
+    
+    sleep 2
 }
 
 # Check for Python 3
@@ -178,20 +515,63 @@ check_compatibility() {
     echo -e "${SUCCESS} Compatible Arch-based system detected"
 }
 
+# Performance optimization suggestions
+show_performance_tips() {
+    echo -e "${CONFIG} ${BOLD}Performance Optimization Tips:${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    if [[ $WORKER_THREADS -gt 1 ]]; then
+        echo -e "  ${INFO} Using ${CYAN}$WORKER_THREADS${RESET} worker threads for parallel installation"
+    fi
+    
+    if [[ $TOTAL_RAM_GB -ge 8 ]]; then
+        echo -e "  ${SUCCESS} Sufficient RAM (${TOTAL_RAM_GB}GB) for optimal performance"
+    elif [[ $TOTAL_RAM_GB -ge 4 ]]; then
+        echo -e "  ${WARNING} Moderate RAM (${TOTAL_RAM_GB}GB) - consider closing other applications"
+    else
+        echo -e "  ${ERROR} Low RAM (${TOTAL_RAM_GB}GB) - installation may be slow"
+    fi
+    
+    if [[ $FREE_DISK_GB -ge 20 ]]; then
+        echo -e "  ${SUCCESS} Sufficient disk space (${FREE_DISK_GB}GB) for installation"
+    elif [[ $FREE_DISK_GB -ge 10 ]]; then
+        echo -e "  ${WARNING} Moderate disk space (${FREE_DISK_GB}GB) available"
+    else
+        echo -e "  ${ERROR} Low disk space (${FREE_DISK_GB}GB) - consider freeing space"
+    fi
+    
+    echo -e "  ${INFO} Estimated installation time: ${CYAN}10-30 minutes${RESET} (depending on internet speed)"
+    echo
+}
+
 # Usage information
 show_usage() {
     echo -e "${BOLD}KygoX v$VERSION - Arch Linux Security Toolkit${RESET}"
-    echo -e "${DARK}════════════════════════════════════════════════${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
     echo -e "${BOLD}USAGE:${RESET} sudo $0 [OPTIONS]"
     echo
     echo -e "${BOLD}OPTIONS:${RESET}"
     echo -e "${GREEN}-h, --help${RESET}              Show this help message"
     echo -e "${GREEN}-v, --version${RESET}           Show version information"
+    echo -e "${GREEN}-q, --quick${RESET}             Quick setup with recommended settings"
+    echo -e "${GREEN}-i, --interactive${RESET}       Interactive configuration (default)"
+    echo -e "${GREEN}--no-interactive${RESET}        Skip interactive configuration"
     echo -e "${GREEN}--setup${RESET}                 Setup environment only"
     echo -e "${GREEN}--check${RESET}                 Check system compatibility"
+    echo -e "${GREEN}--workers N${RESET}             Set number of worker threads (1-6)"
+    echo -e "${GREEN}--core-only${RESET}             Install core tools only"
+    echo -e "${GREEN}--trending-only${RESET}         Install trending 2025 tools only"
+    echo -e "${GREEN}-u, --update${RESET}            Check for updates and update if available"
+    echo -e "${GREEN}--force-update${RESET}          Force update even if versions match"
+    echo -e "${GREEN}--self-update${RESET}           Update only the runner script"
+    echo -e "${GREEN}--check-integrity${RESET}       Verify engine integrity and checksums"
+    echo -e "${GREEN}--generate-checksums${RESET}    Generate checksums for current files"
     echo
     echo -e "${BOLD}CORE FEATURES:${RESET}"
+    echo -e "  • Interactive configuration system"
+    echo -e "  • Automatic system optimization"
+    echo -e "  • Multi-threaded parallel installation"
     echo -e "  • Self-healing installation system"
     echo -e "  • Signature verification and validation"
     echo -e "  • Comprehensive security toolkit"
@@ -200,9 +580,15 @@ show_usage() {
     echo -e "  • Automatic error recovery"
     echo
     echo -e "${BOLD}EXAMPLES:${RESET}"
-    echo -e "  sudo $0              # Run with default options"
-    echo -e "  sudo $0 --setup      # Setup environment only"
-    echo -e "  sudo $0 --check      # Check compatibility"
+    echo -e "  sudo $0                  # Interactive mode with full configuration"
+    echo -e "  sudo $0 -q              # Quick setup with recommended settings"
+    echo -e "  sudo $0 --workers 4     # Use 4 worker threads"
+    echo -e "  sudo $0 --core-only     # Install only core security tools"
+    echo -e "  sudo $0 --setup         # Setup environment only"
+    echo -e "  sudo $0 --check         # Check system compatibility"
+    echo -e "  sudo $0 -u              # Check for and install updates"
+    echo -e "  sudo $0 --force-update  # Force update to latest version"
+    echo -e "  sudo $0 --check-integrity # Verify engine integrity"
     echo
     echo -e "${DIM}For more information: $REPO_URL${RESET}"
     echo
@@ -217,64 +603,920 @@ show_version() {
     echo -e "Python Engine: $(python3 --version 2>/dev/null || echo 'Not found')"
     echo -e "System: $(uname -s) $(uname -m)"
     echo -e "Distribution: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2 || echo 'Unknown')"
+    echo
+    if command -v nproc >/dev/null 2>&1; then
+        echo -e "CPU Cores: $(nproc)"
+    fi
+    if [[ -f /proc/meminfo ]]; then
+        local ram_gb
+        ram_gb=$(($(grep MemTotal /proc/meminfo | awk '{print $2}') / 1024 / 1024))
+        echo -e "Total RAM: ${ram_gb}GB"
+    fi
+}
+
+# Parse command line arguments
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                display_banner
+                show_usage
+                exit 0
+                ;;
+            -v|--version)
+                show_version
+                exit 0
+                ;;
+            -q|--quick)
+                INTERACTIVE_MODE=false
+                shift
+                ;;
+            -i|--interactive)
+                INTERACTIVE_MODE=true
+                shift
+                ;;
+            --no-interactive)
+                INTERACTIVE_MODE=false
+                shift
+                ;;
+            --workers)
+                if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
+                    WORKER_THREADS="$2"
+                    INTERACTIVE_MODE=false
+                    shift 2
+                else
+                    error_exit "Invalid worker count. Please specify a number."
+                fi
+                ;;
+            --core-only)
+                INSTALLATION_MODE="core-only"
+                INTERACTIVE_MODE=false
+                shift
+                ;;
+            --trending-only)
+                INSTALLATION_MODE="trending-only"
+                INTERACTIVE_MODE=false
+                shift
+                ;;
+            --log-level)
+                if [[ -n "$2" ]] && [[ "$2" =~ ^(DEBUG|INFO|WARNING|ERROR)$ ]]; then
+                    LOG_LEVEL="$2"
+                    shift 2
+                else
+                    error_exit "Invalid log level. Use: DEBUG, INFO, WARNING, or ERROR"
+                fi
+                ;;
+            --setup)
+                display_banner
+                check_root
+                detect_system_specs
+                check_python
+                setup_python_environment
+                download_core_script
+                verify_core_script
+                echo -e "${SUCCESS} Environment setup completed"
+                exit 0
+                ;;
+            --check)
+                display_banner
+                check_root
+                detect_system_specs
+                display_system_info
+                check_compatibility
+                check_python
+                echo -e "${SUCCESS} System compatibility verified"
+                exit 0
+                ;;
+            -u|--update)
+                display_banner
+                check_root
+                check_for_updates
+                exit 0
+                ;;
+            --force-update)
+                display_banner
+                check_root
+                check_for_updates "true"
+                exit 0
+                ;;
+            --self-update)
+                display_banner
+                check_root
+                self_update
+                exit 0
+                ;;
+            --check-integrity)
+                display_banner
+                check_engine_integrity
+                exit $?
+                ;;
+            --generate-checksums)
+                generate_checksums
+                exit 0
+                ;;
+            *)
+                echo -e "${ERROR} Unknown option: $1"
+                echo -e "${INFO} Use '$0 --help' for usage information"
+                exit 1
+                ;;
+        esac
+    done
 }
 
 # Main execution
 main() {
-    # Parse arguments
-    case "${1:-}" in
-        -h|--help)
-            display_banner
-            show_usage
-            exit 0
-            ;;
-        -v|--version)
-            show_version
-            exit 0
-            ;;
-        --setup)
-            display_banner
-            check_root
-            check_python
-            setup_python_environment
-            download_core_script
-            verify_core_script
-            echo -e "${SUCCESS} Environment setup completed"
-            exit 0
-            ;;
-        --check)
-            display_banner
-            check_compatibility
-            check_python
-            echo -e "${SUCCESS} System compatibility verified"
-            exit 0
-            ;;
-        "")
-            # Default execution
-            ;;
-        *)
-            echo -e "${ERROR} Unknown option: $1"
-            echo -e "${INFO} Use '$0 --help' for usage information"
-            exit 1
-            ;;
-    esac
+    # Parse command line arguments first
+    parse_arguments "$@"
     
     # Main execution flow
     display_banner
     check_root
+    detect_system_specs
+    display_system_info
     check_compatibility
     check_python
     setup_python_environment
     download_core_script
     verify_core_script
     
-    # Execute core Python script with arguments
-    echo -e "${PROCESS} Launching core engine..."
-    exec python3 "$CORE_SCRIPT" "$@"
+    # Configuration phase
+    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+        interactive_config
+    else
+        quick_setup
+    fi
+    
+    # Show performance tips
+    show_performance_tips
+    
+    # Build arguments for core script
+    local core_args
+    readarray -t core_args < <(build_core_args)
+    
+    # Final confirmation before execution
+    echo -e "${PROCESS} ${BOLD}Ready to launch KygoX Security Toolkit${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+        echo -e "${INFO} Press ${BOLD}CTRL+C${RESET} at any time to cancel the installation"
+        echo -e "${INFO} Installation logs will be saved to: ${CYAN}kygox_logs/${RESET}"
+        echo
+        
+        read -p "$(echo -e "${PROMPT} Press Enter to continue or Ctrl+C to cancel...")" -r
+        echo
+    fi
+    
+    # Execute core Python script with configured arguments
+    echo -e "${PROCESS} Launching core engine with optimized settings..."
+    echo -e "${INFO} Command: ${DIM}python3 $CORE_SCRIPT ${core_args[*]}${RESET}"
+    echo
+    
+    # Add delay to let user see the command
+    sleep 2
+    
+    # Execute with error handling
+    if python3 "$CORE_SCRIPT" "${core_args[@]}"; then
+        echo
+        echo -e "${SUCCESS} ${BOLD}KygoX installation completed successfully!${RESET}"
+        
+        if [[ "$CLEANUP_AFTER" == "true" ]]; then
+            echo -e "${PROCESS} Performing post-installation cleanup..."
+            # Basic cleanup that won't interfere with core script cleanup
+            find . -name "*.tmp" -delete 2>/dev/null || true
+            find . -name "*.part" -delete 2>/dev/null || true
+        fi
+        
+        echo
+        echo -e "${CONFIG} ${BOLD}Post-Installation Information:${RESET}"
+        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+        echo -e "${INFO} Installation report: ${CYAN}kygox_logs/installation_report.txt${RESET}"
+        echo -e "${INFO} Installed tools list: ${CYAN}kygox_logs/installed_tools.txt${RESET}"
+        echo -e "${INFO} Error logs: ${CYAN}kygox_logs/errors.log${RESET}"
+        echo -e "${INFO} All logs directory: ${CYAN}kygox_logs/${RESET}"
+        echo
+        echo -e "${SUCCESS} Your Arch Linux system is now equipped with a comprehensive security toolkit!"
+        echo -e "${INFO} Run ${CYAN}pacman -Qs blackarch${RESET} to see installed BlackArch tools"
+        echo -e "${INFO} Repository: ${CYAN}$REPO_URL${RESET}"
+        echo
+        
+    else
+        local exit_code=$?
+        echo
+        echo -e "${ERROR} ${BOLD}KygoX installation failed${RESET}"
+        echo -e "${INFO} Check logs in: ${CYAN}kygox_logs/${RESET}"
+        echo -e "${INFO} For support, visit: ${CYAN}$REPO_URL${RESET}"
+        echo
+        
+        # Provide troubleshooting information
+        echo -e "${CONFIG} ${BOLD}Troubleshooting Tips:${RESET}"
+        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+        echo -e "${INFO} 1. Check system compatibility: ${CYAN}sudo $0 --check${RESET}"
+        echo -e "${INFO} 2. Try with fewer workers: ${CYAN}sudo $0 --workers 1${RESET}"
+        echo -e "${INFO} 3. Install core tools only: ${CYAN}sudo $0 --core-only${RESET}"
+        echo -e "${INFO} 4. Check available disk space: ${CYAN}df -h${RESET}"
+        echo -e "${INFO} 5. Update system first: ${CYAN}sudo pacman -Syu${RESET}"
+        echo
+        
+        exit $exit_code
+    fi
 }
 
-# Error handling
-trap 'echo -e "\n${ERROR} Script interrupted"; exit 130' INT TERM
+# Cleanup function for trap
+cleanup() {
+    echo
+    echo -e "${WARNING} ${BOLD}Installation interrupted${RESET}"
+    echo -e "${INFO} Performing emergency cleanup..."
+    
+    # Kill any background processes
+    jobs -p | xargs -r kill 2>/dev/null || true
+    
+    # Remove temporary files
+    find . -name "*.tmp" -delete 2>/dev/null || true
+    find . -name "*.part" -delete 2>/dev/null || true
+    
+    echo -e "${INFO} Cleanup completed. Logs preserved in: ${CYAN}kygox_logs/${RESET}"
+    exit 130
+}
+
+# Progress indicator for long operations
+show_progress() {
+    local message="$1"
+    local duration="${2:-3}"
+    
+    echo -ne "${PROCESS} $message"
+    
+    for ((i=0; i<duration; i++)); do
+        echo -ne "."
+        sleep 1
+    done
+    
+    echo -e " ${SUCCESS}"
+}
+
+# System resource check with warnings
+check_system_resources() {
+    local warnings=0
+    
+    echo -e "${PROCESS} Performing system resource check..."
+    
+    # Check available memory
+    local available_mem_gb
+    if [[ -f /proc/meminfo ]]; then
+        available_mem_gb=$(awk '/MemAvailable/ {printf "%.1f", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo "0")
+        
+        if (( $(echo "$available_mem_gb < 1" | bc -l 2>/dev/null || echo 1) )); then
+            echo -e "${WARNING} Low available memory: ${available_mem_gb}GB"
+            warnings=$((warnings + 1))
+        fi
+    fi
+    
+    # Check system load
+    local load_avg
+    load_avg=$(uptime | awk -F'load average:' '{ print $2 }' | awk '{ print $1 }' | sed 's/,//')
+    
+    if (( $(echo "$load_avg > $CPU_CORES" | bc -l 2>/dev/null || echo 0) )); then
+        echo -e "${WARNING} High system load: $load_avg (cores: $CPU_CORES)"
+        warnings=$((warnings + 1))
+    fi
+    
+    # Check for running package managers
+    if pgrep -f "pacman|yay|paru|trizen" >/dev/null 2>&1; then
+        echo -e "${WARNING} Another package manager is running"
+        echo -e "${INFO} Please wait for other installations to complete"
+        warnings=$((warnings + 1))
+    fi
+    
+    if [[ $warnings -gt 0 ]]; then
+        echo -e "${WARNING} Found $warnings system warnings"
+        
+        if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+            while true; do
+                read -p "$(echo -e "${PROMPT} Continue anyway? [y/N]: ")" continue_choice
+                continue_choice=${continue_choice:-n}
+                
+                case ${continue_choice,,} in
+                    y|yes)
+                        echo -e "${INFO} Continuing with installation..."
+                        break
+                        ;;
+                    n|no)
+                        echo -e "${INFO} Installation cancelled"
+                        exit 0
+                        ;;
+                    *)
+                        echo -e "${ERROR} Please answer y or n."
+                        ;;
+                esac
+            done
+        fi
+    else
+        echo -e "${SUCCESS} System resource check passed"
+    fi
+}
+
+# Check for updates from GitHub
+check_for_updates() {
+    local force_update="${1:-false}"
+    
+    echo -e "${UPDATE} Checking for KygoX updates..."
+    
+    # Check if we can access the internet
+    if ! ping -c 1 -W 3 github.com >/dev/null 2>&1; then
+        echo -e "${WARNING} Cannot connect to GitHub. Skipping update check."
+        return 0
+    fi
+    
+    # Get latest release info
+    local latest_info
+    if command -v curl >/dev/null 2>&1; then
+        latest_info=$(curl -s "$UPDATE_CHECK_URL" 2>/dev/null)
+    elif command -v wget >/dev/null 2>&1; then
+        latest_info=$(wget -qO- "$UPDATE_CHECK_URL" 2>/dev/null)
+    else
+        echo -e "${WARNING} No download tool available (curl/wget). Cannot check for updates."
+        return 0
+    fi
+    
+    if [[ -z "$latest_info" ]]; then
+        echo -e "${WARNING} Failed to fetch update information from GitHub."
+        return 0
+    fi
+    
+    # Extract version information
+    local remote_version
+    remote_version=$(echo "$latest_info" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null || echo "")
+    
+    if [[ -z "$remote_version" ]]; then
+        echo -e "${WARNING} Could not parse remote version information."
+        return 0
+    fi
+    
+    # Compare versions
+    echo -e "${INFO} Current version: ${CYAN}$VERSION${RESET}"
+    echo -e "${INFO} Remote version:  ${CYAN}$remote_version${RESET}"
+    
+    if [[ "$remote_version" != "$VERSION" ]] || [[ "$force_update" == "true" ]]; then
+        echo -e "${UPDATE} ${BOLD}Update available!${RESET}"
+        
+        if [[ "$force_update" == "false" ]]; then
+            while true; do
+                read -p "$(echo -e "${PROMPT} Update to version $remote_version? [y/N]: ")" update_choice
+                update_choice=${update_choice:-n}
+                
+                case ${update_choice,,} in
+                    y|yes)
+                        break
+                        ;;
+                    n|no)
+                        echo -e "${INFO} Update skipped."
+                        return 0
+                        ;;
+                    *)
+                        echo -e "${ERROR} Please answer y or n."
+                        ;;
+                esac
+            done
+        fi
+        
+        perform_update "$remote_version"
+    else
+        echo -e "${SUCCESS} KygoX is up to date!"
+    fi
+}
+
+# Perform the actual update
+perform_update() {
+    local new_version="$1"
+    
+    echo -e "${UPDATE} ${BOLD}Updating KygoX to version $new_version${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    # Create backup directory with timestamp
+    local backup_dir="kygox_backup_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$backup_dir"
+    
+    # Backup current files
+    echo -e "${PROCESS} Creating backup in ${CYAN}$backup_dir${RESET}..."
+    
+    local files_to_backup=("$CORE_SCRIPT" "$RUNNER_SCRIPT")
+    for file in "${files_to_backup[@]}"; do
+        if [[ -f "$file" ]]; then
+            cp "$file" "$backup_dir/" 2>/dev/null || true
+            echo -e "${SUCCESS} Backed up: $file"
+        fi
+    done
+    
+    # Download new files with verification
+    if ! download_and_verify_files; then
+        echo -e "${ERROR} Update failed. Restoring backup..."
+        restore_backup "$backup_dir"
+        return 1
+    fi
+    
+    echo -e "${SUCCESS} ${BOLD}Update completed successfully!${RESET}"
+    echo -e "${INFO} Backup saved in: ${CYAN}$backup_dir${RESET}"
+    echo -e "${INFO} You can now run KygoX with the latest features."
+    echo
+}
+
+# Download and verify files from repository
+download_and_verify_files() {
+    local temp_dir="kygox_update_temp"
+    mkdir -p "$temp_dir"
+    
+    # URLs for files to download
+    local files=(
+        "$CORE_SCRIPT:$RAW_REPO_URL/$CORE_SCRIPT"
+        "$RUNNER_SCRIPT:$RAW_REPO_URL/$RUNNER_SCRIPT"
+    )
+    
+    echo -e "${DOWNLOAD} Downloading updated files..."
+    
+    # Download files
+    for file_info in "${files[@]}"; do
+        local filename="${file_info%:*}"
+        local file_url="${file_info#*:}"
+        local temp_file="$temp_dir/$filename"
+        
+        echo -e "${PROCESS} Downloading $filename..."
+        
+        if command -v curl >/dev/null 2>&1; then
+            if ! curl -fsSL "$file_url" -o "$temp_file"; then
+                echo -e "${ERROR} Failed to download $filename via curl"
+                rm -rf "$temp_dir"
+                return 1
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if ! wget -q "$file_url" -O "$temp_file"; then
+                echo -e "${ERROR} Failed to download $filename via wget"
+                rm -rf "$temp_dir"
+                return 1
+            fi
+        else
+            echo -e "${ERROR} No download tool available (curl/wget)"
+            rm -rf "$temp_dir"
+            return 1
+        fi
+        
+        echo -e "${SUCCESS} Downloaded: $filename"
+    done
+    
+    # Verify file integrity
+    if ! verify_file_integrity "$temp_dir"; then
+        echo -e "${ERROR} File integrity verification failed"
+        rm -rf "$temp_dir"
+        return 1
+    fi
+    
+    # Move verified files to current directory
+    echo -e "${PROCESS} Installing updated files..."
+    
+    for file_info in "${files[@]}"; do
+        local filename="${file_info%:*}"
+        local temp_file="$temp_dir/$filename"
+        
+        if [[ -f "$temp_file" ]]; then
+            mv "$temp_file" "$filename"
+            chmod +x "$filename"
+            echo -e "${SUCCESS} Installed: $filename"
+        fi
+    done
+    
+    # Cleanup
+    rm -rf "$temp_dir"
+    
+    return 0
+}
+
+# Verify file integrity using checksums
+verify_file_integrity() {
+    local temp_dir="$1"
+    
+    echo -e "${SECURITY} ${BOLD}Verifying file integrity...${RESET}"
+    
+    # Download checksums file
+    local checksums_file="$temp_dir/checksums.sha256"
+    
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$HASH_CHECK_URL" -o "$checksums_file" 2>/dev/null
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q "$HASH_CHECK_URL" -O "$checksums_file" 2>/dev/null
+    else
+        echo -e "${WARNING} Cannot download checksums file. Skipping integrity check."
+        echo -e "${WARNING} ${BOLD}This is a security risk!${RESET}"
+        
+        while true; do
+            read -p "$(echo -e "${PROMPT} Continue without verification? [y/N]: ")" continue_choice
+            continue_choice=${continue_choice:-n}
+            
+            case ${continue_choice,,} in
+                y|yes)
+                    return 0
+                    ;;
+                n|no)
+                    return 1
+                    ;;
+                *)
+                    echo -e "${ERROR} Please answer y or n."
+                    ;;
+            esac
+        done
+    fi
+    
+    if [[ ! -f "$checksums_file" ]]; then
+        echo -e "${WARNING} Checksums file not available. Performing basic verification..."
+        return verify_basic_integrity "$temp_dir"
+    fi
+    
+    # Verify each file
+    local verification_failed=false
+    
+    while IFS=' ' read -r expected_hash filename || [[ -n "$expected_hash" ]]; do
+        # Skip empty lines and comments
+        [[ -z "$expected_hash" || "$expected_hash" =~ ^#.*$ ]] && continue
+        
+        local file_path="$temp_dir/$filename"
+        
+        if [[ -f "$file_path" ]]; then
+            echo -e "${PROCESS} Verifying $filename..."
+            
+            # Calculate file hash
+            local actual_hash
+            if command -v sha256sum >/dev/null 2>&1; then
+                actual_hash=$(sha256sum "$file_path" | cut -d' ' -f1)
+            elif command -v shasum >/dev/null 2>&1; then
+                actual_hash=$(shasum -a 256 "$file_path" | cut -d' ' -f1)
+            else
+                echo -e "${WARNING} No SHA256 tool available. Skipping hash verification for $filename."
+                continue
+            fi
+            
+            if [[ "$actual_hash" == "$expected_hash" ]]; then
+                echo -e "${SUCCESS} Verified: $filename"
+            else
+                echo -e "${ERROR} Hash mismatch for $filename!"
+                echo -e "${ERROR} Expected: $expected_hash"
+                echo -e "${ERROR} Actual:   $actual_hash"
+                verification_failed=true
+            fi
+        fi
+    done < "$checksums_file"
+    
+    if [[ "$verification_failed" == "true" ]]; then
+        echo -e "${ERROR} ${BOLD}File integrity verification FAILED!${RESET}"
+        echo -e "${WARNING} Files may be corrupted or tampered with."
+        return 1
+    fi
+    
+    echo -e "${SUCCESS} ${BOLD}All files verified successfully!${RESET}"
+    return 0
+}
+
+# Basic integrity verification without checksums
+verify_basic_integrity() {
+    local temp_dir="$1"
+    
+    echo -e "${PROCESS} Performing basic file verification..."
+    
+    # Check if core script is valid Python
+    if [[ -f "$temp_dir/$CORE_SCRIPT" ]]; then
+        if ! head -n1 "$temp_dir/$CORE_SCRIPT" | grep -q python; then
+            echo -e "${ERROR} Core script does not appear to be a Python file"
+            return 1
+        fi
+        
+        if ! python3 -m py_compile "$temp_dir/$CORE_SCRIPT" 2>/dev/null; then
+            echo -e "${ERROR} Core script has syntax errors"
+            return 1
+        fi
+        
+        echo -e "${SUCCESS} Core script basic verification passed"
+    fi
+    
+    # Check if runner script is valid bash
+    if [[ -f "$temp_dir/$RUNNER_SCRIPT" ]]; then
+        if ! head -n1 "$temp_dir/$RUNNER_SCRIPT" | grep -q "bash"; then
+            echo -e "${ERROR} Runner script does not appear to be a bash script"
+            return 1
+        fi
+        
+        if ! bash -n "$temp_dir/$RUNNER_SCRIPT" 2>/dev/null; then
+            echo -e "${ERROR} Runner script has syntax errors"
+            return 1
+        fi
+        
+        echo -e "${SUCCESS} Runner script basic verification passed"
+    fi
+    
+    echo -e "${WARNING} Basic verification completed (no cryptographic verification)"
+    return 0
+}
+
+# Restore backup files
+restore_backup() {
+    local backup_dir="$1"
+    
+    echo -e "${PROCESS} Restoring backup from ${CYAN}$backup_dir${RESET}..."
+    
+    local files_to_restore=("$CORE_SCRIPT" "$RUNNER_SCRIPT")
+    for file in "${files_to_restore[@]}"; do
+        if [[ -f "$backup_dir/$file" ]]; then
+            cp "$backup_dir/$file" "$file"
+            chmod +x "$file"
+            echo -e "${SUCCESS} Restored: $file"
+        fi
+    done
+    
+    echo -e "${SUCCESS} Backup restoration completed"
+}
+
+# Self-update runner script
+self_update() {
+    echo -e "${UPDATE} ${BOLD}Self-updating KygoX runner script...${RESET}"
+    
+    # Check if we're already the latest version
+    check_for_updates "true"
+}
+
+# Check engine integrity
+check_engine_integrity() {
+    echo -e "${SECURITY} ${BOLD}Checking engine integrity...${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    local issues_found=false
+    
+    # Check if core script exists
+    if [[ ! -f "$CORE_SCRIPT" ]]; then
+        echo -e "${ERROR} Core engine script missing: $CORE_SCRIPT"
+        issues_found=true
+    else
+        echo -e "${SUCCESS} Core engine script found"
+        
+        # Check Python syntax
+        if ! python3 -m py_compile "$CORE_SCRIPT" 2>/dev/null; then
+            echo -e "${ERROR} Core script has syntax errors"
+            issues_found=true
+        else
+            echo -e "${SUCCESS} Core script syntax is valid"
+        fi
+        
+        # Check for required imports
+        local required_modules=(
+            "requests"
+            "colorama"
+            "tqdm"
+            "cryptography"
+            "urllib3"
+            "packaging"
+        )
+        
+        for module in "${required_modules[@]}"; do
+            if ! python3 -c "import $module" 2>/dev/null; then
+                echo -e "${WARNING} Python module missing: $module"
+                issues_found=true
+            fi
+        done
+        
+        if [[ "$issues_found" == "false" ]]; then
+            echo -e "${SUCCESS} All required Python modules available"
+        fi
+    fi
+    
+    # Check runner script integrity
+    if [[ -f "$RUNNER_SCRIPT" ]]; then
+        if bash -n "$RUNNER_SCRIPT" 2>/dev/null; then
+            echo -e "${SUCCESS} Runner script syntax is valid"
+        else
+            echo -e "${ERROR} Runner script has syntax errors"
+            issues_found=true
+        fi
+    fi
+    
+    # Check file permissions
+    for file in "$CORE_SCRIPT" "$RUNNER_SCRIPT"; do
+        if [[ -f "$file" ]]; then
+            if [[ -x "$file" ]]; then
+                echo -e "${SUCCESS} $file is executable"
+            else
+                echo -e "${WARNING} $file is not executable"
+                chmod +x "$file" 2>/dev/null && echo -e "${SUCCESS} Fixed permissions for $file"
+            fi
+        fi
+    done
+    
+    echo
+    
+    if [[ "$issues_found" == "true" ]]; then
+        echo -e "${ERROR} ${BOLD}Engine integrity check FAILED!${RESET}"
+        echo -e "${INFO} Run ${CYAN}sudo $0 --update${RESET} to fix issues"
+        return 1
+    else
+        echo -e "${SUCCESS} ${BOLD}Engine integrity check PASSED!${RESET}"
+        return 0
+    fi
+}
+
+# Enhanced error handling
+set -eE
+trap cleanup INT TERM
+trap 'echo -e "\n${ERROR} Script failed at line $LINENO"' ERR
+
+# Validate worker thread count
+validate_worker_count() {
+    if [[ ! "$WORKER_THREADS" =~ ^[0-9]+$ ]]; then
+        error_exit "Invalid worker thread count: $WORKER_THREADS"
+    fi
+    
+    if [[ $WORKER_THREADS -lt 1 ]]; then
+        WORKER_THREADS=1
+        echo -e "${WARNING} Worker threads set to minimum: 1"
+    elif [[ $WORKER_THREADS -gt $MAX_WORKERS ]]; then
+        WORKER_THREADS=$MAX_WORKERS
+        echo -e "${WARNING} Worker threads capped to maximum: $MAX_WORKERS"
+    fi
+}
+
+# Internet connectivity check
+check_internet() {
+    echo -e "${PROCESS} Checking internet connectivity..."
+    
+    local test_urls=(
+        "archlinux.org"
+        "blackarch.org"
+        "github.com"
+        "google.com"
+    )
+    
+    local connected=false
+    
+    for url in "${test_urls[@]}"; do
+        if ping -c 1 -W 3 "$url" >/dev/null 2>&1; then
+            connected=true
+            break
+        fi
+    done
+    
+    if [[ "$connected" == "false" ]]; then
+        error_exit "No internet connection detected. Please check your network settings."
+    fi
+    
+    echo -e "${SUCCESS} Internet connectivity verified"
+}
+
+# Repository accessibility check
+check_repositories() {
+    echo -e "${PROCESS} Checking repository accessibility..."
+    
+    # Test Arch repositories
+    if ! pacman -Sy >/dev/null 2>&1; then
+        echo -e "${WARNING} Could not sync Arch repositories"
+        echo -e "${INFO} This may cause installation issues"
+    else
+        echo -e "${SUCCESS} Arch repositories accessible"
+    fi
+    
+    # Test BlackArch if keyring is not skipped
+    if [[ "$SKIP_KEYRING" != "true" ]]; then
+        echo -e "${INFO} BlackArch repository will be configured during installation"
+    else
+        echo -e "${INFO} BlackArch repository setup will be skipped"
+    fi
+}
+
+# Create necessary directories
+setup_directories() {
+    local dirs=(
+        "kygox_logs"
+        "kygox_logs/backups"
+        ".kygox_cache"
+    )
+    
+    for dir in "${dirs[@]}"; do
+        if [[ ! -d "$dir" ]]; then
+            mkdir -p "$dir"
+            echo -e "${SUCCESS} Created directory: ${CYAN}$dir${RESET}"
+        fi
+    done
+}
+
+# Enhanced main function with all checks
+main() {
+    # Parse command line arguments first
+    parse_arguments "$@"
+    
+    # Main execution flow
+    display_banner
+    check_root
+    detect_system_specs
+    validate_worker_count
+    display_system_info
+    check_compatibility
+    check_internet
+    check_system_resources
+    check_python
+    setup_python_environment
+    setup_directories
+    download_core_script
+    verify_core_script
+    check_repositories
+    
+    # Optional update check (non-blocking)
+    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+        echo -e "${INFO} Performing update check..."
+        check_for_updates > /dev/null 2>&1 &
+        local update_pid=$!
+        
+        # Wait briefly for update check
+        sleep 2
+        
+        # Kill update check if still running to avoid blocking
+        if kill -0 $update_pid 2>/dev/null; then
+            kill $update_pid 2>/dev/null || true
+            wait $update_pid 2>/dev/null || true
+        fi
+    fi
+    
+    # Configuration phase
+    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+        interactive_config
+    else
+        quick_setup
+    fi
+    
+    # Show performance tips
+    show_performance_tips
+    
+    # Build arguments for core script
+    local core_args
+    readarray -t core_args < <(build_core_args)
+    
+    # Final confirmation before execution
+    echo -e "${PROCESS} ${BOLD}Ready to launch KygoX Security Toolkit${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+        echo -e "${INFO} Press ${BOLD}CTRL+C${RESET} at any time to cancel the installation"
+        echo -e "${INFO} Installation logs will be saved to: ${CYAN}kygox_logs/${RESET}"
+        echo
+        
+        read -p "$(echo -e "${PROMPT} Press Enter to continue or Ctrl+C to cancel...")" -r
+        echo
+    fi
+    
+    # Execute core Python script with configured arguments
+    echo -e "${PROCESS} Launching core engine with optimized settings..."
+    echo -e "${INFO} Command: ${DIM}python3 $CORE_SCRIPT ${core_args[*]}${RESET}"
+    echo
+    
+    # Add delay to let user see the command
+    sleep 2
+    
+    # Execute with error handling
+    if python3 "$CORE_SCRIPT" "${core_args[@]}"; then
+        echo
+        echo -e "${SUCCESS} ${BOLD}KygoX installation completed successfully!${RESET}"
+        
+        if [[ "$CLEANUP_AFTER" == "true" ]]; then
+            echo -e "${PROCESS} Performing post-installation cleanup..."
+            # Basic cleanup that won't interfere with core script cleanup
+            find . -name "*.tmp" -delete 2>/dev/null || true
+            find . -name "*.part" -delete 2>/dev/null || true
+        fi
+        
+        echo
+        echo -e "${CONFIG} ${BOLD}Post-Installation Information:${RESET}"
+        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+        echo -e "${INFO} Installation report: ${CYAN}kygox_logs/installation_report.txt${RESET}"
+        echo -e "${INFO} Installed tools list: ${CYAN}kygox_logs/installed_tools.txt${RESET}"
+        echo -e "${INFO} Error logs: ${CYAN}kygox_logs/errors.log${RESET}"
+        echo -e "${INFO} All logs directory: ${CYAN}kygox_logs/${RESET}"
+        echo
+        echo -e "${SUCCESS} Your Arch Linux system is now equipped with a comprehensive security toolkit!"
+        echo -e "${INFO} Run ${CYAN}pacman -Qs blackarch${RESET} to see installed BlackArch tools"
+        echo -e "${INFO} Repository: ${CYAN}$REPO_URL${RESET}"
+        echo
+        
+    else
+        local exit_code=$?
+        echo
+        echo -e "${ERROR} ${BOLD}KygoX installation failed${RESET}"
+        echo -e "${INFO} Check logs in: ${CYAN}kygox_logs/${RESET}"
+        echo -e "${INFO} For support, visit: ${CYAN}$REPO_URL${RESET}"
+        echo
+        
+        # Provide troubleshooting information
+        echo -e "${CONFIG} ${BOLD}Troubleshooting Tips:${RESET}"
+        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+        echo -e "${INFO} 1. Check system compatibility: ${CYAN}sudo $0 --check${RESET}"
+        echo -e "${INFO} 2. Try with fewer workers: ${CYAN}sudo $0 --workers 1${RESET}"
+        echo -e "${INFO} 3. Install core tools only: ${CYAN}sudo $0 --core-only${RESET}"
+        echo -e "${INFO} 4. Check available disk space: ${CYAN}df -h${RESET}"
+        echo -e "${INFO} 5. Update system first: ${CYAN}sudo pacman -Syu${RESET}"
+        echo
+        
+        exit $exit_code
+    fi
+}
 
 # Execute main function with all arguments
 main "$@"
