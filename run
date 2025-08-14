@@ -1,47 +1,17 @@
 #!/usr/bin/env bash
-# KYGOX - Enhanced Arch Linux Penetration Testing Toolkit
+# KYGOX - Arch Linux Penetration Testing Toolkit Runner
 # Author: 0xbv1 | 0xb0rn3 
 # Contact: IG: theehiv3 | X: 0xbv1 | Threads: theehiv3 | Email: q4n0@proton.me
 # License: Do whatever the hell you want, but don't blame me when it breaks
 set -euo pipefail
 
 # Core Configuration
-readonly VERSION="0.1.9-beta"
-readonly VERSION_NAME="Venom-Enhanced"
+readonly VERSION="0.1.9-alpha"
+readonly VERSION_NAME="Venom"
 readonly SCRIPT_NAME="KygoX"
 readonly REPO_URL="https://github.com/0xb0rn3/kygox"
 readonly ALT_REPO="https://github.com/0xb0rn3/krilin"
-readonly BLACKARCH_KEYRING_URL="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.xz"
-readonly BLACKARCH_KEYRING_SIG="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.xz.sig"
-
-# Environment Variables
-ORIGINAL_USER="${SUDO_USER:-$(logname 2>/dev/null || whoami)}"
-SUDO_TIMEOUT_PID=""
-LOG_DIR="kygox_logs"
-MAIN_LOG="$LOG_DIR/installation.log"
-BACKUP_DIR="$LOG_DIR/backups"
-DEFAULT_TOOLKIT="toolkit.txt"
-
-# Installation Modes
-INSTALL_MODE=""
-GROUP_NAME=""
-PACKAGE_FILE=""
-QUIET_MODE=false
-SKIP_AUR=false
-GENERATE_ONLY=false
-FORCE_CONTINUE=false
-CHECK_UPDATE=false
-AUTO_UPDATE=false
-VERIFY_SIGNATURES=true
-REFRESH_KEYRINGS=false
-
-# Distribution Detection Variables
-DISTRO_ID=""
-DISTRO_VERSION=""
-DISTRO_CODENAME=""
-IS_ARCH_BASED=false
-PACMAN_VERSION=""
-KEYRING_STATUS=""
+readonly CORE_SCRIPT=".core.py"
 
 # Color Definitions
 declare -r RED='\033[0;31m'
@@ -64,618 +34,6 @@ declare -r WARNING="[${YELLOW}⚠${RESET}]"
 declare -r PROCESS="[${PURPLE}⚡${RESET}]"
 declare -r SECURITY="[${CYAN}🔒${RESET}]"
 
-# Core Security Tools - 2025 Collection
-declare -a CORE_TOOLS=(
-    "nmap" "masscan" "rustscan" "zmap"
-    "wireshark-qt" "tcpdump" "ettercap" "bettercap"
-    "metasploit" "sqlmap" "burpsuite" "owasp-zap"
-    "aircrack-ng" "wifite" "kismet" "reaver"
-    "john" "hashcat" "hydra" "medusa"
-    "gobuster" "ffuf" "nikto" "whatweb"
-    "nuclei" "httpx" "subfinder" "amass"
-    "volatility3" "binwalk" "autopsy" "sleuthkit"
-    "ghidra" "radare2" "rizin" "gdb"
-    "frida" "apktool" "jadx" "mobsf"
-    "theharvester" "recon-ng" "maltego" "sherlock"
-    "impacket" "responder" "crackmapexec" "bloodhound"
-    "yara" "clamav" "lynis" "chkrootkit"
-)
-
-# Trending Tools for 2025
-declare -a TRENDING_2025=(
-    "katana" "naabu" "dnsx" "interactsh"
-    "feroxbuster" "hakrawler" "waybackurls" "gau"
-    "dalfox" "x8" "param-miner" "ghauri"
-    "sliver" "covenant" "havoc" "villain"
-    "chaos-client" "uncover" "tlsx" "asnmap"
-    "semgrep" "bandit" "trivy" "grype"
-    "mobsf" "qark" "objection" "drozer"
-    "angr" "miasm" "barf" "capstone"
-    "proxify" "notify" "anew" "urldedupe"
-)
-
-# Arch-based Distribution Detection Database
-declare -A ARCH_DISTROS=(
-    ["arch"]="Arch Linux"
-    ["manjaro"]="Manjaro Linux"
-    ["endeavouros"]="EndeavourOS" 
-    ["arcolinux"]="ArcoLinux"
-    ["garuda"]="Garuda Linux"
-    ["artix"]="Artix Linux"
-    ["parabola"]="Parabola GNU/Linux-libre"
-    ["blackarch"]="BlackArch Linux"
-    ["archbang"]="ArchBang"
-    ["archcraft"]="Archcraft"
-    ["archlabs"]="ArchLabs"
-    ["antergos"]="Antergos"
-    ["chakra"]="Chakra GNU/Linux"
-    ["hyperbola"]="Hyperbola GNU/Linux-libre"
-    ["msys2"]="MSYS2"
-    ["archlinux32"]="Arch Linux 32"
-)
-
-# Error Handling Functions
-error_exit() {
-    local exit_code=${2:-1}
-    log_message "ERROR" "$1" "main"
-    [[ "$QUIET_MODE" != "true" ]] && echo -e "${ERROR} $1" >&2
-    cleanup_on_exit
-    exit "$exit_code"
-}
-
-warning_continue() {
-    log_message "WARNING" "$1" "main"
-    [[ "$QUIET_MODE" != "true" ]] && echo -e "${WARNING} $1"
-    if [[ "$FORCE_CONTINUE" != "true" ]]; then
-        echo -ne "${INFO} Continue anyway? [y/N]: "
-        read -r response
-        [[ ! "$response" =~ ^[Yy]$ ]] && exit 1
-    fi
-}
-
-cleanup_on_exit() {
-    # Kill sudo timeout process if running
-    [[ -n "$SUDO_TIMEOUT_PID" ]] && kill "$SUDO_TIMEOUT_PID" 2>/dev/null || true
-    
-    # Clean temporary files
-    rm -f /tmp/kygox_*.py /tmp/kygox_*.tmp
-    rm -f package_list.tmp validated_packages.tmp
-    
-    # Reset terminal if needed
-    tput cnorm 2>/dev/null || true
-    
-    log_message "INFO" "Cleanup completed" "cleanup"
-}
-
-trap cleanup_on_exit EXIT
-
-# Logging Functions
-setup_logging() {
-    mkdir -p "$LOG_DIR" "$BACKUP_DIR"
-    
-    # Initialize log file with header
-    cat > "$MAIN_LOG" << EOF
-# KygoX v$VERSION Installation Log
-# Started: $(date)
-# User: $ORIGINAL_USER
-# Distribution: $(uname -a)
-# ====================================================
-
-EOF
-    
-    log_message "INFO" "KygoX v$VERSION installation started" "init"
-}
-
-log_message() {
-    local level="$1"
-    local message="$2"
-    local component="${3:-system}"
-    local timestamp
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    
-    # Ensure log directory exists
-    mkdir -p "$LOG_DIR"
-    
-    # Write to log file
-    echo "[$timestamp] [$level] [$component] $message" >> "$MAIN_LOG"
-    
-    # Display to console if not quiet
-    if [[ "$QUIET_MODE" != "true" ]]; then
-        case "$level" in
-            "SUCCESS") echo -e "$SUCCESS $message" ;;
-            "ERROR") echo -e "$ERROR $message" ;;
-            "INFO") echo -e "$INFO $message" ;;
-            "WARNING") echo -e "$WARNING $message" ;;
-            "PROCESS") echo -e "$PROCESS $message" ;;
-            "SECURITY") echo -e "$SECURITY $message" ;;
-            *) echo -e "[$level] $message" ;;
-        esac
-    fi
-}
-
-# Enhanced Distribution Detection
-detect_distribution() {
-    log_message "PROCESS" "Detecting distribution and system information" "distro"
-    
-    # Reset detection variables
-    DISTRO_ID=""
-    DISTRO_VERSION=""
-    DISTRO_CODENAME=""
-    IS_ARCH_BASED=false
-    
-    # Check for os-release file (standard method)
-    if [[ -f /etc/os-release ]]; then
-        source /etc/os-release
-        DISTRO_ID="${ID,,}"  # Convert to lowercase
-        DISTRO_VERSION="$VERSION_ID"
-        DISTRO_CODENAME="$VERSION_CODENAME"
-        
-        log_message "INFO" "Detected: $NAME ($DISTRO_ID) version $DISTRO_VERSION" "distro"
-    fi
-    
-    # Fallback detection methods
-    if [[ -z "$DISTRO_ID" ]]; then
-        if [[ -f /etc/arch-release ]]; then
-            DISTRO_ID="arch"
-            DISTRO_VERSION=$(uname -r)
-        elif [[ -f /etc/manjaro-release ]]; then
-            DISTRO_ID="manjaro"
-            DISTRO_VERSION=$(grep -oP 'DISTRIB_RELEASE=\K.*' /etc/lsb-release 2>/dev/null || echo "unknown")
-        elif command -v pacman >/dev/null 2>&1; then
-            # Generic Arch-based detection
-            DISTRO_ID="arch-based"
-            log_message "WARNING" "Generic Arch-based system detected" "distro"
-        fi
-    fi
-    
-    # Verify Arch compatibility
-    if [[ -n "${ARCH_DISTROS[$DISTRO_ID]:-}" ]] || command -v pacman >/dev/null 2>&1; then
-        IS_ARCH_BASED=true
-        log_message "SUCCESS" "Compatible Arch-based system: ${ARCH_DISTROS[$DISTRO_ID]:-$DISTRO_ID}" "distro"
-    else
-        log_message "ERROR" "Incompatible distribution detected: $DISTRO_ID" "distro"
-        
-        # Check for Debian-based systems and provide alternative
-        if [[ -f /etc/debian_version ]] || command -v apt >/dev/null 2>&1; then
-            echo -e "${WARNING} Detected Debian-based system"
-            echo -e "${INFO} For Debian/Ubuntu systems, use: ${CYAN}$ALT_REPO${RESET}"
-        fi
-        
-        error_exit "KygoX requires Arch Linux or Arch-based distributions"
-    fi
-    
-    # Get pacman version for compatibility checks
-    if command -v pacman >/dev/null 2>&1; then
-        PACMAN_VERSION=$(pacman --version | head -n1 | grep -oP 'v\K[\d.]+' || echo "unknown")
-        log_message "INFO" "Pacman version: $PACMAN_VERSION" "distro"
-    else
-        error_exit "Pacman package manager not found"
-    fi
-    
-    # Check package manager locks
-    check_package_manager_locks
-}
-
-check_package_manager_locks() {
-    local lock_files=(
-        "/var/lib/pacman/db.lck"
-        "/var/cache/pacman/pkg/cache.lck"
-    )
-    
-    for lock_file in "${lock_files[@]}"; do
-        if [[ -f "$lock_file" ]]; then
-            log_message "WARNING" "Package manager lock detected: $lock_file" "distro"
-            
-            # Check if process is still running
-            local pid
-            pid=$(fuser "$lock_file" 2>/dev/null || echo "")
-            
-            if [[ -n "$pid" ]]; then
-                log_message "ERROR" "Package manager is currently in use (PID: $pid)" "distro"
-                error_exit "Please wait for the current package operation to complete"
-            else
-                log_message "INFO" "Removing stale lock file: $lock_file" "distro"
-                rm -f "$lock_file" || warning_continue "Could not remove lock file: $lock_file"
-            fi
-        fi
-    done
-}
-
-# Enhanced System Requirements Check
-check_system_requirements() {
-    log_message "PROCESS" "Checking system requirements" "system"
-    
-    # Root privilege check
-    if [[ $EUID -ne 0 ]]; then
-        error_exit "This script must be run as root. Use: sudo $0"
-    fi
-    
-    # Original user validation
-    if [[ -z "$ORIGINAL_USER" ]] || [[ "$ORIGINAL_USER" == "root" ]]; then
-        log_message "WARNING" "Could not determine original user, using 'nobody'" "system"
-        ORIGINAL_USER="nobody"
-    fi
-    
-    # Verify user exists
-    if ! id "$ORIGINAL_USER" >/dev/null 2>&1; then
-        error_exit "User '$ORIGINAL_USER' does not exist"
-    fi
-    
-    # Internet connectivity check
-    log_message "INFO" "Checking internet connectivity" "network"
-    local test_hosts=("8.8.8.8" "1.1.1.1" "archlinux.org")
-    local connected=false
-    
-    for host in "${test_hosts[@]}"; do
-        if ping -c 1 -W 3 "$host" >/dev/null 2>&1; then
-            connected=true
-            log_message "SUCCESS" "Internet connectivity verified ($host)" "network"
-            break
-        fi
-    done
-    
-    if [[ "$connected" != "true" ]]; then
-        warning_continue "No internet connectivity detected. Some features may not work."
-    fi
-    
-    # Disk space check
-    log_message "INFO" "Checking disk space" "system"
-    local required_space=5000000  # 5GB in KB
-    local available_space
-    available_space=$(df / | awk 'NR==2 {print $4}')
-    
-    if [[ "$available_space" -lt "$required_space" ]]; then
-        local available_gb=$((available_space / 1024 / 1024))
-        warning_continue "Low disk space: ${available_gb}GB available, 5GB+ recommended"
-    fi
-    
-    # Memory check
-    local total_ram
-    total_ram=$(free -m | awk '/^Mem:/ {print $2}')
-    if [[ "$total_ram" -lt 2048 ]]; then
-        warning_continue "Low RAM: ${total_ram}MB detected, 2GB+ recommended"
-    fi
-    
-    # CPU core check for parallel operations
-    local cpu_cores
-    cpu_cores=$(nproc)
-    log_message "INFO" "CPU cores available: $cpu_cores" "system"
-    
-    # Check for required commands
-    local required_commands=("curl" "wget" "tar" "gpg")
-    for cmd in "${required_commands[@]}"; do
-        if ! command -v "$cmd" >/dev/null 2>&1; then
-            log_message "WARNING" "Missing command: $cmd" "system"
-        fi
-    done
-    
-    log_message "SUCCESS" "System requirements check completed" "system"
-}
-
-# Python-based Enhanced Package Installation Progress Tracker
-create_python_installer() {
-    cat > /tmp/kygox_installer.py << 'PYEOF'
-#!/usr/bin/env python3
-import subprocess
-import sys
-import time
-import threading
-import signal
-import os
-from datetime import datetime
-
-class PackageInstaller:
-    def __init__(self, packages, log_file, verify_sigs=False):
-        self.packages = packages
-        self.log_file = log_file
-        self.verify_sigs = verify_sigs
-        self.total = len(packages)
-        self.current = 0
-        self.success = 0
-        self.failed = 0
-        self.skipped = 0
-        self.success_list = []
-        self.failed_list = []
-        self.skipped_list = []
-        self.installing = ""
-        self.show_progress = True
-        self.start_time = time.time()
-        self.estimated_time = 0
-        self.current_speed = 0
-        
-    def log_message(self, level, message):
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        with open(self.log_file, 'a') as f:
-            f.write(f"[{timestamp}] [{level}] [installer] {message}\n")
-    
-    def signal_handler(self, signum, frame):
-        self.show_progress = False
-        print(f"\n\nInstallation interrupted by signal {signum}")
-        self.log_message("WARNING", f"Installation interrupted by signal {signum}")
-        self.cleanup()
-        sys.exit(130)
-    
-    def cleanup(self):
-        # Save partial results
-        if self.success_list:
-            with open('kygox_logs/successful_packages.log', 'w') as f:
-                f.write('\n'.join(self.success_list))
-        
-        if self.failed_list:
-            with open('kygox_logs/failed_packages.log', 'w') as f:
-                f.write('\n'.join(self.failed_list))
-        
-        if self.skipped_list:
-            with open('kygox_logs/skipped_packages.log', 'w') as f:
-                f.write('\n'.join(self.skipped_list))
-    
-    def update_progress(self):
-        while self.show_progress and self.current <= self.total:
-            if self.current > 0:
-                # Calculate progress
-                percentage = min(int((self.current / self.total) * 100), 100)
-                bar_length = 50
-                filled = int((percentage / 100) * bar_length)
-                bar = '█' * filled + '░' * (bar_length - filled)
-                
-                # Calculate time estimates
-                elapsed = time.time() - self.start_time
-                if self.current > 0:
-                    avg_time_per_package = elapsed / self.current
-                    remaining_packages = self.total - self.current
-                    eta_seconds = avg_time_per_package * remaining_packages
-                    eta_str = f"{int(eta_seconds//60):02d}:{int(eta_seconds%60):02d}"
-                    speed_str = f"{self.current/elapsed:.1f} pkg/min" if elapsed > 0 else "0.0 pkg/min"
-                else:
-                    eta_str = "--:--"
-                    speed_str = "0.0 pkg/min"
-                
-                # Format current package name
-                status_pkg = self.installing[:35] + "..." if len(self.installing) > 35 else self.installing
-                status = f"Installing: {status_pkg:<40}"
-                progress = f"[{bar}] {percentage}% ({self.current}/{self.total})"
-                stats = f"✓{self.success} ✗{self.failed} ⚠{self.skipped}"
-                timing = f"ETA: {eta_str} | {speed_str}"
-                
-                # Display progress
-                print(f"\r\033[2K{status}")
-                print(f"\r\033[2K{progress}")
-                print(f"\r\033[2K{stats} | {timing}", end='', flush=True)
-                print("\033[2A", end='')
-            
-            time.sleep(0.1)
-        
-        # Clear progress display when done
-        print(f"\r\033[K")
-        print(f"\r\033[K")
-        print(f"\r\033[K")
-    
-    def check_package_exists(self, package):
-        """Check if package exists in repositories"""
-        try:
-            result = subprocess.run(
-                ['pacman', '-Si', package],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            return result.returncode == 0
-        except subprocess.TimeoutExpired:
-            return False
-        except Exception:
-            return False
-    
-    def is_package_installed(self, package):
-        """Check if package is already installed"""
-        try:
-            result = subprocess.run(
-                ['pacman', '-Q', package],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            return result.returncode == 0
-        except:
-            return False
-    
-    def install_package(self, package):
-        """Install a single package with enhanced error handling"""
-        self.installing = package
-        
-        # Check if already installed
-        if self.is_package_installed(package):
-            self.skipped += 1
-            self.skipped_list.append(package)
-            self.log_message("SKIP", f"Already installed: {package}")
-            return "skipped"
-        
-        # Check if package exists
-        if not self.check_package_exists(package):
-            self.failed += 1
-            self.failed_list.append(package)
-            self.log_message("ERROR", f"Package not found: {package}")
-            return "failed"
-        
-        # Install package
-        try:
-            cmd = ['pacman', '-S', '--noconfirm', '--needed']
-            if not self.verify_sigs:
-                cmd.extend(['--disable-download-timeout'])
-            cmd.append(package)
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=600  # 10 minute timeout per package
-            )
-            
-            if result.returncode == 0:
-                self.success += 1
-                self.success_list.append(package)
-                self.log_message("SUCCESS", f"Installed: {package}")
-                return "success"
-            else:
-                self.failed += 1
-                self.failed_list.append(package)
-                error_msg = result.stderr.strip()[:200] if result.stderr else "Unknown error"
-                self.log_message("ERROR", f"Failed to install {package}: {error_msg}")
-                return "failed"
-                
-        except subprocess.TimeoutExpired:
-            self.failed += 1
-            self.failed_list.append(package)
-            self.log_message("ERROR", f"Timeout installing: {package}")
-            return "failed"
-        except Exception as e:
-            self.failed += 1
-            self.failed_list.append(package)
-            self.log_message("ERROR", f"Exception installing {package}: {str(e)}")
-            return "failed"
-    
-    def install_batch(self, batch):
-        """Install packages in batch with fallback to individual installation"""
-        try:
-            # Filter out already installed packages
-            needed_packages = [pkg for pkg in batch if not self.is_package_installed(pkg)]
-            
-            if not needed_packages:
-                # All packages already installed
-                for pkg in batch:
-                    self.skipped += 1
-                    self.skipped_list.append(pkg)
-                    self.log_message("SKIP", f"Already installed: {pkg}")
-                return True
-            
-            # Attempt batch installation
-            cmd = ['pacman', '-S', '--noconfirm', '--needed']
-            if not self.verify_sigs:
-                cmd.extend(['--disable-download-timeout'])
-            cmd.extend(needed_packages)
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=900  # 15 minute timeout for batch
-            )
-            
-            if result.returncode == 0:
-                self.success += len(needed_packages)
-                self.success_list.extend(needed_packages)
-                for pkg in needed_packages:
-                    self.log_message("SUCCESS", f"Batch installed: {pkg}")
-                
-                # Mark skipped packages
-                skipped_count = len(batch) - len(needed_packages)
-                if skipped_count > 0:
-                    self.skipped += skipped_count
-                    skipped_packages = [pkg for pkg in batch if pkg not in needed_packages]
-                    self.skipped_list.extend(skipped_packages)
-                
-                return True
-            else:
-                return False
-                
-        except Exception:
-            return False
-    
-    def run(self):
-        # Set up signal handlers
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTERM, self.signal_handler)
-        
-        print(f"\n🔧 Installing {self.total} security packages...\n")
-        
-        # Start progress thread
-        progress_thread = threading.Thread(target=self.update_progress)
-        progress_thread.daemon = True
-        progress_thread.start()
-        
-        batch_size = 5
-        current_batch = []
-        
-        for package in self.packages:
-            self.current += 1
-            current_batch.append(package)
-            
-            if len(current_batch) == batch_size or self.current == self.total:
-                # Try batch installation first
-                if not self.install_batch(current_batch):
-                    # Fall back to individual installation
-                    # Reset counters for individual processing
-                    for pkg in current_batch:
-                        if pkg in self.success_list:
-                            self.success_list.remove(pkg)
-                            self.success -= 1
-                    
-                    # Install individually
-                    for pkg in current_batch:
-                        result = self.install_package(pkg)
-                
-                current_batch = []
-                time.sleep(0.1)
-        
-        self.show_progress = False
-        progress_thread.join(timeout=1)
-        
-        # Final statistics
-        elapsed_total = time.time() - self.start_time
-        avg_speed = self.total / elapsed_total if elapsed_total > 0 else 0
-        
-        print(f"\r\033[K")
-        print(f"\r\033[K")
-        print(f"\r\033[K")
-        print(f"📦 Package Installation Complete!")
-        print(f"   ✓ Successful: {self.success}")
-        print(f"   ✗ Failed: {self.failed}")
-        print(f"   ⚠ Skipped: {self.skipped}")
-        print(f"   📊 Success Rate: {int((self.success/(self.success+self.failed))*100)}%" if (self.success + self.failed) > 0 else "   📊 Success Rate: 100%")
-        print(f"   ⏱ Total Time: {int(elapsed_total//60):02d}:{int(elapsed_total%60):02d}")
-        print(f"   🚀 Average Speed: {avg_speed:.1f} packages/min")
-        
-        # Save results
-        self.cleanup()
-        
-        return self.success, self.failed, self.skipped
-
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: python3 installer.py <package_file> <log_file> [verify_sigs]")
-        sys.exit(1)
-    
-    package_file = sys.argv[1]
-    log_file = sys.argv[2]
-    verify_sigs = len(sys.argv) > 3 and sys.argv[3].lower() == 'true'
-    
-    try:
-        with open(package_file, 'r') as f:
-            packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-    except FileNotFoundError:
-        print(f"Error: Package file {package_file} not found")
-        sys.exit(1)
-    
-    if not packages:
-        print("Error: No packages found in file")
-        sys.exit(1)
-    
-    installer = PackageInstaller(packages, log_file, verify_sigs)
-    success_count, failed_count, skipped_count = installer.run()
-    
-    # Exit with appropriate code
-    if failed_count == 0:
-        sys.exit(0)  # All successful or skipped
-    elif success_count > 0:
-        sys.exit(1)  # Partial success
-    else:
-        sys.exit(2)  # Complete failure
-
-if __name__ == "__main__":
-    main()
-PYEOF
-    chmod +x /tmp/kygox_installer.py
-}
-
 # Banner Display
 display_banner() {
     clear
@@ -683,31 +41,240 @@ display_banner() {
 ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
 ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
 ███████╔╝ ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
-██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
-██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
+██╔══██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
+██║  ██║   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
-═══════════════════════════════════════════════════════════════════════════════════
-   ENHANCED ARCH LINUX PENETRATION TESTING TOOLKIT
-     Professional Security Arsenal Deployment System
+═══════════════════════════════════════════════
+   ARCH LINUX PENETRATION TESTING TOOLKIT
+     Professional Security Arsenal Deployment
 EOF
     echo -e "            ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
     echo -e "   ${DIM}Author: 0xbv1 | Contact: IG: theehiv3 | X: 0xbv1 | q4n0@proton.me${RESET}"
     echo -e "      ${DIM}Repository: $REPO_URL${RESET}"
-    echo -e "${DARK}═══════════════════════════════════════════════════════════════════════════════════${RESET}"
+    echo -e "${DARK}═══════════════════════════════════════════════${RESET}"
     echo
 }
 
-# Usage Information
+# Error handling
+error_exit() {
+    echo -e "${ERROR} $1" >&2
+    exit "${2:-1}"
+}
+
+# Check if running as root
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        error_exit "This script must be run as root. Use: sudo $0"
+    fi
+}
+
+# Check for Python 3
+check_python() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo -e "${WARNING} Python 3 not found. Installing..."
+        if command -v pacman >/dev/null 2>&1; then
+            pacman -S --noconfirm python python-pip
+        else
+            error_exit "Cannot install Python 3. Please install it manually."
+        fi
+    fi
+    
+    # Check Python version
+    local python_version
+    python_version=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+    if [[ $(echo "$python_version < 3.8" | bc -l 2>/dev/null || echo 1) -eq 1 ]]; then
+        echo -e "${WARNING} Python $python_version detected. Recommended: 3.8+"
+    fi
+}
+
+# Install required Python packages
+setup_python_environment() {
+    echo -e "${PROCESS} Setting up Python environment..."
+    
+    # Required Python packages for core functionality
+    local required_packages=(
+        "requests"
+        "colorama" 
+        "tqdm"
+        "cryptography"
+        "urllib3"
+        "packaging"
+    )
+    
+    for package in "${required_packages[@]}"; do
+        if ! python3 -c "import $package" >/dev/null 2>&1; then
+            echo -e "${INFO} Installing Python package: $package"
+            python3 -m pip install --break-system-packages "$package" >/dev/null 2>&1 || \
+            pip install --break-system-packages "$package" >/dev/null 2>&1 || \
+            pip3 install --break-system-packages "$package" >/dev/null 2>&1 || {
+                echo -e "${WARNING} Failed to install $package via pip"
+            }
+        fi
+    done
+}
+
+# Download core script if missing
+download_core_script() {
+    if [[ ! -f "$CORE_SCRIPT" ]]; then
+        echo -e "${PROCESS} Downloading core engine..."
+        
+        # Try multiple download methods
+        local core_url="$REPO_URL/raw/main/$CORE_SCRIPT"
+        
+        if command -v curl >/dev/null 2>&1; then
+            curl -fsSL "$core_url" -o "$CORE_SCRIPT" || {
+                echo -e "${WARNING} Failed to download core script via curl"
+                return 1
+            }
+        elif command -v wget >/dev/null 2>&1; then
+            wget -q "$core_url" -O "$CORE_SCRIPT" || {
+                echo -e "${WARNING} Failed to download core script via wget"
+                return 1
+            }
+        else
+            error_exit "Neither curl nor wget available for download"
+        fi
+        
+        # Make executable
+        chmod +x "$CORE_SCRIPT"
+        echo -e "${SUCCESS} Core engine downloaded successfully"
+    else
+        echo -e "${INFO} Core engine found"
+    fi
+}
+
+# Verify core script integrity
+verify_core_script() {
+    if [[ -f "$CORE_SCRIPT" ]]; then
+        # Basic checks
+        if ! python3 -m py_compile "$CORE_SCRIPT" 2>/dev/null; then
+            echo -e "${WARNING} Core script syntax check failed. Re-downloading..."
+            rm -f "$CORE_SCRIPT"
+            download_core_script || error_exit "Failed to download valid core script"
+        fi
+        
+        # Check if it's actually Python
+        if ! head -n1 "$CORE_SCRIPT" | grep -q python; then
+            echo -e "${WARNING} Core script appears corrupted. Re-downloading..."
+            rm -f "$CORE_SCRIPT"
+            download_core_script || error_exit "Failed to download valid core script"
+        fi
+    fi
+}
+
+# Check system compatibility
+check_compatibility() {
+    echo -e "${PROCESS} Checking system compatibility..."
+    
+    # Check for Arch-based system
+    if [[ ! -f /etc/arch-release ]] && ! command -v pacman >/dev/null 2>&1; then
+        if [[ -f /etc/debian_version ]] || command -v apt >/dev/null 2>&1; then
+            echo -e "${WARNING} Detected Debian-based system"
+            echo -e "${INFO} For Debian/Ubuntu systems, use: ${CYAN}$ALT_REPO${RESET}"
+        fi
+        error_exit "KygoX requires Arch Linux or Arch-based distributions"
+    fi
+    
+    echo -e "${SUCCESS} Compatible Arch-based system detected"
+}
+
+# Usage information
 show_usage() {
-    echo -e "${BOLD}KygoX v$VERSION - Enhanced Arch Linux Security Toolkit Installer${RESET}"
-    echo -e "${DARK}═══════════════════════════════════════════════════════════════════════════════════${RESET}"
+    echo -e "${BOLD}KygoX v$VERSION - Arch Linux Security Toolkit${RESET}"
+    echo -e "${DARK}════════════════════════════════════════════════${RESET}"
     echo
     echo -e "${BOLD}USAGE:${RESET} sudo $0 [OPTIONS]"
     echo
-    echo -e "${BOLD}INSTALLATION MODES:${RESET}"
-    echo -e "${GREEN}-d, --default${RESET}              Install curated security toolkit (recommended)"
-    echo -e "${GREEN}-a, --all${[🐧マシン💀oxbv1]-[~/kygox]λ sudo ./run -h
-./run: line 934: syntax error near unexpected token `;;' while looking for matching `)'
-[ℹ] Cleanup completed
-[🐧マシン💀oxbv1]-[~/kygox]λ 
+    echo -e "${BOLD}OPTIONS:${RESET}"
+    echo -e "${GREEN}-h, --help${RESET}              Show this help message"
+    echo -e "${GREEN}-v, --version${RESET}           Show version information"
+    echo -e "${GREEN}--setup${RESET}                 Setup environment only"
+    echo -e "${GREEN}--check${RESET}                 Check system compatibility"
+    echo
+    echo -e "${BOLD}CORE FEATURES:${RESET}"
+    echo -e "  • Self-healing installation system"
+    echo -e "  • Signature verification and validation"
+    echo -e "  • Comprehensive security toolkit"
+    echo -e "  • BlackArch repository integration"
+    echo -e "  • Real-time progress tracking"
+    echo -e "  • Automatic error recovery"
+    echo
+    echo -e "${BOLD}EXAMPLES:${RESET}"
+    echo -e "  sudo $0              # Run with default options"
+    echo -e "  sudo $0 --setup      # Setup environment only"
+    echo -e "  sudo $0 --check      # Check compatibility"
+    echo
+    echo -e "${DIM}For more information: $REPO_URL${RESET}"
+    echo
+}
 
+# Version information
+show_version() {
+    echo -e "${BOLD}KygoX Security Toolkit${RESET}"
+    echo -e "Version: $VERSION ($VERSION_NAME)"
+    echo -e "Author: 0xbv1 | 0xb0rn3"
+    echo -e "Repository: $REPO_URL"
+    echo -e "Python Engine: $(python3 --version 2>/dev/null || echo 'Not found')"
+    echo -e "System: $(uname -s) $(uname -m)"
+    echo -e "Distribution: $(cat /etc/os-release 2>/dev/null | grep PRETTY_NAME | cut -d'"' -f2 || echo 'Unknown')"
+}
+
+# Main execution
+main() {
+    # Parse arguments
+    case "${1:-}" in
+        -h|--help)
+            display_banner
+            show_usage
+            exit 0
+            ;;
+        -v|--version)
+            show_version
+            exit 0
+            ;;
+        --setup)
+            display_banner
+            check_root
+            check_python
+            setup_python_environment
+            download_core_script
+            verify_core_script
+            echo -e "${SUCCESS} Environment setup completed"
+            exit 0
+            ;;
+        --check)
+            display_banner
+            check_compatibility
+            check_python
+            echo -e "${SUCCESS} System compatibility verified"
+            exit 0
+            ;;
+        "")
+            # Default execution
+            ;;
+        *)
+            echo -e "${ERROR} Unknown option: $1"
+            echo -e "${INFO} Use '$0 --help' for usage information"
+            exit 1
+            ;;
+    esac
+    
+    # Main execution flow
+    display_banner
+    check_root
+    check_compatibility
+    check_python
+    setup_python_environment
+    download_core_script
+    verify_core_script
+    
+    # Execute core Python script with arguments
+    echo -e "${PROCESS} Launching core engine..."
+    exec python3 "$CORE_SCRIPT" "$@"
+}
+
+# Error handling
+trap 'echo -e "\n${ERROR} Script interrupted"; exit 130' INT TERM
+
+# Execute main function with all arguments
+main "$@"
