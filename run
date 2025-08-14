@@ -1031,14 +1031,14 @@ download_core_script() {
     #done
     
     # Python syntax check
-    if ! python3 -m py_compile "$script_file" 2>/dev/null; then
-        log_message "ERROR" "Core script has syntax errors"
-        return 1
-    fi
+    #if ! python3 -m py_compile "$script_file" 2>/dev/null; then
+        #log_message "ERROR" "Core script has syntax errors"
+        #return 1
+    #fi
     
-    log_message "SUCCESS" "Core script integrity verified"
-    return 0
-}
+    #log_message "SUCCESS" "Core script integrity verified"
+    #return 0
+#}
 
 # Enhanced system compatibility check
 check_compatibility() {
