@@ -985,7 +985,6 @@ detect_distribution() {
             ;;
     esac
 }
-
 check_system_requirements() {
     log_message "PROCESS" "Checking system requirements..." "system"
     
