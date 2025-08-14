@@ -6,12 +6,11 @@
 set -euo pipefail
 
 # Core Configuration
-readonly VERSION="0.1.9-beta"
-readonly VERSION_NAME="Spider"
+readonly VERSION="0.2.0-beta"
+readonly VERSION_NAME="Venom"
 readonly SCRIPT_NAME="KygoX"
 readonly REPO_URL="https://github.com/0xb0rn3/kygox"
 readonly ALT_REPO="https://github.com/0xb0rn3/krilin"
-readonly RAW_SCRIPT_URL="https://raw.githubusercontent.com/0xb0rn3/kygox/main/kygoxfix"
 
 # Environment Variables
 ORIGINAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo $USER)}"
@@ -51,24 +50,7 @@ declare -r ERROR="[${RED}✗${RESET}]"
 declare -r INFO="[${BLUE}ℹ${RESET}]"
 declare -r WARNING="[${YELLOW}⚠ ${RESET}]"
 declare -r PROCESS="[${PURPLE}⚡${RESET}]"
-declare -r SECURITY="[${CYAN}🔐${RESET}]"
-
-# Tool Categories for 2025 Security Testing
-declare -A TOOL_CATEGORIES=(
-    ["reconnaissance"]="10"
-    ["exploitation"]="9"
-    ["web_application"]="9"
-    ["network_analysis"]="8"
-    ["wireless_security"]="8"
-    ["password_attacks"]="8"
-    ["forensics"]="7"
-    ["reverse_engineering"]="7"
-    ["mobile_security"]="6"
-    ["social_engineering"]="6"
-    ["osint"]="8"
-    ["cryptography"]="7"
-    ["infrastructure"]="5"
-)
+declare -r SECURITY="[${CYAN}🔒${RESET}]"
 
 # Core Security Tools - 2025 Collection
 declare -a CORE_TOOLS=(
@@ -100,49 +82,21 @@ declare -a TRENDING_2025=(
     "proxify" "notify" "anew" "urldedupe"
 )
 
-# Enhanced User Interface Functions
-show_progress() {
-    local current=$1
-    local total=$2
-    local width=50
-    local percentage=$((current * 100 / total))
-    local completed=$((percentage * width / 100))
-    local remaining=$((width - completed))
-    
-    printf "\r${INFO} Progress: ["
-    printf "%${completed}s" | tr ' ' '█'
-    printf "%${remaining}s" | tr ' ' '░'
-    printf "] %d%% (%d/%d)" "$percentage" "$current" "$total"
-}
-
-animated_loading() {
-    local pid=$1
-    local delay=0.1
-    local spinstr='|/-\'
-    local msg="$2"
-    
-    while ps -p "$pid" > /dev/null 2>&1; do
-        local temp=${spinstr#?}
-        printf "\r${PROCESS} %s [%c]" "$msg" "$spinstr"
-        spinstr=$temp${spinstr%"$temp"}
-        sleep $delay
-    done
-    printf "\r"
-}
-
-# ---
-# CORRECTED interactive_menu function
-# ---
+# Enhanced UI Functions with Fixed Arrow Key Detection
 interactive_menu() {
     local title="$1"
     shift
     local options=("$@")
     local selected=0
+    local key=""
     
+    # Clear screen and show title
+    clear
     echo -e "\n${BOLD}$title${RESET}"
-    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     
     while true; do
+        # Display menu options
         for i in "${!options[@]}"; do
             if [[ $i -eq $selected ]]; then
                 echo -e "  ${GREEN}▶ ${options[i]}${RESET}"
@@ -151,382 +105,215 @@ interactive_menu() {
             fi
         done
         
-        # Robustly read key presses, including escape sequences for arrow keys
-        read -rsn1 key
-        if [[ "$key" == $'\e' ]]; then # If it's an escape character
-            read -rsn2 -t 0.1 key_seq # Read the rest of the sequence with a timeout
-            key+="$key_seq"
+        echo -e "\n${DIM}Use ↑/↓ arrows to navigate, Enter to select, Q to quit${RESET}"
+        
+        # Read single character with proper escape sequence handling
+        IFS= read -rsn1 key
+        
+        # Handle escape sequences for arrow keys
+        if [[ "$key" == $'\x1b' ]]; then
+            IFS= read -rsn1 -t 0.1 key
+            if [[ "$key" == '[' ]]; then
+                IFS= read -rsn1 -t 0.1 key
+                case "$key" in
+                    'A') # Up arrow
+                        if ((selected > 0)); then
+                            ((selected--))
+                        fi
+                        ;;
+                    'B') # Down arrow
+                        if ((selected < ${#options[@]} - 1)); then
+                            ((selected++))
+                        fi
+                        ;;
+                esac
+            fi
+        elif [[ "$key" == '' ]]; then # Enter key
+            return $selected
+        elif [[ "$key" == 'q' || "$key" == 'Q' ]]; then # Quit
+            echo -e "\n${INFO} Exiting..."
+            exit 0
         fi
         
-        case "$key" in
-            $'\e[A') # Up arrow
-                if ((selected > 0)); then
-                    ((selected--))
-                fi
-                ;;
-            $'\e[B') # Down arrow
-                if ((selected < ${#options[@]} - 1)); then
-                    ((selected++))
-                fi
-                ;;
-            '') # Enter
-                echo
-                return $selected
-                ;;
-            'q'|'Q'|$'\e') # Quit on q, Q, or a lone ESC key
-                echo -e "\n${INFO} Exiting..."
-                exit 0
-                ;;
-        esac
-        
         # Clear previous menu for redraw
-        for ((i=0; i<${#options[@]}; i++)); do
-            echo -e "\033[1A\033[K"
-        done
+        clear
+        echo -e "\n${BOLD}$title${RESET}"
+        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     done
 }
 
-# GitHub Update System (Python embedded in Bash)
-check_for_updates() {
-    log_message "PROCESS" "Checking for updates..." "update"
-    
-    # Create temporary Python script for update checking
-    cat > /tmp/kygox_update_checker.py << 'PYEOF'
+# Python-based Package Installation Progress Tracker
+create_python_installer() {
+    cat > /tmp/kygox_installer.py << 'PYEOF'
 #!/usr/bin/env python3
+import subprocess
 import sys
-import json
-import urllib.request
-import urllib.error
-import re
-import hashlib
-import os
+import time
+import threading
+from datetime import datetime
 
-def get_latest_release():
-    """Get latest release info from GitHub API"""
-    api_url = "https://api.github.com/repos/0xb0rn3/kygox/releases/latest"
-    try:
-        with urllib.request.urlopen(api_url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            return {
-                'version': data['tag_name'].lstrip('v'),
-                'download_url': f"https://raw.githubusercontent.com/0xb0rn3/kygox/{data['tag_name']}/kygoxfix",
-                'release_notes': data['body'][:200] + "..." if len(data['body']) > 200 else data['body'],
-                'published_at': data['published_at']
-            }
-    except (urllib.error.URLError, json.JSONDecodeError, KeyError) as e:
-        print(f"ERROR: Failed to fetch release info: {e}", file=sys.stderr)
-        return None
-
-def get_current_version():
-    """Extract current version from script"""
-    script_path = sys.argv[1] if len(sys.argv) > 1 else __file__
-    try:
-        with open(script_path, 'r') as f:
-            content = f.read()
-            match = re.search(r'readonly VERSION="([^"]+)"', content)
-            return match.group(1) if match else "unknown"
-    except FileNotFoundError:
-        return "unknown"
-
-def version_compare(v1, v2):
-    """Compare version strings (returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal)"""
-    def normalize(v):
-        # Adjusted to handle beta tags like '0.1.9-beta' by splitting on '-'
-        v_parts = v.split('-')[0]
-        return [int(x) for x in re.sub(r'(\.0+)*$','', v_parts).split(".")]
+class PackageInstaller:
+    def __init__(self, packages, log_file):
+        self.packages = packages
+        self.log_file = log_file
+        self.total = len(packages)
+        self.current = 0
+        self.success = 0
+        self.failed = 0
+        self.success_list = []
+        self.failed_list = []
+        self.installing = ""
+        self.show_progress = True
+        
+    def log_message(self, level, message):
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(self.log_file, 'a') as f:
+            f.write(f"[{timestamp}] [{level}] [installer] {message}\n")
     
-    norm_v1, norm_v2 = normalize(v1), normalize(v2)
+    def update_progress(self):
+        while self.show_progress:
+            if self.current > 0:
+                percentage = int((self.current / self.total) * 100)
+                bar_length = 50
+                filled = int((percentage / 100) * bar_length)
+                bar = '█' * filled + '░' * (bar_length - filled)
+                
+                status = f"Installing: {self.installing[:40]:<40}"
+                progress = f"[{bar}] {percentage}% ({self.current}/{self.total})"
+                stats = f"✓{self.success} ✗{self.failed}"
+                
+                print(f"\r\033[K{status}")
+                print(f"\r\033[K{progress} {stats}", end='', flush=True)
+                print("\033[1A", end='')
+            time.sleep(0.1)
     
-    # Pad shorter version with zeros
-    max_len = max(len(norm_v1), len(norm_v2))
-    norm_v1.extend([0] * (max_len - len(norm_v1)))
-    norm_v2.extend([0] * (max_len - len(norm_v2)))
-    
-    if norm_v1 > norm_v2:
-        return 1
-    elif norm_v1 < norm_v2:
-        return -1
-    else:
-        # Basic check for pre-releases if main versions are equal
-        if '-beta' in v2 and '-beta' not in v1: return 1
-        if '-beta' in v1 and '-beta' not in v2: return -1
-        return 0
-
-def download_update(url, output_path):
-    """Download the updated script"""
-    try:
-        with urllib.request.urlopen(url, timeout=30) as response:
-            content = response.read()
+    def install_package(self, package):
+        self.installing = package
+        try:
+            result = subprocess.run(
+                ['pacman', '-S', '--noconfirm', '--needed', package],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
             
-        with open(output_path, 'wb') as f:
-            f.write(content)
+            if result.returncode == 0:
+                self.success += 1
+                self.success_list.append(package)
+                self.log_message("SUCCESS", f"Installed: {package}")
+                return True
+            else:
+                self.failed += 1
+                self.failed_list.append(package)
+                self.log_message("ERROR", f"Failed to install: {package} - {result.stderr[:100]}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self.failed += 1
+            self.failed_list.append(package)
+            self.log_message("ERROR", f"Timeout installing: {package}")
+            return False
+        except Exception as e:
+            self.failed += 1
+            self.failed_list.append(package)
+            self.log_message("ERROR", f"Exception installing {package}: {str(e)}")
+            return False
+    
+    def install_batch(self, batch):
+        try:
+            result = subprocess.run(
+                ['pacman', '-S', '--noconfirm', '--needed'] + batch,
+                capture_output=True,
+                text=True,
+                timeout=600
+            )
             
-        # Make executable
-        os.chmod(output_path, 0o755)
-        return True
-    except Exception as e:
-        print(f"ERROR: Failed to download update: {e}", file=sys.stderr)
-        return False
+            if result.returncode == 0:
+                self.success += len(batch)
+                self.success_list.extend(batch)
+                for pkg in batch:
+                    self.log_message("SUCCESS", f"Batch installed: {pkg}")
+                return True
+            else:
+                # Try individual installation for failed batch
+                return False
+                
+        except Exception:
+            return False
+    
+    def run(self):
+        print(f"\n🔧 Installing {self.total} security packages...\n")
+        
+        # Start progress thread
+        progress_thread = threading.Thread(target=self.update_progress)
+        progress_thread.daemon = True
+        progress_thread.start()
+        
+        batch_size = 5
+        current_batch = []
+        
+        for package in self.packages:
+            self.current += 1
+            current_batch.append(package)
+            
+            if len(current_batch) == batch_size or self.current == self.total:
+                # Try batch installation first
+                if not self.install_batch(current_batch):
+                    # Fall back to individual installation
+                    self.success -= len(current_batch)  # Reset batch count
+                    self.success_list = [p for p in self.success_list if p not in current_batch]
+                    
+                    for pkg in current_batch:
+                        self.install_package(pkg)
+                
+                current_batch = []
+                time.sleep(0.1)
+        
+        self.show_progress = False
+        progress_thread.join(timeout=1)
+        
+        # Final display
+        print(f"\r\033[K")
+        print(f"\r\033[K")
+        print(f"📦 Package Installation Complete!")
+        print(f"   ✓ Successful: {self.success}")
+        print(f"   ✗ Failed: {self.failed}")
+        print(f"   📊 Success Rate: {int((self.success/self.total)*100)}%")
+        
+        # Save results
+        with open('kygox_logs/successful_packages.log', 'w') as f:
+            f.write('\n'.join(self.success_list))
+        
+        if self.failed_list:
+            with open('kygox_logs/failed_packages.log', 'w') as f:
+                f.write('\n'.join(self.failed_list))
+        
+        return self.success, self.failed
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 update_checker.py <script_path> [action]")
+    if len(sys.argv) != 3:
+        print("Usage: python3 installer.py <package_file> <log_file>")
         sys.exit(1)
     
-    script_path = sys.argv[1]
-    action = sys.argv[2] if len(sys.argv) > 2 else "check"
+    package_file = sys.argv[1]
+    log_file = sys.argv[2]
     
-    current_version = get_current_version()
-    latest_info = get_latest_release()
-    
-    if not latest_info:
-        print("UPDATE_CHECK_FAILED")
+    try:
+        with open(package_file, 'r') as f:
+            packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+    except FileNotFoundError:
+        print(f"Error: Package file {package_file} not found")
         sys.exit(1)
     
-    latest_version = latest_info['version']
-    comparison = version_compare(latest_version, current_version)
+    installer = PackageInstaller(packages, log_file)
+    success_count, failed_count = installer.run()
     
-    if action == "check":
-        if comparison > 0:
-            print(f"UPDATE_AVAILABLE|{latest_version}|{latest_info['release_notes']}")
-        else:
-            print("UP_TO_DATE")
-    elif action == "download":
-        if comparison > 0:
-            backup_path = f"{script_path}.backup.{current_version}"
-            if os.path.exists(script_path):
-                os.rename(script_path, backup_path)
-            
-            if download_update(latest_info['download_url'], script_path):
-                print(f"UPDATE_SUCCESS|{latest_version}|{backup_path}")
-            else:
-                # Restore backup on failure
-                if os.path.exists(backup_path):
-                    os.rename(backup_path, script_path)
-                print("UPDATE_FAILED")
-        else:
-            print("NO_UPDATE_NEEDED")
+    sys.exit(0 if failed_count == 0 else 1)
 
 if __name__ == "__main__":
     main()
 PYEOF
-    
-    # Check if Python is available
-    if ! command -v python3 >/dev/null 2>&1; then
-        log_message "WARNING" "Python3 not available, skipping update check" "update"
-        return 1
-    fi
-    
-    # Run update checker
-    local script_path="$0"
-    local update_result
-    update_result=$(python3 /tmp/kygox_update_checker.py "$script_path" "check" 2>/dev/null)
-    local exit_code=$?
-    
-    # Clean up temporary file
-    rm -f /tmp/kygox_update_checker.py
-    
-    if [[ $exit_code -ne 0 ]]; then
-        log_message "WARNING" "Update check failed" "update"
-        return 1
-    fi
-    
-    case "$update_result" in
-        "UP_TO_DATE")
-            log_message "SUCCESS" "KygoX is up to date (v$VERSION)" "update"
-            return 0
-            ;;
-        "UPDATE_AVAILABLE|"*)
-            local latest_version=$(echo "$update_result" | cut -d'|' -f2)
-            local release_notes=$(echo "$update_result" | cut -d'|' -f3)
-            
-            log_message "INFO" "Update available: v$latest_version" "update"
-            echo
-            echo -e "${INFO} ${BOLD}Update Available!${RESET}"
-            echo -e "  Current version: ${YELLOW}v$VERSION${RESET}"
-            echo -e "  Latest version:  ${GREEN}v$latest_version${RESET}"
-            echo -e "  Release notes:   ${DIM}$release_notes${RESET}"
-            echo
-            
-            if [[ "$AUTO_UPDATE" == "true" ]]; then
-                perform_self_update
-            else
-                echo -ne "${INFO} Would you like to update now? [y/N]: "
-                read -r response
-                if [[ "$response" =~ ^[Yy]$ ]]; then
-                    perform_self_update
-                fi
-            fi
-            ;;
-        "UPDATE_CHECK_FAILED")
-            log_message "WARNING" "Failed to check for updates" "update"
-            return 1
-            ;;
-    esac
-    
-    return 0
-}
-
-perform_self_update() {
-    log_message "PROCESS" "Performing self-update..." "update"
-    
-    # Re-create Python updater for download
-    cat > /tmp/kygox_updater.py << 'PYEOF'
-#!/usr/bin/env python3
-import sys
-import json
-import urllib.request
-import urllib.error
-import re
-import hashlib
-import os
-
-def get_latest_release():
-    """Get latest release info from GitHub API"""
-    api_url = "https://api.github.com/repos/0xb0rn3/kygox/releases/latest"
-    try:
-        with urllib.request.urlopen(api_url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            return {
-                'version': data['tag_name'].lstrip('v'),
-                'download_url': f"https://raw.githubusercontent.com/0xb0rn3/kygox/{data['tag_name']}/kygoxfix",
-                'release_notes': data['body'][:200] + "..." if len(data['body']) > 200 else data['body'],
-                'published_at': data['published_at']
-            }
-    except (urllib.error.URLError, json.JSONDecodeError, KeyError) as e:
-        print(f"ERROR: Failed to fetch release info: {e}", file=sys.stderr)
-        return None
-
-def get_current_version():
-    """Extract current version from script"""
-    script_path = sys.argv[1] if len(sys.argv) > 1 else __file__
-    try:
-        with open(script_path, 'r') as f:
-            content = f.read()
-            match = re.search(r'readonly VERSION="([^"]+)"', content)
-            return match.group(1) if match else "unknown"
-    except FileNotFoundError:
-        return "unknown"
-
-def version_compare(v1, v2):
-    """Compare version strings (returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal)"""
-    def normalize(v):
-        # Adjusted to handle beta tags like '0.1.9-beta' by splitting on '-'
-        v_parts = v.split('-')[0]
-        return [int(x) for x in re.sub(r'(\.0+)*$','', v_parts).split(".")]
-    
-    norm_v1, norm_v2 = normalize(v1), normalize(v2)
-    
-    # Pad shorter version with zeros
-    max_len = max(len(norm_v1), len(norm_v2))
-    norm_v1.extend([0] * (max_len - len(norm_v1)))
-    norm_v2.extend([0] * (max_len - len(norm_v2)))
-    
-    if norm_v1 > norm_v2:
-        return 1
-    elif norm_v1 < norm_v2:
-        return -1
-    else:
-        # Basic check for pre-releases if main versions are equal
-        if '-beta' in v2 and '-beta' not in v1: return 1
-        if '-beta' in v1 and '-beta' not in v2: return -1
-        return 0
-
-def download_update(url, output_path):
-    """Download the updated script"""
-    try:
-        with urllib.request.urlopen(url, timeout=30) as response:
-            content = response.read()
-            
-        with open(output_path, 'wb') as f:
-            f.write(content)
-            
-        # Make executable
-        os.chmod(output_path, 0o755)
-        return True
-    except Exception as e:
-        print(f"ERROR: Failed to download update: {e}", file=sys.stderr)
-        return False
-
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 update_checker.py <script_path> [action]")
-        sys.exit(1)
-    
-    script_path = sys.argv[1]
-    action = sys.argv[2] if len(sys.argv) > 2 else "check"
-    
-    current_version = get_current_version()
-    latest_info = get_latest_release()
-    
-    if not latest_info:
-        print("UPDATE_CHECK_FAILED")
-        sys.exit(1)
-    
-    latest_version = latest_info['version']
-    comparison = version_compare(latest_version, current_version)
-    
-    if action == "check":
-        if comparison > 0:
-            print(f"UPDATE_AVAILABLE|{latest_version}|{latest_info['release_notes']}")
-        else:
-            print("UP_TO_DATE")
-    elif action == "download":
-        if comparison > 0:
-            backup_path = f"{script_path}.backup.{current_version}"
-            if os.path.exists(script_path):
-                os.rename(script_path, backup_path)
-            
-            if download_update(latest_info['download_url'], script_path):
-                print(f"UPDATE_SUCCESS|{latest_version}|{backup_path}")
-            else:
-                # Restore backup on failure
-                if os.path.exists(backup_path):
-                    os.rename(backup_path, script_path)
-                print("UPDATE_FAILED")
-        else:
-            print("NO_UPDATE_NEEDED")
-
-if __name__ == "__main__":
-    main()
-PYEOF
-    
-    local script_path="$0"
-    local update_result
-    update_result=$(python3 /tmp/kygox_updater.py "$script_path" "download" 2>/dev/null)
-    local exit_code=$?
-    
-    rm -f /tmp/kygox_updater.py
-    
-    if [[ $exit_code -ne 0 ]]; then
-        log_message "ERROR" "Self-update failed" "update"
-        return 1
-    fi
-    
-    case "$update_result" in
-        "UPDATE_SUCCESS|"*)
-            local new_version=$(echo "$update_result" | cut -d'|' -f2)
-            local backup_path=$(echo "$update_result" | cut -d'|' -f3)
-            
-            log_message "SUCCESS" "Successfully updated to v$new_version" "update"
-            echo -e "${SUCCESS} KygoX has been updated to v$new_version"
-            echo -e "${INFO} Backup of previous version: $backup_path"
-            echo -e "${INFO} Restarting with new version..."
-            echo
-            
-            # Restart with new version
-            exec "$script_path" "$@"
-            ;;
-        "UPDATE_FAILED")
-            log_message "ERROR" "Update download failed" "update"
-            echo -e "${ERROR} Failed to download update"
-            return 1
-            ;;
-        "NO_UPDATE_NEEDED")
-            log_message "INFO" "No update needed" "update"
-            return 0
-            ;;
-    esac
+    chmod +x /tmp/kygox_installer.py
 }
 
 # System Functions
@@ -562,14 +349,14 @@ display_banner() {
 ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
 ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     ARCH LINUX PENETRATION TESTING TOOLKIT
       Professional Security Arsenal Deployment
 EOF
     echo -e "            ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
     echo -e "   ${DIM}0xbv1 | IG: theehiv3 | X: 0xbv1 | q4n0@proton.me${RESET}"
     echo -e "      ${DIM}Repository: $REPO_URL${RESET}"
-    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
 }
 
@@ -577,1490 +364,647 @@ show_usage() {
     echo -e "${BOLD}KygoX v$VERSION - Arch Linux System Security Toolkit Installer${RESET}"
     echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
-    echo -e "${BOLD}USAGE:${RESET}"
-    echo -e "  sudo $0 [OPTIONS]"
+    echo -e "${BOLD}USAGE:${RESET} sudo $0 [OPTIONS]"
     echo
-    echo -e "${BOLD}PRIMARY OPTIONS:${RESET}"
-    echo -e "  ${GREEN}-d, --default${RESET}            Install curated top security toolkit"
-    echo -e "  ${GREEN}-a, --all${RESET}                Install complete BlackArch repository"
-    echo -e "  ${GREEN}-g, --group GROUP${RESET}        Install specific tool category"
-    echo -e "  ${GREEN}-f, --file FILE${RESET}          Install from custom package list"
-    echo -e "  ${GREEN}-i, --interactive${RESET}        Interactive installation mode"
-    echo
-    echo -e "${BOLD}CONFIGURATION:${RESET}"
-    echo -e "  ${YELLOW}-q, --quiet${RESET}              Silent installation mode"
-    echo -e "  ${YELLOW}--skip-aur${RESET}               Skip AUR package installations"
-    echo -e "  ${YELLOW}--generate-toolkit${RESET}       Generate default toolkit file only"
-    echo -e "  ${YELLOW}--force${RESET}                  Continue on non-critical errors"
-    echo
-    echo -e "${BOLD}UPDATE SYSTEM:${RESET}"
-    echo -e "  ${CYAN}--check-update${RESET}           Check for script updates"
-    echo -e "  ${CYAN}--auto-update${RESET}            Automatically update if available"
-    echo
-    echo -e "${BOLD}INFORMATION:${RESET}"
-    echo -e "  ${BLUE}-h, --help${RESET}               Display this help message"
-    echo -e "  ${BLUE}-v, --version${RESET}            Display version information"
+    echo -e "${GREEN}-d, --default${RESET}            Install curated security toolkit"
+    echo -e "${GREEN}-a, --all${RESET}                Install complete BlackArch repository"
+    echo -e "${GREEN}-g, --group GROUP${RESET}        Install specific tool category"
+    echo -e "${GREEN}-f, --file FILE${RESET}          Install from custom package list"
+    echo -e "${GREEN}-i, --interactive${RESET}        Interactive installation mode"
+    echo -e "${YELLOW}-q, --quiet${RESET}              Silent installation mode"
+    echo -e "${YELLOW}--skip-aur${RESET}               Skip AUR package installations"
+    echo -e "${YELLOW}--generate-toolkit${RESET}       Generate toolkit file only"
+    echo -e "${CYAN}--check-update${RESET}           Check for script updates"
+    echo -e "${BLUE}-h, --help${RESET}               Display this help"
+    echo -e "${BLUE}-v, --version${RESET}            Display version information"
     echo
     echo -e "${BOLD}EXAMPLES:${RESET}"
-    echo -e "  sudo $0 -d                      # Install curated toolkit (recommended)"
+    echo -e "  sudo $0 -d                      # Install curated toolkit"
     echo -e "  sudo $0 -i                      # Interactive mode"
-    echo -e "  sudo $0 -g exploitation         # Install exploitation tools only"
-    echo -e "  sudo $0 -f custom_tools.txt     # Install from custom list"
-    echo -e "  sudo $0 --generate-toolkit      # Generate toolkit file"
-    echo -e "  sudo $0 --check-update          # Check for updates"
+    echo -e "  sudo $0 -g exploitation         # Install exploitation tools"
     echo
-    echo -e "${BOLD}AVAILABLE TOOL CATEGORIES:${RESET}"
-    echo -e "  reconnaissance, exploitation, web_application, network_analysis"
-    echo -e "  wireless_security, password_attacks, forensics, reverse_engineering"
-    echo -e "  mobile_security, social_engineering, osint, cryptography"
-    echo
-    echo -e "${DIM}For complete category list: pacman -Sg | grep blackarch${RESET}"
-    echo
-}
-
-show_version() {
-    echo -e "${BOLD}KygoX - Arch Linux Penetration Testing Toolkit${RESET}"
-    echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo -e "${BOLD}Version:${RESET}        $VERSION ($VERSION_NAME)"
-    echo -e "${BOLD}Target OS:${RESET}      Arch Linux (x86_64)"
-    echo -e "${BOLD}Author:${RESET}         0xbv1 | 0xb0rn3"
-    echo -e "${BOLD}Repository:${RESET}     $REPO_URL"
-    echo
-    echo -e "${BOLD}TOOLKIT CAPABILITIES:${RESET}"
-    echo -e "  • BlackArch repository integration"
-    echo -e "  • Intelligent security tool curation"
-    echo -e "  • AUR package management"
-    echo -e "  • Conflict resolution automation"
-    echo -e "  • Professional logging system"
-    echo -e "  • Auto-update mechanism"
-    echo -e "  • Enhanced user interface"
-    echo -e "  • ${#CORE_TOOLS[@]} core tools + ${#TRENDING_2025[@]} trending 2025 tools"
-    echo
-    echo -e "${BOLD}SYSTEM REQUIREMENTS:${RESET}"
-    echo -e "  • Arch Linux (up-to-date installation)"
-    echo -e "  • Internet connection for package downloads"
-    echo -e "  • Root privileges (sudo access)"
-    echo -e "  • Minimum 10GB free disk space"
-    echo -e "  • Python3 (for update functionality)"
-    echo
-    echo -e "${DIM}This toolkit provides professional-grade penetration testing capabilities.${RESET}"
 }
 
 interactive_installation() {
     echo -e "${BOLD}Welcome to KygoX Interactive Installation${RESET}"
-    echo -e "${DIM}Navigate with arrow keys, press Enter to select, Q to quit${RESET}"
+    echo -e "${DIM}Use arrow keys to navigate, Enter to select${RESET}"
     echo
     
-    # Main installation mode selection
     local main_options=(
-        "🎯 Default Toolkit (Recommended)"
-        "🌐 Complete BlackArch Repository"
+        "🎯 Default Security Toolkit (Recommended)"
+        "🌍 Complete BlackArch Repository"
         "📦 Specific Tool Category"
         "📄 Custom Package List"
-        "⚙️  Generate Toolkit Only"
+        "⚙️ Generate Toolkit Only"
         "🔄 Check for Updates"
         "❌ Exit"
     )
     
     interactive_menu "Select Installation Mode:" "${main_options[@]}"
-    local main_choice=$?
+    local choice=$?
     
-    case $main_choice in
-        0)
-            INSTALL_MODE="default"
-            log_message "INFO" "Interactive mode: Default toolkit selected" "interactive"
-            ;;
-        1)
+    case $choice in
+        0) INSTALL_MODE="default" ;;
+        1) 
             INSTALL_MODE="all"
-            echo -e "${WARNING} This will install ALL BlackArch packages (several GB)"
-            echo -ne "${INFO} Are you sure? [y/N]: "
+            echo -e "${WARNING} This installs ALL BlackArch packages (several GB)"
+            echo -ne "${INFO} Continue? [y/N]: "
             read -r confirm
-            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-                echo -e "${INFO} Installation cancelled"
-                exit 0
-            fi
-            log_message "INFO" "Interactive mode: Complete repository selected" "interactive"
+            [[ ! "$confirm" =~ ^[Yy]$ ]] && exit 0
             ;;
         2)
-            # Category selection
             local categories=(
-                "reconnaissance" "exploitation" "web_application"
-                "network_analysis" "wireless_security" "password_attacks"
-                "forensics" "reverse_engineering" "mobile_security"
-                "social_engineering" "osint" "cryptography"
+                "reconnaissance" "exploitation" "web-application"
+                "network-analysis" "wireless-security" "password-attacks"
+                "forensics" "reverse-engineering" "mobile-security"
             )
-            
-            interactive_menu "Select Tool Category:" "${categories[@]}"
-            local cat_choice=$?
-            
-            GROUP_NAME="${categories[$cat_choice]}"
+            interactive_menu "Select Category:" "${categories[@]}"
+            GROUP_NAME="${categories[$?]}"
             INSTALL_MODE="group"
-            log_message "INFO" "Interactive mode: Category $GROUP_NAME selected" "interactive"
             ;;
         3)
-            echo -ne "${INFO} Enter path to custom package list: "
-            read -r custom_file
-            if [[ ! -f "$custom_file" ]]; then
-                echo -e "${ERROR} File not found: $custom_file"
-                exit 1
-            fi
-            PACKAGE_FILE="$custom_file"
+            echo -ne "${INFO} Enter custom package file path: "
+            read -r PACKAGE_FILE
+            [[ ! -f "$PACKAGE_FILE" ]] && { echo -e "${ERROR} File not found"; exit 1; }
             INSTALL_MODE="file"
-            log_message "INFO" "Interactive mode: Custom file $custom_file selected" "interactive"
             ;;
-        4)
-            GENERATE_ONLY=true
-            log_message "INFO" "Interactive mode: Generate toolkit only" "interactive"
-            ;;
-        5)
-            CHECK_UPDATE=true
-            log_message "INFO" "Interactive mode: Check updates" "interactive"
-            ;;
-        6)
-            echo -e "${INFO} Installation cancelled by user"
-            exit 0
-            ;;
+        4) GENERATE_ONLY=true ;;
+        5) CHECK_UPDATE=true ;;
+        6) exit 0 ;;
     esac
     
-    # Additional options if not generating only
     if [[ "$GENERATE_ONLY" != "true" && "$CHECK_UPDATE" != "true" ]]; then
-        echo
         local addon_options=(
-            "🔇 Quiet Mode (Minimal Output)"
-            "🚫 Skip AUR Packages"
+            "🔇 Quiet Mode"
+            "🚫 Skip AUR Packages" 
             "💪 Force Continue on Errors"
             "🎯 Standard Installation"
         )
         
         interactive_menu "Additional Options:" "${addon_options[@]}"
-        local addon_choice=$?
-        
-        case $addon_choice in
-            0)
-                QUIET_MODE=true
-                log_message "INFO" "Interactive mode: Quiet mode enabled" "interactive"
-                ;;
-            1)
-                SKIP_AUR=true
-                log_message "INFO" "Interactive mode: AUR packages disabled" "interactive"
-                ;;
-            2)
-                FORCE_CONTINUE=true
-                log_message "INFO" "Interactive mode: Force continue enabled" "interactive"
-                ;;
-            3)
-                log_message "INFO" "Interactive mode: Standard installation" "interactive"
-                ;;
+        case $? in
+            0) QUIET_MODE=true ;;
+            1) SKIP_AUR=true ;;
+            2) FORCE_CONTINUE=true ;;
         esac
     fi
 }
 
+# Simplified Distribution Detection
 detect_distribution() {
-    log_message "PROCESS" "Detecting Linux distribution and system environment..." "distro"
-    
-    # Initialize detection variables
-    local distro_id=""
-    local distro_name=""
-    local distro_version=""
-    local package_manager=""
-    local arch_type=""
-    local is_container=false
-    local detection_method=""
-    local supported_arch_distros=("arch" "manjaro" "endeavouros" "garuda" "artix" "parabola" "blackarch" "archcraft" "archlabs" "arcolinux" "cachyos")
-    local supported_debian_distros=("debian" "ubuntu" "kali" "parrot" "mint" "pop" "elementary" "zorin" "deepin" "mxlinux" "antiX")
-    
-    # Detect system architecture
-    arch_type=$(uname -m)
-    log_message "INFO" "System architecture: $arch_type" "distro"
-    
-    # Check if running in container
-    if [[ -f /.dockerenv ]] || [[ -n "${container:-}" ]] || grep -q "docker\|lxc" /proc/1/cgroup 2>/dev/null; then
-        is_container=true
-        log_message "INFO" "Container environment detected" "distro"
-    fi
-    
-    # Primary detection method: /etc/os-release
-    if [[ -f /etc/os-release ]]; then
-        source /etc/os-release
-        distro_id="${ID,,}"  # Convert to lowercase
-        distro_name="$PRETTY_NAME"
-        distro_version="${VERSION_ID:-unknown}"
-        detection_method="os-release"
-        log_message "INFO" "Primary detection via /etc/os-release: $distro_name" "distro"
-    else
-        log_message "WARNING" "/etc/os-release not found, using fallback detection methods" "distro"
-    fi
-    
-    # Fallback detection methods
-    if [[ -z "$distro_id" ]]; then
-        if [[ -f /etc/arch-release ]]; then
-            distro_id="arch"
-            distro_name="Arch Linux"
-            detection_method="arch-release"
-        elif [[ -f /etc/debian_version ]]; then
-            distro_id="debian"
-            distro_name="Debian GNU/Linux"
-            detection_method="debian_version"
-        elif [[ -f /etc/redhat-release ]]; then
-            distro_id="rhel"
-            distro_name="Red Hat Enterprise Linux"
-            detection_method="redhat-release"
-        elif [[ -f /etc/SuSE-release ]]; then
-            distro_id="opensuse"
-            distro_name="openSUSE"
-            detection_method="SuSE-release"
+    if [[ ! -f /etc/arch-release ]] && ! command -v pacman >/dev/null 2>&1; then
+        if [[ -f /etc/debian_version ]]; then
+            echo -e "${WARNING} Detected Debian-based system"
+            echo -e "${INFO} For Debian/Ubuntu systems, use: ${CYAN}$ALT_REPO${RESET}"
+            exit 1
         else
-            log_message "ERROR" "Cannot detect Linux distribution using any method" "distro"
-            return 1
+            echo -e "${ERROR} KygoX requires Arch Linux or Arch-based distributions"
+            exit 1
         fi
-        log_message "INFO" "Fallback detection via $detection_method: $distro_name" "distro"
     fi
-    
-    # Package manager detection for verification
-    detect_package_manager() {
-        if command -v pacman >/dev/null 2>&1; then
-            package_manager="pacman"
-        elif command -v apt >/dev/null 2>&1 || command -v apt-get >/dev/null 2>&1; then
-            package_manager="apt"
-        elif command -v dnf >/dev/null 2>&1; then
-            package_manager="dnf"
-        elif command -v yum >/dev/null 2>&1; then
-            package_manager="yum"
-        elif command -v zypper >/dev/null 2>&1; then
-            package_manager="zypper"
-        elif command -v portage >/dev/null 2>&1 || command -v emerge >/dev/null 2>&1; then
-            package_manager="portage"
-        elif command -v xbps-install >/dev/null 2>&1; then
-            package_manager="xbps"
-        else
-            package_manager="unknown"
-        fi
-        log_message "INFO" "Detected package manager: $package_manager" "distro"
-    }
-    
-    detect_package_manager
-    
-    # Cross-verify distribution with package manager
-    verify_detection() {
-        case "$package_manager" in
-            "pacman")
-                if [[ ! " ${supported_arch_distros[*]} " =~ " $distro_id " ]]; then
-                    log_message "WARNING" "Package manager ($package_manager) doesn't match detected distro ($distro_id)" "distro"
-                    log_message "INFO" "Assuming Arch-based system due to pacman presence" "distro"
-                    distro_id="arch"
-                fi
-                ;;
-            "apt")
-                if [[ ! " ${supported_debian_distros[*]} " =~ " $distro_id " ]]; then
-                    log_message "WARNING" "Package manager ($package_manager) doesn't match detected distro ($distro_id)" "distro"
-                    log_message "INFO" "Assuming Debian-based system due to apt presence" "distro"
-                    distro_id="debian"
-                fi
-                ;;
-        esac
-    }
-    
-    verify_detection
-    
-    # Arch derivative detection
-    detect_arch_derivative() {
-        if [[ "$package_manager" == "pacman" ]]; then
-            # Check for specific Arch derivatives
-            if [[ -f /etc/archcraft-release ]] || [[ "$distro_id" == "archcraft" ]]; then
-                log_message "INFO" "Detected Archcraft (Arch derivative)" "distro"
-                return 0
-            elif [[ -f /etc/manjaro-release ]] || [[ "$distro_id" == "manjaro" ]]; then
-                log_message "INFO" "Detected Manjaro (Arch derivative)" "distro"
-                return 0
-            elif [[ -f /etc/endeavouros-release ]] || [[ "$distro_id" == "endeavouros" ]]; then
-                log_message "INFO" "Detected EndeavourOS (Arch derivative)" "distro"
-                return 0
-            elif [[ -f /etc/garuda-release ]] || [[ "$distro_id" == "garuda" ]]; then
-                log_message "INFO" "Detected Garuda Linux (Arch derivative)" "distro"
-                return 0
-            elif [[ -f /etc/artix-release ]] || [[ "$distro_id" == "artix" ]]; then
-                log_message "INFO" "Detected Artix Linux (Arch derivative)" "distro"
-                return 0
-            elif [[ -d /var/lib/pacman ]] && [[ -f /etc/arch-release ]]; then
-                log_message "INFO" "Detected pure Arch Linux" "distro"
-                return 0
-            fi
-        fi
-        return 1
-    }
-    
-    # Handle Debian-based systems with user interaction
-    handle_debian_system() {
-        echo
-        log_message "WARNING" "Detected Debian-based system: $distro_name" "distro"
-        echo -e "${WARNING} KygoX is designed specifically for Arch Linux systems."
-        echo
-        echo -e "${INFO} For Debian/Ubuntu/Kali/Parrot systems, we recommend an alternative installer:"
-        echo -e "   ${CYAN}Repository: $ALT_REPO${RESET}"
-        echo -e "   ${CYAN}Features: Same professional experience for Debian-based systems${RESET}"
-        echo
-        
-        # Interactive prompt
-        while true; do
-            echo -ne "${INFO} Would you like to visit the alternative repository? [y/N]: "
-            read -r response
-            case "$response" in
-                [Yy]|[Yy][Ee][Ss])
-                    echo -e "${INFO} Opening alternative repository..."
-                    # Try to open in browser using various methods
-                    if command -v xdg-open >/dev/null 2>&1; then
-                        xdg-open "$ALT_REPO" 2>/dev/null &
-                    elif command -v firefox >/dev/null 2>&1; then
-                        firefox "$ALT_REPO" 2>/dev/null &
-                    elif command -v google-chrome >/dev/null 2>&1; then
-                        google-chrome "$ALT_REPO" 2>/dev/null &
-                    elif command -v chromium >/dev/null 2>&1; then
-                        chromium "$ALT_REPO" 2>/dev/null &
-                    else
-                        echo -e "${INFO} Please visit: ${CYAN}$ALT_REPO${RESET}"
-                    fi
-                    
-                    echo
-                    echo -e "${INFO} Installation command for alternative installer:"
-                    echo -e "   ${GREEN}git clone $ALT_REPO && cd krilin && sudo ./run${RESET}"
-                    echo
-                    
-                    exit 0
-                    ;;
-                [Nn]|[Nn][Oo]|"")
-                    echo -e "${INFO} Continuing with current system (not recommended - YOU HAVE BEEN WARNED)..."
-                    echo -e "${WARNING} KygoX may not work properly on Debian-based systems! Refer to KRILIN (github.com/0xb0rn3/krilin)"
-                    return 1
-                    ;;
-                *)
-                    echo -e "${ERROR} Please answer yes (y) or no (n)"
-                    continue
-                    ;;
-            esac
-        done
-    }
-    
-    # Main distribution logic
-    case "$distro_id" in
-        arch|manjaro|endeavouros|garuda|artix|parabola|blackarch|archcraft|archlabs|arcolinux|cachyos)
-            if detect_arch_derivative || [[ "$package_manager" == "pacman" ]]; then
-                log_message "SUCCESS" "✓ Detected supported Arch-based system: $distro_name" "distro"
-                log_message "INFO" "Package Manager: $package_manager | Architecture: $arch_type" "distro"
-                [[ "$is_container" == true ]] && log_message "INFO" "Running in container environment" "distro"
-                return 0
-            else
-                log_message "ERROR" "Arch-based system detected but pacman not found" "distro"
-                return 1
-            fi
-            ;;
-        debian|ubuntu|kali|parrot|mint|pop|elementary|zorin|deepin|mxlinux|antix)
-            handle_debian_system
-            return 1
-            ;;
-        fedora|centos|rhel|rocky|alma)
-            log_message "ERROR" "Red Hat-based system detected: $distro_name" "distro"
-            echo -e "${ERROR} KygoX requires Arch Linux or Arch-based distributions."
-            echo -e "${INFO} For Red Hat-based systems, manual installation may be possible."
-            echo -e "${INFO} Consider using Arch Linux or check our documentation."
-            exit 1
-            ;;
-        opensuse|sled|sles)
-            log_message "ERROR" "openSUSE-based system detected: $distro_name" "distro"
-            echo -e "${ERROR} KygoX requires Arch Linux or Arch-based distributions."
-            echo -e "${INFO} Consider switching to Arch Linux for full compatibility."
-            exit 1
-            ;;
-        gentoo)
-            log_message "ERROR" "Gentoo Linux detected: $distro_name" "distro"
-            echo -e "${ERROR} KygoX requires Arch Linux or Arch-based distributions."
-            echo -e "${INFO} Gentoo users may need to compile packages manually."
-            exit 1
-            ;;
-        void)
-            log_message "ERROR" "Void Linux detected: $distro_name" "distro"
-            echo -e "${ERROR} KygoX requires Arch Linux or Arch-based distributions."
-            echo -e "${INFO} Void Linux uses xbps package manager, not compatible."
-            exit 1
-            ;;
-        alpine)
-            log_message "ERROR" "Alpine Linux detected: $distro_name" "distro"
-            echo -e "${ERROR} KygoX requires Arch Linux or Arch-based distributions."
-            echo -e "${INFO} Alpine uses apk package manager and musl libc."
-            exit 1
-            ;;
-        *)
-            log_message "ERROR" "Unsupported or unknown Linux distribution: $distro_name" "distro"
-            echo
-            echo -e "${ERROR} KygoX requires Arch Linux or Arch-based distributions."
-            echo -e "${INFO} System Details:"
-            echo -e "   Distribution: $distro_name"
-            echo -e "   ID: $distro_id"
-            echo -e "   Version: $distro_version"
-            echo -e "   Package Manager: $package_manager"
-            echo -e "   Architecture: $arch_type"
-            echo -e "   Detection Method: $detection_method"
-            [[ "$is_container" == true ]] && echo -e "   Container: Yes"
-            echo
-            echo -e "${INFO} Supported distributions:"
-            echo -e "   ${GREEN}Arch-based:${RESET} Arch, Manjaro, EndeavourOS, Garuda, Artix, Archcraft"
-            echo -e "   ${CYAN}Debian-based (use alternative):${RESET} $ALT_REPO"
-            echo
-            exit 1
-            ;;
-    esac
+    log_message "SUCCESS" "✓ Arch-based system detected" "distro"
 }
 
+# Simplified Requirements Check
 check_system_requirements() {
-    log_message "PROCESS" "Checking system requirements..." "system"
+    [[ $EUID -ne 0 ]] && { echo -e "${ERROR} Run with: sudo $0"; exit 1; }
     
-    # Check if running as root
-    if [[ $EUID -ne 0 ]]; then
-        echo -e "${ERROR} Root privileges required for system-level package installation."
-        echo -e "${INFO} Execute with: ${BOLD}sudo $0 [options]${RESET}"
-        exit 1
+    if ! ping -c 1 8.8.8.8 &>/dev/null; then
+        [[ "$FORCE_CONTINUE" != "true" ]] && { echo -e "${ERROR} Internet required"; exit 1; }
     fi
     
-    # Verify original user exists
-    if [[ -z "$ORIGINAL_USER" ]] || ! id "$ORIGINAL_USER" &>/dev/null; then
-        log_message "ERROR" "Cannot identify original user for AUR operations" "system"
-        echo -e "${ERROR} Unable to determine original user account."
-        echo -e "${INFO} Ensure you're using sudo, not switching to root directly."
-        exit 1
-    fi
-    
-    # Check internet connectivity
-    if ! ping -c 1 8.8.8.8 &>/dev/null && ! ping -c 1 1.1.1.1 &>/dev/null; then
-        log_message "WARNING" "No internet connectivity detected" "system"
-        if [[ "$FORCE_CONTINUE" != "true" ]]; then
-            echo -e "${ERROR} Internet connection required for package downloads."
-            echo -e "${INFO} Use --force to continue without connectivity check."
-            exit 1
-        fi
-    else
-        log_message "SUCCESS" "Internet connectivity verified" "system"
-    fi
-    
-    # Check available disk space (minimum 10GB)
-    local available_space
-    available_space=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
-    if [[ $available_space -lt 10 ]]; then
-        log_message "WARNING" "Low disk space: ${available_space}GB available" "system"
-        if [[ "$FORCE_CONTINUE" != "true" ]]; then
-            echo -e "${WARNING} Less than 10GB disk space available."
-            echo -e "${INFO} Some installations may fail due to insufficient space."
-            echo -e "${INFO} Use --force to continue anyway."
-            exit 1
-        fi
-    else
-        log_message "SUCCESS" "Sufficient disk space available: ${available_space}GB" "system"
-    fi
-    
-    # Check if Python3 is available for update functionality
-    if ! command -v python3 >/dev/null 2>&1; then
-        log_message "WARNING" "Python3 not found - update functionality will be limited" "system"
-    else
-        log_message "SUCCESS" "Python3 available for update functionality" "system"
+    local space=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
+    if [[ $space -lt 5 ]]; then
+        [[ "$FORCE_CONTINUE" != "true" ]] && { echo -e "${ERROR} Need 5GB+ disk space"; exit 1; }
     fi
     
     log_message "SUCCESS" "System requirements verified" "system"
 }
 
-setup_sudo_management() {
-    log_message "PROCESS" "Configuring sudo session management..." "sudo"
-    
-    # Extend sudo timeout for this session
-    echo "Defaults timestamp_timeout=60" > /etc/sudoers.d/kygox-temp
-    
-    # Prime sudo cache
-    sudo -v
-    
-    # Background process to maintain sudo privileges
-    (
-        while true; do
-            sudo -n true 2>/dev/null || break
-            sleep 45
-        done
-    ) &
-    SUDO_TIMEOUT_PID=$!
-    log_message "SUCCESS" "Sudo session management configured" "sudo"
-}
-
-cleanup_sudo_management() {
-    log_message "INFO" "Cleaning up sudo configuration..." "sudo"
-    
-    # Kill background sudo process
-    if [[ -n "$SUDO_TIMEOUT_PID" ]]; then
-        kill "$SUDO_TIMEOUT_PID" 2>/dev/null || true
-    fi
-    
-    # Remove temporary sudo configuration
-    rm -f /etc/sudoers.d/kygox-temp 2>/dev/null || true
-    
-    log_message "INFO" "Sudo cleanup completed" "sudo"
-}
-
+# Enhanced BlackArch Setup
 add_blackarch_repository() {
-    log_message "PROCESS" "Setting up BlackArch repository..." "repo"
-    
-    # Check if already configured
     if grep -q "^\[blackarch\]" /etc/pacman.conf; then
-        log_message "SUCCESS" "BlackArch repository already configured" "repo"
+        log_message "SUCCESS" "BlackArch repository already configured"
         return 0
     fi
     
-    # Create backup of pacman.conf
+    log_message "PROCESS" "Setting up BlackArch repository..."
+    
+    # Backup pacman.conf
     mkdir -p "$BACKUP_DIR"
     cp /etc/pacman.conf "$BACKUP_DIR/pacman.conf.backup.$(date +%s)"
     
-    # Download and execute BlackArch bootstrap
-    log_message "INFO" "Downloading BlackArch bootstrap script..." "repo"
+    # Use direct BlackArch setup method
+    curl -s https://blackarch.org/strap.sh | bash
     
-    local bootstrap_script
-    bootstrap_script=$(mktemp)
-    if ! curl -fsSL https://blackarch.org/strap.sh -o "$bootstrap_script"; then
-        log_message "ERROR" "Failed to download bootstrap script" "repo"
-        rm -f "$bootstrap_script"
-        return 1
-    fi
-    
-    # Verify script integrity
-    if [[ ! -s "$bootstrap_script" ]]; then
-        log_message "ERROR" "Bootstrap script is empty" "repo"
-        rm -f "$bootstrap_script"
-        return 1
-    fi
-    
-    # Execute bootstrap with progress indication
-    chmod +x "$bootstrap_script"
-    echo -e "${PROCESS} Executing BlackArch bootstrap..."
-    if "$bootstrap_script" 2>&1 | tee -a "$MAIN_LOG"; then
-        log_message "SUCCESS" "BlackArch repository configured successfully" "repo"
-        rm -f "$bootstrap_script"
+    if grep -q "^\[blackarch\]" /etc/pacman.conf; then
+        log_message "SUCCESS" "BlackArch repository configured"
         return 0
     else
-        log_message "ERROR" "Bootstrap execution failed" "repo"
-        rm -f "$bootstrap_script"
+        log_message "ERROR" "BlackArch setup failed"
         return 1
     fi
 }
 
-fix_pacman_keys() {
-    log_message "PROCESS" "Fixing pacman keyring and BlackArch signatures..." "setup"
-    
-    # Clean approach - remove and reinitialize
-    log_message "INFO" "Cleaning existing keyring..." "setup"
-    rm -rf /etc/pacman.d/gnupg
-    
-    log_message "INFO" "Initializing fresh keyring..." "setup"
-    pacman-key --init &>/dev/null
-    
-    log_message "INFO" "Populating with official Arch keys..." "setup"
-    pacman-key --populate archlinux &>/dev/null
-    
-    # Import BlackArch master keys directly
-    log_message "INFO" "Importing BlackArch master keys..." "setup"
-    
-    # BlackArch master signing keys
-    local blackarch_keys=(
-        "4345771566D76038C7FEB43863EC0ADBEA87E4E3"  # Levon 'noptrix' Kayan
-        "9F92499EF55A4B12E4D6CAEA9A6FB9C4B4E76AE7"  # BlackArch Master Key
-    )
-    
-    # Try multiple keyservers for reliability
-    local keyservers=(
-        "hkps://keys.openpgp.org"
-        "hkps://keyserver.ubuntu.com:443"
-        "hkps://pgp.mit.edu"
-        "hkps://keyserver.pgp.com"
-    )
-    
-    for key in "${blackarch_keys[@]}"; do
-        local key_imported=false
-        log_message "INFO" "Importing key: ${key:0:8}..." "setup"
-        
-        for server in "${keyservers[@]}"; do
-            if timeout 30 pacman-key --keyserver "$server" --recv-keys "$key" &>/dev/null; then
-                pacman-key --lsign-key "$key" &>/dev/null
-                log_message "SUCCESS" "Key imported and signed: ${key:0:8}" "setup"
-                key_imported=true
-                break
-            fi
-        done
-        
-        if [[ "$key_imported" != "true" ]]; then
-            log_message "WARNING" "Failed to import key: ${key:0:8}" "setup"
-        fi
-    done
-    
-    # Alternative method: Try to install blackarch-keyring directly
-    log_message "INFO" "Attempting to install BlackArch keyring package..." "setup"
-    if ! pacman -S --noconfirm blackarch-keyring &>/dev/null; then
-        log_message "WARNING" "BlackArch keyring package installation failed" "setup"
-        
-        # Manual keyring installation
-        local temp_dir="/tmp/blackarch_keyring_$$"
-        mkdir -p "$temp_dir"
-        cd "$temp_dir" || return 1
-        
-        if curl -s -O "https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.xz" 2>/dev/null; then
-            if pacman -U --noconfirm blackarch-keyring.pkg.tar.xz &>/dev/null; then
-                log_message "SUCCESS" "BlackArch keyring installed manually" "setup"
-            fi
-        fi
-        
-        cd - >/dev/null || return 1
-        rm -rf "$temp_dir"
-    fi
-    
-    # Final key refresh
-    log_message "INFO" "Refreshing keyring database..." "setup"
-    if timeout 120 pacman-key --refresh-keys &>/dev/null; then
-        log_message "SUCCESS" "Keyring refresh completed" "setup"
-    else
-        log_message "WARNING" "Keyring refresh timed out" "setup"
-    fi
-    
-    return 0
-}
-
-handle_signature_verification() {
-    log_message "PROCESS" "Configuring signature verification..." "setup"
-    
-    # Create backup of pacman.conf
-    local pacman_conf="/etc/pacman.conf"
-    local backup_conf="${pacman_conf}.kygox.backup"
-    cp "$pacman_conf" "$backup_conf"
-    
-    # Configure BlackArch repository with appropriate SigLevel
-    if grep -q "^\[blackarch\]" "$pacman_conf"; then
-        log_message "INFO" "Adjusting BlackArch signature level..." "setup"
-        
-        # Use awk to modify the BlackArch section
-        awk '
-        /^\[blackarch\]/ { in_blackarch = 1; print; next }
-        /^\[/ && in_blackarch { in_blackarch = 0 }
-        in_blackarch && /^SigLevel/ { next }
-        # Add SigLevel if it is missing, typically after the [blackarch] line
-        in_blackarch && !/SigLevel/ { print; print "SigLevel = Optional TrustAll"; in_blackarch = 0; next }
-        { print }
-        ' "$pacman_conf" > "${pacman_conf}.tmp" && mv "${pacman_conf}.tmp" "$pacman_conf"
-        
-        log_message "SUCCESS" "BlackArch signature verification configured" "setup"
-        return 0
-    fi
-    
-    return 1
-}
-
-restore_pacman_config() {
-    local backup_conf="/etc/pacman.conf.kygox.backup"
-    
-    if [[ -f "$backup_conf" ]]; then
-        log_message "INFO" "Restoring original pacman configuration..." "setup"
-        cp "$backup_conf" "/etc/pacman.conf"
-        rm -f "$backup_conf"
-        log_message "SUCCESS" "Original pacman configuration restored" "setup"
-    fi
-}
-
+# Streamlined Package Database Update
 update_package_database() {
-    log_message "PROCESS" "Updating package databases..." "packages"
+    log_message "PROCESS" "Updating package databases..."
     
-    # Initial keyring fix
-    fix_pacman_keys
-    
+    local attempts=0
     local max_attempts=3
-    for ((attempt=1; attempt<=max_attempts; attempt++)); do
-        log_message "INFO" "Database update attempt $attempt of $max_attempts..." "packages"
-        
-        if pacman -Sy --noconfirm 2>&1 | tee -a "$MAIN_LOG"; then
-            log_message "SUCCESS" "Package database updated successfully" "packages"
+    
+    while [[ $attempts -lt $max_attempts ]]; do
+        if pacman -Sy --noconfirm; then
+            log_message "SUCCESS" "Package database updated"
             return 0
-        else
-            log_message "WARNING" "Database update attempt $attempt failed" "packages"
-            
-            if [[ $attempt -eq 1 ]]; then
-                handle_signature_verification
-            fi
-            
-            [[ $attempt -lt $max_attempts ]] && sleep 3
         fi
+        
+        ((attempts++))
+        [[ $attempts -lt $max_attempts ]] && sleep 2
     done
     
-    log_message "ERROR" "Failed to update package database after $max_attempts attempts" "packages"
-    
-    # Try once more with relaxed verification
-    log_message "INFO" "Attempting update with relaxed verification..." "packages"
-    if pacman -Sy --noconfirm --disable-download-timeout 2>&1 | tee -a "$MAIN_LOG"; then
-        log_message "SUCCESS" "Package database updated with relaxed verification" "packages"
-        return 0
-    fi
-    
+    log_message "ERROR" "Failed to update package database"
     return 1
 }
 
+# Essential Tools Installation
 install_base_requirements() {
-    log_message "PROCESS" "Installing base system requirements..." "base"
+    log_message "PROCESS" "Installing base requirements..."
     
-    local base_packages=(
-        "base-devel" "git" "curl" "wget" "unzip"
-        "python" "python-pip" "go" "rust"
-        "cmake" "make" "gcc" "pkg-config"
-        "openssl" "libpcap" "sqlite"
+    local base_tools=(
+        "base-devel" "git" "curl" "wget" "python" "python-pip"
     )
     
-    log_message "INFO" "Installing ${#base_packages[@]} base packages..." "base"
-    
-    local total=${#base_packages[@]}
-    local current=0
-    
-    for package in "${base_packages[@]}"; do
-        ((current++))
-        if [[ "$QUIET_MODE" != "true" ]]; then
-            show_progress $current $total
-        fi
-        
-        if ! pacman -S --noconfirm --needed "$package" &>/dev/null; then
-            log_message "WARNING" "Failed to install base package: $package" "base"
-        fi
+    for tool in "${base_tools[@]}"; do
+        pacman -S --noconfirm --needed "$tool" &>/dev/null || \
+            log_message "WARNING" "Failed to install: $tool"
     done
     
-    if [[ "$QUIET_MODE" != "true" ]]; then
-        echo
-    fi
-    
-    log_message "SUCCESS" "Base requirements installation completed" "base"
-    return 0
+    log_message "SUCCESS" "Base requirements installed"
 }
 
+# YAY Installation
 install_yay_helper() {
     if command -v yay >/dev/null 2>&1; then
-        log_message "SUCCESS" "YAY AUR helper already available" "aur"
+        log_message "SUCCESS" "YAY already available"
         return 0
     fi
     
-    log_message "PROCESS" "Installing YAY AUR helper..." "aur"
+    log_message "PROCESS" "Installing YAY AUR helper..."
     
-    local build_dir="/tmp/yay-build-$$"
+    local build_dir="/tmp/yay-build"
     mkdir -p "$build_dir"
     
-    # Clone YAY repository as original user
-    if ! sudo -u "$ORIGINAL_USER" git clone https://aur.archlinux.org/yay.git "$build_dir" 2>&1 | tee -a "$MAIN_LOG"; then
-        log_message "ERROR" "Failed to clone YAY repository" "aur"
-        rm -rf "$build_dir"
-        return 1
+    if sudo -u "$ORIGINAL_USER" git clone https://aur.archlinux.org/yay.git "$build_dir" &>/dev/null; then
+        cd "$build_dir"
+        if sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm &>/dev/null; then
+            log_message "SUCCESS" "YAY installed successfully"
+            cd - >/dev/null
+            rm -rf "$build_dir"
+            return 0
+        fi
     fi
     
-    # Build and install YAY
-    cd "$build_dir" || return 1
-    if sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm 2>&1 | tee -a "$MAIN_LOG"; then
-        log_message "SUCCESS" "YAY AUR helper installed successfully" "aur"
-        cd - >/dev/null || return 1
-        rm -rf "$build_dir"
-        return 0
-    else
-        log_message "ERROR" "YAY installation failed" "aur"
-        cd - >/dev/null || return 1
-        rm -rf "$build_dir"
-        return 1
-    fi
+    log_message "ERROR" "YAY installation failed"
+    return 1
 }
 
+# Enhanced Toolkit Generation
 generate_security_toolkit() {
-    log_message "PROCESS" "Generating top security toolkit configuration..." "toolkit"
+    log_message "PROCESS" "Generating security toolkit..."
     
-    local toolkit_file="$DEFAULT_TOOLKIT"
-    
-    cat > "$toolkit_file" << EOF
-# KygoX v$VERSION - 2025 Security Toolkit Configuration
+    cat > "$DEFAULT_TOOLKIT" << EOF
+# KygoX v$VERSION - Security Toolkit
 # Generated: $(date)
-# Author: 0xb0rn3 | Repository: $REPO_URL
-#
-# This toolkit provides comprehensive penetration testing capabilities
-# Categories: Reconnaissance, Exploitation, Web Security, Network Analysis,
-#            Wireless Security, Password Attacks, Forensics, Reverse Engineering,
-#            Mobile Security, OSINT, Cryptography
 
-# === NETWORK RECONNAISSANCE ===
+# Network Reconnaissance
 nmap
-nmap-scripts
 masscan
 rustscan
-zmap
 netdiscover
-arp-scan
-fping
-hping3
 
-# === DNS & SUBDOMAIN ENUMERATION ===
-subfinder
-amass
-assetfinder
-findomain
-sublist3r
-dnsrecon
-dnsenum
-fierce
-dnsmap
-
-# === WEB APPLICATION SECURITY ===
+# Web Security
 burpsuite
 sqlmap
 nikto
 gobuster
-dirb
-ffuf
-wfuzz
-whatweb
-wpscan
 nuclei
-httpx
 
-# === WIRELESS SECURITY ===
+# Wireless Security  
 aircrack-ng
 wifite
 kismet
-reaver
-bettercap
-wash
-cowpatty
 
-# === PASSWORD ATTACKS ===
+# Password Attacks
 john
 hashcat
 hydra
-medusa
-ncrack
-crunch
-cewl
 
-# === NETWORK ANALYSIS ===
+# Network Analysis
 wireshark-qt
 tcpdump
 ettercap
-mitmproxy
-netcat
-socat
 
-# === EXPLOITATION FRAMEWORKS ===
+# Exploitation
 metasploit
-beef
-social-engineer-toolkit
 impacket
 responder
 
-# === FORENSICS & ANALYSIS ===
+# Forensics
 volatility3
 binwalk
-autopsy
 sleuthkit
-foremost
-bulk-extractor
 
-# === REVERSE ENGINEERING ===
+# Reverse Engineering
 ghidra
 radare2
-rizin
 gdb
-objdump
 
-# === MOBILE SECURITY ===
-frida
-apktool
-jadx
-dex2jar
-
-# === OSINT & INTELLIGENCE ===
+# OSINT
 theharvester
-recon-ng
-maltego
 sherlock
-phoneinfoga
 
-# === SYSTEM SECURITY ===
+# System Security
 yara
-clamav
 lynis
-chkrootkit
-rkhunter
-
-# === CRYPTOGRAPHY ===
-openssl
-gpg
-steghide
-hashid
-
-# === TRENDING 2025 TOOLS ===
-$(printf '%s\n' "${TRENDING_2025[@]}")
 
 EOF
-    
-    local tool_count
-    tool_count=$(grep -c '^[^#]' "$toolkit_file" | grep -v '^$' || echo "0")
-    log_message "SUCCESS" "Security toolkit generated with $tool_count tools" "toolkit"
-    
-    echo -e "${INFO} Toolkit saved to: ${BOLD}$toolkit_file${RESET}"
+
+    local count=$(grep -c '^[^#]' "$DEFAULT_TOOLKIT" | grep -v '^$' || echo "0")
+    log_message "SUCCESS" "Toolkit generated with $count tools"
 }
 
+# Package List Preparation
 get_package_list() {
-    log_message "PROCESS" "Preparing package installation list..." "packages"
-    
     case "$INSTALL_MODE" in
         "default")
-            if [[ ! -f "$DEFAULT_TOOLKIT" ]]; then
-                generate_security_toolkit
-            fi
-            
-            # Extract non-comment, non-empty lines
+            [[ ! -f "$DEFAULT_TOOLKIT" ]] && generate_security_toolkit
             grep '^[^#]' "$DEFAULT_TOOLKIT" | grep -v '^$' > package_list.tmp
-            log_message "SUCCESS" "Default toolkit loaded: $(wc -l < package_list.tmp) packages" "packages"
             ;;
         "all")
-            log_message "INFO" "Retrieving complete BlackArch package list..." "packages"
-            if ! pacman -Slq blackarch > package_list.tmp 2>/dev/null; then
-                log_message "ERROR" "Failed to retrieve BlackArch packages" "packages"
-                return 1
-            fi
-            log_message "WARNING" "All packages selected: $(wc -l < package_list.tmp) packages" "packages"
+            pacman -Slq blackarch > package_list.tmp 2>/dev/null
             ;;
         "group")
-            local blackarch_group="blackarch-$GROUP_NAME"
-            log_message "INFO" "Retrieving packages for group: $blackarch_group" "packages"
-            
-            if ! pacman -Sgq "$blackarch_group" > package_list.tmp 2>/dev/null; then
-                log_message "ERROR" "Group '$blackarch_group' not found" "packages"
-                echo -e "${INFO} Available BlackArch groups:"
-                pacman -Sg | grep blackarch- | head -20
+            pacman -Sgq "blackarch-$GROUP_NAME" > package_list.tmp 2>/dev/null || {
+                echo -e "${ERROR} Group 'blackarch-$GROUP_NAME' not found"
                 return 1
-            fi
-            log_message "SUCCESS" "Group packages loaded: $(wc -l < package_list.tmp) packages" "packages"
+            }
             ;;
         "file")
-            if [[ ! -f "$PACKAGE_FILE" ]]; then
-                log_message "ERROR" "Package file not found: $PACKAGE_FILE" "packages"
-                return 1
-            fi
-            
+            [[ ! -f "$PACKAGE_FILE" ]] && { echo -e "${ERROR} File not found"; return 1; }
             grep '^[^#]' "$PACKAGE_FILE" | grep -v '^$' > package_list.tmp
-            log_message "SUCCESS" "Custom packages loaded: $(wc -l < package_list.tmp) packages" "packages"
-            ;;
-        *)
-            log_message "ERROR" "Invalid installation mode: $INSTALL_MODE" "packages"
-            return 1
             ;;
     esac
     
-    return 0
+    local count=$(wc -l < package_list.tmp)
+    log_message "SUCCESS" "Package list prepared: $count packages"
 }
 
-validate_package_availability() {
-    log_message "PROCESS" "Validating package availability..." "validation"
+# Enhanced Package Installation with Python Progress
+install_packages() {
+    log_message "PROCESS" "Starting package installation..."
     
+    # Create Python installer
+    create_python_installer
+    
+    # Validate packages exist
+    log_message "INFO" "Validating package availability..."
     local valid_packages=()
-    local invalid_packages=()
-    local total=0
-    local current=0
-    
-    while IFS= read -r package; do
-        [[ -z "$package" ]] && continue
-        ((total++))
-    done < package_list.tmp
-    
-    while IFS= read -r package; do
-        [[ -z "$package" ]] && continue
-        ((current++))
-        
-        if [[ "$QUIET_MODE" != "true" ]]; then
-            show_progress $current $total
-        fi
-        
-        if pacman -Si "$package" &>/dev/null; then
-            valid_packages+=("$package")
-        else
-            invalid_packages+=("$package")
-            log_message "WARNING" "Package unavailable: $package" "validation"
+    while IFS= read -r pkg; do
+        [[ -z "$pkg" ]] && continue
+        if pacman -Si "$pkg" &>/dev/null; then
+            valid_packages+=("$pkg")
         fi
     done < package_list.tmp
-    
-    if [[ "$QUIET_MODE" != "true" ]]; then
-        echo
-    fi
     
     # Write validated packages
-    printf '%s\n' "${valid_packages[@]}" > package_list_validated.tmp
+    printf '%s\n' "${valid_packages[@]}" > validated_packages.tmp
     
-    log_message "SUCCESS" "Package validation complete: ${#valid_packages[@]} valid, ${#invalid_packages[@]} invalid" "validation"
-    
-    if [[ ${#invalid_packages[@]} -gt 0 ]]; then
-        printf '%s\n' "${invalid_packages[@]}" > "$LOG_DIR/invalid_packages.log"
-        log_message "INFO" "Invalid packages logged to $LOG_DIR/invalid_packages.log" "validation"
+    # Run Python installer for better progress tracking
+    if python3 /tmp/kygox_installer.py validated_packages.tmp "$MAIN_LOG"; then
+        log_message "SUCCESS" "Package installation completed"
+    else
+        log_message "WARNING" "Some packages failed to install"
     fi
     
-    mv package_list_validated.tmp package_list.tmp
-    return 0
+    # Cleanup
+    rm -f /tmp/kygox_installer.py validated_packages.tmp package_list.tmp
 }
 
-install_packages_batch() {
-    log_message "PROCESS" "Starting batch package installation..." "install"
-    
-    local total_packages
-    total_packages=$(wc -l < package_list.tmp)
-    local success_count=0
-    local failure_count=0
-    local batch_size=10
-    local current_batch=()
-    local batch_number=1
-    
-    # Create result logs
-    > "$LOG_DIR/successful_packages.log"
-    > "$LOG_DIR/failed_packages.log"
-    
-    while IFS= read -r package || [[ ${#current_batch[@]} -gt 0 ]]; do
-        if [[ -n "$package" ]]; then
-            current_batch+=("$package")
-        fi
-        
-        # Process batch when full or at end of file
-        if [[ ${#current_batch[@]} -eq $batch_size ]] || { [[ -z "$package" ]] && [[ ${#current_batch[@]} -gt 0 ]]; }; then
-            log_message "PROCESS" "Installing batch $batch_number (${#current_batch[@]} packages)..." "install"
-            
-            # Attempt batch installation
-            if pacman -S --noconfirm --needed "${current_batch[@]}" 2>&1 | tee -a "$MAIN_LOG"; then
-                # All packages in batch succeeded
-                printf '%s\n' "${current_batch[@]}" >> "$LOG_DIR/successful_packages.log"
-                success_count=$((success_count + ${#current_batch[@]}))
-                log_message "SUCCESS" "Batch $batch_number completed successfully" "install"
-            else
-                # Some packages failed, try individually
-                log_message "WARNING" "Batch $batch_number had failures, trying individually..." "install"
-                
-                for pkg in "${current_batch[@]}"; do
-                    if pacman -S --noconfirm --needed "$pkg" 2>/dev/null; then
-                        echo "$pkg" >> "$LOG_DIR/successful_packages.log"
-                        ((success_count++))
-                    else
-                        echo "$pkg" >> "$LOG_DIR/failed_packages.log"
-                        ((failure_count++))
-                        log_message "WARNING" "Package failed: $pkg" "install"
-                    fi
-                done
-            fi
-            
-            # Progress display
-            local processed=$((success_count + failure_count))
-            if [[ "$QUIET_MODE" != "true" ]]; then
-                show_progress "$processed" "$total_packages"
-            fi
-            
-            # Reset batch
-            current_batch=()
-            ((batch_number++))
-        fi
-    done < package_list.tmp
-    
-    if [[ "$QUIET_MODE" != "true" ]]; then
-        echo
-    fi
-    
-    log_message "SUCCESS" "Package installation complete: $success_count successful, $failure_count failed" "install"
-    
-    return 0
-}
-
+# AUR Package Installation
 install_aur_packages() {
-    if [[ "$SKIP_AUR" == "true" ]]; then
-        log_message "INFO" "Skipping AUR packages as requested" "aur"
-        return 0
-    fi
+    [[ "$SKIP_AUR" == "true" || ! command -v yay >/dev/null 2>&1 ]] && return 0
     
-    if ! command -v yay >/dev/null 2>&1; then
-        log_message "WARNING" "YAY not available, skipping AUR packages" "aur"
-        return 0
-    fi
+    log_message "PROCESS" "Installing AUR packages..."
     
-    log_message "PROCESS" "Installing supplementary AUR packages..." "aur"
-    
-    # Critical AUR packages for security toolkit
-    local aur_packages=(
+    local aur_tools=(
         "nuclei-bin" "httpx-bin" "subfinder-bin" "katana-bin"
-        "naabu-bin" "dnsx-bin" "interactsh-bin" "feroxbuster-bin"
-        "gau-bin" "waybackurls-bin" "dalfox-bin" "x8"
-        "chaos-client-bin" "uncover-bin" "tlsx-bin" "asnmap-bin"
+        "feroxbuster-bin" "waybackurls-bin"
     )
     
-    local aur_success=0
-    local aur_failed=0
-    local current=0
-    local total=${#aur_packages[@]}
-    
-    for package in "${aur_packages[@]}"; do
-        ((current++))
-        if [[ "$QUIET_MODE" != "true" ]]; then
-            show_progress $current $total
-        fi
-        
-        log_message "INFO" "Installing AUR package: $package" "aur"
-        
-        if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$package" 2>&1 | tee -a "$MAIN_LOG"; then
-            ((aur_success++))
-            log_message "SUCCESS" "AUR package installed: $package" "aur"
+    for tool in "${aur_tools[@]}"; do
+        if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" &>/dev/null; then
+            log_message "SUCCESS" "AUR installed: $tool"
         else
-            ((aur_failed++))
-            log_message "WARNING" "AUR package failed: $package" "aur"
+            log_message "WARNING" "AUR failed: $tool"
         fi
     done
-    
-    if [[ "$QUIET_MODE" != "true" ]]; then
-        echo
-    fi
-    
-    log_message "SUCCESS" "AUR installation complete: $aur_success successful, $aur_failed failed" "aur"
-    return 0
 }
 
+# Installation Verification
 verify_installation() {
-    log_message "PROCESS" "Verifying security toolkit installation..." "verify"
+    log_message "PROCESS" "Verifying installation..."
     
-    local critical_tools=(
-        "nmap" "wireshark" "metasploit" "sqlmap"
-        "aircrack-ng" "john" "hashcat" "hydra"
-        "gobuster" "nikto" "nuclei" "burpsuite"
-    )
+    local critical=("nmap" "wireshark" "metasploit" "sqlmap" "john" "hashcat")
+    local working=0
     
-    local working_tools=0
-    local missing_tools=0
-    
-    for tool in "${critical_tools[@]}"; do
+    for tool in "${critical[@]}"; do
         if command -v "$tool" >/dev/null 2>&1 || pacman -Q "$tool" &>/dev/null; then
-            ((working_tools++))
-        else
-            ((missing_tools++))
-            log_message "WARNING" "Critical tool missing: $tool" "verify"
+            ((working++))
         fi
     done
     
-    log_message "SUCCESS" "Installation verification: $working_tools/$((working_tools + missing_tools)) critical tools available" "verify"
+    log_message "SUCCESS" "Verification: $working/${#critical[@]} critical tools available"
+    [[ $working -lt ${#critical[@]} ]] && return 1 || return 0
+}
+
+# System Cleanup
+cleanup_system() {
+    log_message "INFO" "Cleaning up..."
+    pacman -Sc --noconfirm >/dev/null 2>&1
+    command -v yay >/dev/null && sudo -u "$ORIGINAL_USER" yay -Sc --noconfirm >/dev/null 2>&1
+    rm -f package_list.tmp validated_packages.tmp
+    log_message "SUCCESS" "Cleanup completed"
+}
+
+# Enhanced Update Checking with Python
+check_for_updates() {
+    log_message "PROCESS" "Checking for updates..." "update"
     
-    if [[ $missing_tools -gt 0 ]]; then
-        log_message "WARNING" "$missing_tools critical tools are missing" "verify"
+    cat > /tmp/kygox_updater.py << 'PYEOF'
+#!/usr/bin/env python3
+import urllib.request
+import json
+import re
+import sys
+import os
+
+def get_latest_version():
+    try:
+        url = "https://api.github.com/repos/0xb0rn3/kygox/releases/latest"
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
+            return data['tag_name'].lstrip('v'), data['body'][:100]
+    except:
+        return None, None
+
+def get_current_version():
+    try:
+        with open(sys.argv[1], 'r') as f:
+            content = f.read()
+            match = re.search(r'readonly VERSION="([^"]+)"', content)
+            return match.group(1) if match else "unknown"
+    except:
+        return "unknown"
+
+def compare_versions(v1, v2):
+    def normalize(v):
+        return [int(x) for x in v.split('-')[0].split('.')]
+    
+    norm_v1, norm_v2 = normalize(v1), normalize(v2)
+    max_len = max(len(norm_v1), len(norm_v2))
+    norm_v1.extend([0] * (max_len - len(norm_v1)))
+    norm_v2.extend([0] * (max_len - len(norm_v2)))
+    
+    return 1 if norm_v1 > norm_v2 else -1 if norm_v1 < norm_v2 else 0
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python3 updater.py <script_path>")
+        sys.exit(1)
+    
+    current = get_current_version()
+    latest, notes = get_latest_version()
+    
+    if not latest:
+        print("UPDATE_CHECK_FAILED")
+        sys.exit(1)
+    
+    if compare_versions(latest, current) > 0:
+        print(f"UPDATE_AVAILABLE|{latest}|{notes}")
+    else:
+        print("UP_TO_DATE")
+
+if __name__ == "__main__":
+    main()
+PYEOF
+
+    if ! command -v python3 >/dev/null 2>&1; then
+        log_message "WARNING" "Python3 not available for update check"
         return 1
     fi
     
-    return 0
+    local result=$(python3 /tmp/kygox_updater.py "$0" 2>/dev/null)
+    rm -f /tmp/kygox_updater.py
+    
+    case "$result" in
+        "UP_TO_DATE")
+            log_message "SUCCESS" "KygoX is up to date (v$VERSION)"
+            ;;
+        "UPDATE_AVAILABLE|"*)
+            local latest=$(echo "$result" | cut -d'|' -f2)
+            local notes=$(echo "$result" | cut -d'|' -f3)
+            echo -e "${INFO} ${BOLD}Update Available: v$latest${RESET}"
+            echo -e "  ${DIM}$notes${RESET}"
+            if [[ "$AUTO_UPDATE" == "true" ]] || { echo -ne "${INFO} Update now? [y/N]: "; read -r response; [[ "$response" =~ ^[Yy]$ ]]; }; then
+                perform_update "$latest"
+            fi
+            ;;
+        *)
+            log_message "WARNING" "Update check failed"
+            ;;
+    esac
 }
 
-system_cleanup() {
-    log_message "PROCESS" "Performing system cleanup..." "cleanup"
+# Self-Update Function
+perform_update() {
+    local new_version="$1"
+    log_message "PROCESS" "Performing self-update to v$new_version..."
     
-    restore_pacman_config
+    local script_path="$0"
+    local backup_path="${script_path}.backup.v${VERSION}"
+    local download_url="https://raw.githubusercontent.com/0xb0rn3/kygox/main/run"
     
-    # Clean package cache
-    pacman -Sc --noconfirm >/dev/null 2>&1
+    # Backup current version
+    cp "$script_path" "$backup_path"
     
-    # Clean YAY cache if available
-    if command -v yay >/dev/null 2>&1; then
-        sudo -u "$ORIGINAL_USER" yay -Sc --noconfirm >/dev/null 2>&1
-    fi
-    
-    # Remove temporary files
-    rm -f package_list.tmp package_list_validated.tmp
-    rm -rf /tmp/yay-build-*
-    rm -f /tmp/kygox_*.py
-    
-    log_message "SUCCESS" "System cleanup completed" "cleanup"
-}
-
-display_installation_summary() {
-    if [[ "$QUIET_MODE" == "true" ]]; then
-        return 0
-    fi
-    
-    local successful_count=0
-    local failed_count=0
-    
-    [[ -f "$LOG_DIR/successful_packages.log" ]] && successful_count=$(wc -l < "$LOG_DIR/successful_packages.log")
-    [[ -f "$LOG_DIR/failed_packages.log" ]] && failed_count=$(wc -l < "$LOG_DIR/failed_packages.log")
-    
-    echo
-    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo -e "${BOLD}                 INSTALLATION COMPLETE                        ${RESET}"
-    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo
-    echo -e "${BOLD}INSTALLATION STATISTICS:${RESET}"
-    echo -e "  ${GREEN}✓ Successful installations:${RESET} $successful_count"
-    echo -e "  ${RED}✗ Failed installations:${RESET}     $failed_count"
-    echo
-    echo -e "${BOLD}LOG FILES:${RESET}"
-    echo -e "  Installation log: ${CYAN}$MAIN_LOG${RESET}"
-    echo -e "  Successful packages: ${CYAN}$LOG_DIR/successful_packages.log${RESET}"
-    if [[ $failed_count -gt 0 ]]; then
-        echo -e "  Failed packages: ${CYAN}$LOG_DIR/failed_packages.log${RESET}"
-    fi
-    echo
-    echo -e "${BOLD}SECURITY TOOLKIT STATUS:${RESET}"
-    echo -e "  Professional penetration testing environment deployed"
-    echo -e "  Core security tools: ${GREEN}${#CORE_TOOLS[@]}${RESET}"
-    echo -e "  Trending 2025 tools: ${GREEN}${#TRENDING_2025[@]}${RESET}"
-    echo
-    if [[ $failed_count -gt 0 ]]; then
-        echo -e "${WARNING} Some packages failed to install. Check logs for details."
-        echo -e "${INFO} Failed packages can be installed manually using pacman or yay."
+    # Download new version
+    if curl -fsSL "$download_url" -o "${script_path}.new"; then
+        chmod +x "${script_path}.new"
+        mv "${script_path}.new" "$script_path"
+        
+        log_message "SUCCESS" "Updated to v$new_version"
+        echo -e "${SUCCESS} KygoX updated to v$new_version"
+        echo -e "${INFO} Backup: $backup_path"
+        echo -e "${INFO} Restarting..."
+        
+        exec "$script_path" "$@"
     else
-        echo -e "${SUCCESS} Complete security toolkit deployment successful!"
+        log_message "ERROR" "Update download failed"
+        mv "$backup_path" "$script_path"
+        echo -e "${ERROR} Update failed, restored backup"
     fi
-    echo
-    echo -e "${BOLD}NEXT STEPS:${RESET}"
-    echo -e "  1. Verify tool availability: ${GREEN}nmap --version${RESET}"
-    echo -e "  2. Update toolkit: ${GREEN}pacman -Syu${RESET}"
-    echo -e "  3. Check for script updates: ${GREEN}sudo $0 --check-update${RESET}"
-    echo -e "  4. Review tool documentation for usage instructions"
-    echo
-    echo -e "${BOLD}QUICK START COMMANDS:${RESET}"
-    echo -e "  Network scan: ${GREEN}nmap -sV <target>${RESET}"
-    echo -e "  Web enumeration: ${GREEN}gobuster dir -u <url> -w /usr/share/wordlists/dirb/common.txt${RESET}"
-    echo -e "  WiFi audit: ${GREEN}wifite${RESET}"
-    echo -e "  Password cracking: ${GREEN}john --wordlist=/usr/share/wordlists/rockyou.txt <hashfile>${RESET}"
-    echo
-    echo -e "${DIM}KygoX v$VERSION | 0xb0rn3 | 0xbv1 | Repository: $REPO_URL${RESET}"
-    echo
 }
 
+# Enhanced Installation Summary
+display_summary() {
+    [[ "$QUIET_MODE" == "true" ]] && return
+    
+    local success=0
+    local failed=0
+    
+    [[ -f "$LOG_DIR/successful_packages.log" ]] && success=$(wc -l < "$LOG_DIR/successful_packages.log")
+    [[ -f "$LOG_DIR/failed_packages.log" ]] && failed=$(wc -l < "$LOG_DIR/failed_packages.log")
+    
+    clear
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${BOLD}                    INSTALLATION COMPLETE                       ${RESET}"
+    echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo
+    echo -e "${BOLD}📊 STATISTICS:${RESET}"
+    echo -e "  ${GREEN}✓ Successful:${RESET} $success packages"
+    echo -e "  ${RED}✗ Failed:${RESET}     $failed packages"
+    echo -e "  ${CYAN}📈 Success Rate:${RESET} $((success*100/(success+failed)))%"
+    echo
+    echo -e "${BOLD}🛡️ SECURITY ARSENAL:${RESET}"
+    echo -e "  Core Tools: ${GREEN}${#CORE_TOOLS[@]}${RESET} | Trending 2025: ${GREEN}${#TRENDING_2025[@]}${RESET}"
+    echo
+    echo -e "${BOLD}📝 LOGS:${RESET}"
+    echo -e "  Main: ${CYAN}$MAIN_LOG${RESET}"
+    [[ $success -gt 0 ]] && echo -e "  Success: ${CYAN}$LOG_DIR/successful_packages.log${RESET}"
+    [[ $failed -gt 0 ]] && echo -e "  Failed: ${CYAN}$LOG_DIR/failed_packages.log${RESET}"
+    echo
+    if [[ $failed -eq 0 ]]; then
+        echo -e "${SUCCESS} ${BOLD}Complete security toolkit deployment successful!${RESET}"
+    else
+        echo -e "${WARNING} Installation completed with some failures. Check logs for details."
+    fi
+    echo
+    echo -e "${BOLD}🚀 QUICK START:${RESET}"
+    echo -e "  Network Scan: ${GREEN}nmap -sV <target>${RESET}"
+    echo -e "  Web Enum: ${GREEN}gobuster dir -u <url> -w /usr/share/wordlists/dirb/common.txt${RESET}"
+    echo -e "  WiFi Audit: ${GREEN}wifite${RESET}"
+    echo -e "  Password Crack: ${GREEN}john --wordlist=rockyou.txt <hashfile>${RESET}"
+    echo
+    echo -e "${DIM}KygoX v$VERSION | 0xb0rn3 | Repository: $REPO_URL${RESET}"
+}
+
+# Signal Handler
 handle_interrupt() {
     echo
-    log_message "WARNING" "Installation interrupted by user" "main"
-    echo -e "${WARNING} Installation process interrupted."
-    echo -e "${INFO} Partial installation may have occurred."
-    echo -e "${INFO} Check logs in $LOG_DIR for details."
-    cleanup_sudo_management
-    system_cleanup
-    
+    log_message "WARNING" "Installation interrupted"
+    echo -e "${WARNING} Installation interrupted. Check logs for details."
+    cleanup_system
     exit 130
 }
 
-parse_command_line() {
-    # Reset variables
+# Command Line Parser
+parse_args() {
     INSTALL_MODE=""
-    GROUP_NAME=""
-    PACKAGE_FILE=""
-    QUIET_MODE=false
-    SKIP_AUR=false
-    GENERATE_ONLY=false
-    FORCE_CONTINUE=false
-    CHECK_UPDATE=false
-    AUTO_UPDATE=false
     
-    # Handle no arguments
-    if [[ $# -eq 0 ]]; then
-        # If no arguments, show interactive mode
-        INSTALL_MODE="interactive"
-        return 0
-    fi
+    [[ $# -eq 0 ]] && { INSTALL_MODE="interactive"; return; }
     
-    # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            -d|--default)
-                INSTALL_MODE="default"
-                shift
-                ;;
-            -a|--all)
-                INSTALL_MODE="all"
-                shift
-                ;;
-            -i|--interactive)
-                INSTALL_MODE="interactive"
-                shift
-                ;;
+            -d|--default) INSTALL_MODE="default"; shift ;;
+            -a|--all) INSTALL_MODE="all"; shift ;;
+            -i|--interactive) INSTALL_MODE="interactive"; shift ;;
             -g|--group)
-                if [[ -n "$2" && ! "$2" =~ ^- ]]; then
-                    INSTALL_MODE="group"
-                    GROUP_NAME="$2"
-                    shift 2
-                else
-                    echo -e "${ERROR} --group requires a group name argument"
-                    show_usage
-                    exit 1
-                fi
-                ;;
+                [[ -n "$2" && ! "$2" =~ ^- ]] || { echo -e "${ERROR} --group needs argument"; exit 1; }
+                INSTALL_MODE="group"; GROUP_NAME="$2"; shift 2 ;;
             -f|--file)
-                if [[ -n "$2" && ! "$2" =~ ^- ]]; then
-                    INSTALL_MODE="file"
-                    PACKAGE_FILE="$2"
-                    shift 2
-                else
-                    echo -e "${ERROR} --file requires a filename argument"
-                    show_usage
-                    exit 1
-                fi
-                ;;
-            -q|--quiet)
-                QUIET_MODE=true
-                shift
-                ;;
-            --skip-aur)
-                SKIP_AUR=true
-                shift
-                ;;
-            --generate-toolkit)
-                GENERATE_ONLY=true
-                shift
-                ;;
-            --force)
-                FORCE_CONTINUE=true
-                shift
-                ;;
-            --check-update)
-                CHECK_UPDATE=true
-                shift
-                ;;
-            --auto-update)
-                AUTO_UPDATE=true
-                shift
-                ;;
-            -h|--help)
-                show_usage
-                exit 0
-                ;;
-            -v|--version)
-                show_version
-                exit 0
-                ;;
-            *)
-                echo -e "${ERROR} Unknown option: $1"
-                echo -e "${INFO} Use --help to see available options"
-                exit 1
-                ;;
+                [[ -n "$2" && ! "$2" =~ ^- ]] || { echo -e "${ERROR} --file needs argument"; exit 1; }
+                INSTALL_MODE="file"; PACKAGE_FILE="$2"; shift 2 ;;
+            -q|--quiet) QUIET_MODE=true; shift ;;
+            --skip-aur) SKIP_AUR=true; shift ;;
+            --generate-toolkit) GENERATE_ONLY=true; shift ;;
+            --force) FORCE_CONTINUE=true; shift ;;
+            --check-update) CHECK_UPDATE=true; shift ;;
+            --auto-update) AUTO_UPDATE=true; shift ;;
+            -h|--help) show_usage; exit 0 ;;
+            -v|--version) 
+                echo -e "${BOLD}KygoX v$VERSION ($VERSION_NAME)${RESET}"
+                echo -e "Professional Arch Linux Security Toolkit"
+                echo -e "Repository: $REPO_URL"
+                exit 0 ;;
+            *) echo -e "${ERROR} Unknown option: $1"; show_usage; exit 1 ;;
         esac
     done
     
-    # Validate required mode selection
-    if [[ "$GENERATE_ONLY" != "true" && "$CHECK_UPDATE" != "true" && -z "$INSTALL_MODE" ]]; then
+    if [[ -z "$INSTALL_MODE" && "$GENERATE_ONLY" != "true" && "$CHECK_UPDATE" != "true" ]]; then
         echo -e "${ERROR} No installation mode specified"
-        echo -e "${INFO} Use -d (default), -a (all), -g (group), -f (file), or -i (interactive)"
-        show_usage
-        exit 1
+        show_usage; exit 1
     fi
 }
 
 # Main Execution Function
 main() {
-    # Set up signal handlers
     trap handle_interrupt SIGINT SIGTERM
-    trap cleanup_sudo_management EXIT
     
-    # Display banner
     display_banner
+    parse_args "$@"
     
-    # Parse command line arguments
-    parse_command_line "$@"
-    
-    # Handle update checking
+    # Handle special modes
     if [[ "$CHECK_UPDATE" == "true" ]]; then
         check_for_updates
         exit $?
     fi
     
-    # Handle interactive mode
     if [[ "$INSTALL_MODE" == "interactive" ]]; then
         interactive_installation
     fi
     
-    # Handle toolkit generation only
     if [[ "$GENERATE_ONLY" == "true" ]]; then
         generate_security_toolkit
-        echo -e "${SUCCESS} Security toolkit configuration generated: ${BOLD}$DEFAULT_TOOLKIT${RESET}"
-        echo -e "${INFO} Use 'sudo $0 -d' to install the generated toolkit"
+        echo -e "${SUCCESS} Toolkit generated: ${BOLD}$DEFAULT_TOOLKIT${RESET}"
         exit 0
-    fi
-    
-    # Redirect output for quiet mode
-    if [[ "$QUIET_MODE" == "true" ]]; then
-        exec 3>&1 1>>"$MAIN_LOG" 2>&1
     fi
     
     # Initialize logging
     mkdir -p "$LOG_DIR" "$BACKUP_DIR"
-    log_message "INFO" "KygoX v$VERSION installation initiated" "main"
-    log_message "INFO" "Installation mode: $INSTALL_MODE" "main"
+    log_message "INFO" "KygoX v$VERSION installation started"
     
-    # Check for updates unless disabled
-    if [[ "$AUTO_UPDATE" == "true" ]]; then
-        check_for_updates
-    fi
+    # Auto-update check
+    [[ "$AUTO_UPDATE" == "true" ]] && check_for_updates
     
     # System validation
     detect_distribution
     check_system_requirements
     
-    # Sudo management setup
-    setup_sudo_management
+    # Core installation steps
+    echo -e "${INFO} Preparing security toolkit installation..."
     
-    # Core system preparation
-    log_message "INFO" "Preparing system for security toolkit installation..." "main"
+    add_blackarch_repository || { echo -e "${ERROR} BlackArch setup failed"; exit 1; }
+    update_package_database || { echo -e "${ERROR} Database update failed"; exit 1; }
+    install_base_requirements
     
-    add_blackarch_repository || {
-        log_message "ERROR" "BlackArch repository setup failed" "main"
-        exit 1
-    }
+    # AUR helper
+    [[ "$SKIP_AUR" != "true" ]] && install_yay_helper
     
-    update_package_database || {
-        log_message "ERROR" "Package database update failed" "main"
-        exit 1
-    }
-    
-    install_base_requirements || {
-        log_message "ERROR" "Base requirements installation failed" "main"
-        exit 1
-    }
-    
-    # AUR helper installation
-    if [[ "$SKIP_AUR" != "true" ]]; then
-        install_yay_helper || {
-            log_message "WARNING" "YAY installation failed, continuing without AUR support" "main"
-            SKIP_AUR=true
-        }
-    fi
-    
-    # Package preparation and installation
-    get_package_list || {
-        log_message "ERROR" "Package list preparation failed" "main"
-        exit 1
-    }
-    
-    validate_package_availability || {
-        log_message "ERROR" "Package validation failed" "main"
-        exit 1
-    }
-    
-    # Main installation process
-    install_packages_batch
-    
-    # Supplementary AUR packages
+    # Package installation
+    get_package_list || { echo -e "${ERROR} Package list preparation failed"; exit 1; }
+    install_packages
     install_aur_packages
     
-    # System verification
-    verify_installation || {
-        log_message "WARNING" "Installation verification detected issues" "main"
-    }
+    # Verification and cleanup
+    verify_installation
+    cleanup_system
     
-    # Cleanup
-    system_cleanup
-    
-    log_message "SUCCESS" "KygoX installation process completed" "main"
-    
-    # Restore output for summary if quiet mode
-    if [[ "$QUIET_MODE" == "true" ]]; then
-        exec 1>&3 3>&-
-    fi
+    log_message "SUCCESS" "KygoX installation completed"
+    display_summary
 }
 
 # Script Entry Point
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
-    display_installation_summary
 fi
-
-# KygoX v0.1.9 Beta - Enhanced Edition
-# Professional Arch Linux Penetration Testing Toolkit Installer
-# 0xb0rn3 | 0xbv1
-# Repository: https://github.com/0xb0rn3/kygox
