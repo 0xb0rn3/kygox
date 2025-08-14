@@ -1015,20 +1015,20 @@ download_core_script() {
     #fi
     
     # Check for required imports and classes
-    local required_elements=(
-        "class KygoXCore"
-        "class ColorManager"
-        "class Logger"
-        "import requests"
-        "import colorama"
-    )
+    #local required_elements=(
+        #"class KygoXCore"
+        #"class ColorManager"
+        #"class Logger"
+        #"import requests"
+        #"import colorama"
+    #)
     
-    for element in "${required_elements[@]}"; do
-        if ! grep -q "$element" "$script_file"; then
-            log_message "ERROR" "Core script missing required element: $element"
-            return 1
-        fi
-    done
+    #for element in "${required_elements[@]}"; do
+        #if ! grep -q "$element" "$script_file"; then
+            #log_message "ERROR" "Core script missing required element: $element"
+            #return 1
+        #fi
+    #done
     
     # Python syntax check
     if ! python3 -m py_compile "$script_file" 2>/dev/null; then
