@@ -22,7 +22,6 @@ echo -e "  sudo $0 --check --no-colors     # Compatibility check without colors"
     echo
     echo -e "${DIM}License: Do whatever the hell you want, but don't blame me when it breaks${RESET}"
     echo
-}
 
 # Enhanced version information with system details
 show_version() {
