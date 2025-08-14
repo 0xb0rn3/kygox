@@ -308,7 +308,6 @@ PYEOF
     local script_path="$0"
     local update_result=$(python3 /tmp/kygox_update_checker.py "$script_path" "check" 2>/dev/null)
     local exit_code=$?
-    
     # Clean up temporary file
     rm -f /tmp/kygox_update_checker.py
     
@@ -475,7 +474,6 @@ PYEOF
     local script_path="$0"
     local update_result=$(python3 /tmp/kygox_updater.py "$script_path" "download" 2>/dev/null)
     local exit_code=$?
-    
     rm -f /tmp/kygox_updater.py
     
     if [[ $exit_code -ne 0 ]]; then
@@ -545,7 +543,7 @@ display_banner() {
     ARCH LINUX PENETRATION TESTING TOOLKIT
       Professional Security Arsenal Deployment
 EOF
-    echo -e "          ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
+    echo -e "           ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
     echo -e "   ${DIM}0xbv1 | IG: theehiv3 | X: 0xbv1 | q4n0@proton.me${RESET}"
     echo -e "      ${DIM}Repository: $REPO_URL${RESET}"
     echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
@@ -643,7 +641,6 @@ interactive_installation() {
     
     interactive_menu "Select Installation Mode:" "${main_options[@]}"
     local main_choice=$?
-    
     case $main_choice in
         0)
             INSTALL_MODE="default"
@@ -712,7 +709,6 @@ interactive_installation() {
         
         interactive_menu "Additional Options:" "${addon_options[@]}"
         local addon_choice=$?
-        
         case $addon_choice in
             0)
                 QUIET_MODE=true
@@ -1056,7 +1052,6 @@ setup_sudo_management() {
         done
     ) &
     SUDO_TIMEOUT_PID=$!
-    
     log_message "SUCCESS" "Sudo session management configured" "sudo"
 }
 
@@ -1171,7 +1166,7 @@ fix_pacman_keys() {
         log_message "WARNING" "BlackArch keyring package installation failed" "setup"
         
         # Manual keyring installation
-        local temp_dir="/tmp/blackarch_keyring_$"
+        local temp_dir="/tmp/blackarch_keyring_$$"
         mkdir -p "$temp_dir"
         cd "$temp_dir"
         
@@ -1314,7 +1309,7 @@ install_yay_helper() {
     
     log_message "PROCESS" "Installing YAY AUR helper..." "aur"
     
-    local build_dir="/tmp/yay-build-$"
+    local build_dir="/tmp/yay-build-$$"
     mkdir -p "$build_dir"
     
     # Clone YAY repository as original user
@@ -1468,8 +1463,7 @@ $(printf '%s\n' "${TRENDING_2025[@]}")
 
 EOF
     
-    local tool_count=$(grep -c '^[^#]' "$toolkit_file" | grep -v '^
-             || echo "0")
+    local tool_count=$(grep -c '^[^#]' "$toolkit_file" | grep -v '^$' || echo "0")
     log_message "SUCCESS" "Security toolkit generated with $tool_count tools" "toolkit"
     
     echo -e "${INFO} Toolkit saved to: ${BOLD}$toolkit_file${RESET}"
@@ -1485,11 +1479,9 @@ get_package_list() {
             fi
             
             # Extract non-comment, non-empty lines
-            grep '^[^#]' "$DEFAULT_TOOLKIT" | grep -v '^
-             > package_list.tmp
+            grep '^[^#]' "$DEFAULT_TOOLKIT" | grep -v '^$' > package_list.tmp
             log_message "SUCCESS" "Default toolkit loaded: $(wc -l < package_list.tmp) packages" "packages"
             ;;
-            
         "all")
             log_message "INFO" "Retrieving complete BlackArch package list..." "packages"
             if ! pacman -Slq blackarch > package_list.tmp 2>/dev/null; then
@@ -1498,7 +1490,6 @@ get_package_list() {
             fi
             log_message "WARNING" "All packages selected: $(wc -l < package_list.tmp) packages" "packages"
             ;;
-            
         "group")
             local blackarch_group="blackarch-$GROUP_NAME"
             log_message "INFO" "Retrieving packages for group: $blackarch_group" "packages"
@@ -1511,18 +1502,15 @@ get_package_list() {
             fi
             log_message "SUCCESS" "Group packages loaded: $(wc -l < package_list.tmp) packages" "packages"
             ;;
-            
         "file")
             if [[ ! -f "$PACKAGE_FILE" ]]; then
                 log_message "ERROR" "Package file not found: $PACKAGE_FILE" "packages"
                 return 1
             fi
             
-            grep '^[^#]' "$PACKAGE_FILE" | grep -v '^
-             > package_list.tmp
+            grep '^[^#]' "$PACKAGE_FILE" | grep -v '^$' > package_list.tmp
             log_message "SUCCESS" "Custom packages loaded: $(wc -l < package_list.tmp) packages" "packages"
             ;;
-            
         *)
             log_message "ERROR" "Invalid installation mode: $INSTALL_MODE" "packages"
             return 1
@@ -1761,7 +1749,7 @@ display_installation_summary() {
     
     echo
     echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo -e "${BOLD}                 INSTALLATION COMPLETE                  ${RESET}"
+    echo -e "${BOLD}                 INSTALLATION COMPLETE                       ${RESET}"
     echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
     echo -e "${BOLD}INSTALLATION STATISTICS:${RESET}"
@@ -1809,7 +1797,6 @@ handle_interrupt() {
     echo -e "${WARNING} Installation process interrupted."
     echo -e "${INFO} Partial installation may have occurred."
     echo -e "${INFO} Check logs in $LOG_DIR for details."
-    
     cleanup_sudo_management
     system_cleanup
     
