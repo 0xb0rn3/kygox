@@ -45,8 +45,8 @@ init(autoreset=True)
 class KygoXConfig:
     """Core configuration and constants"""
     
-    VERSION = "0.1.9-alpha"
-    VERSION_NAME = "Venom"
+    VERSION = "0.2.0-alpha"
+    VERSION_NAME = "Cobra"
     SCRIPT_NAME = "KygoX"
     REPO_URL = "https://github.com/0xb0rn3/kygox"
     ALT_REPO = "https://github.com/0xb0rn3/krilin"
@@ -97,7 +97,7 @@ class KygoXConfig:
     DOWNLOAD_TIMEOUT = 300
     INSTALL_TIMEOUT = 1800
     
-    # Core security tools collection - 2025
+    # Enhanced security tools collection - 2025
     CORE_TOOLS = [
         # Network Discovery & Scanning
         "nmap", "masscan", "rustscan", "zmap", "angry-ip-scanner",
@@ -222,14 +222,91 @@ class ColorManager:
     DIM = Style.DIM
     RESET = Style.RESET_ALL
     
-    # Status indicators
-    SUCCESS = f"[{GREEN}✓{RESET}]"
-    ERROR = f"[{RED}✗{RESET}]"
-    INFO = f"[{BLUE}ℹ{RESET}]"
-    WARNING = f"[{YELLOW}⚠ {RESET}]"
-    PROCESS = f"[{PURPLE}⚡{RESET}]"
-    SECURITY = f"[{CYAN}🔐{RESET}]"
-    RETRY = f"[{YELLOW}🔄{RESET}]"
+    # Background colors for better visual impact
+    BG_RED = Back.RED
+    BG_GREEN = Back.GREEN
+    BG_YELLOW = Back.YELLOW
+    BG_BLUE = Back.BLUE
+    BG_CYAN = Back.CYAN
+    BG_WHITE = Back.WHITE
+    
+    # Enhanced status indicators with better Unicode symbols
+    SUCCESS = f"{BG_GREEN}{WHITE}   ✅ SUCCESS   {RESET}"
+    ERROR = f"{BG_RED}{WHITE}   ❌ ERROR   {RESET}"
+    INFO = f"{BG_BLUE}{WHITE}   ℹ️  INFO   {RESET}"
+    WARNING = f"{BG_YELLOW}{DARK}   ⚠️  WARNING   {RESET}"
+    PROCESS = f"{BG_CYAN}{WHITE}   ⚡ PROCESS   {RESET}"
+    SECURITY = f"{CYAN}🔒 SECURITY{RESET}"
+    RETRY = f"{YELLOW}🔄 RETRY{RESET}"
+    DOWNLOAD = f"{BLUE}📥 DOWNLOAD{RESET}"
+    INSTALL = f"{GREEN}📦 INSTALL{RESET}"
+    
+    # Progress indicators
+    PROGRESS_CHARS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    
+    @classmethod
+    def create_banner_line(cls, char="═", width=80):
+        """Create a banner line with specified character"""
+        return f"{cls.CYAN}{char * width}{cls.RESET}"
+    
+    @classmethod
+    def create_progress_bar(cls, current, total, width=50):
+        """Create a visual progress bar"""
+        if total == 0:
+            return f"[{'█' * width}] 100%"
+        
+        filled = int(width * current // total)
+        bar = '█' * filled + '░' * (width - filled)
+        percentage = (current / total) * 100
+        
+        return f"{cls.GREEN}[{bar}]{cls.RESET} {percentage:.1f}%"
+    
+    @classmethod
+    def create_section_header(cls, title, width=80):
+        """Create a visually appealing section header"""
+        title_len = len(title)
+        padding = (width - title_len - 2) // 2
+        
+        return f"""
+{cls.create_banner_line("═", width)}
+{cls.CYAN}{'═' * padding} {cls.BOLD}{cls.WHITE}{title}{cls.RESET}{cls.CYAN} {'═' * padding}{cls.RESET}
+{cls.create_banner_line("═", width)}
+"""
+
+class ProgressSpinner:
+    """Animated progress spinner for long-running operations"""
+    
+    def __init__(self, message="Processing"):
+        self.message = message
+        self.running = False
+        self.thread = None
+        
+    def start(self):
+        """Start the spinner animation"""
+        self.running = True
+        self.thread = threading.Thread(target=self._spin)
+        self.thread.daemon = True
+        self.thread.start()
+        
+    def stop(self, final_message=None):
+        """Stop the spinner animation"""
+        self.running = False
+        if self.thread:
+            self.thread.join()
+        
+        # Clear the line and show final message
+        print(f"\r{' ' * (len(self.message) + 10)}\r", end="")
+        if final_message:
+            print(final_message)
+    
+    def _spin(self):
+        """Internal spinner animation loop"""
+        i = 0
+        while self.running:
+            char = ColorManager.PROGRESS_CHARS[i % len(ColorManager.PROGRESS_CHARS)]
+            print(f"\r{ColorManager.CYAN}{char}{ColorManager.RESET} {self.message}...", end="", flush=True)
+            time.sleep(0.1)
+            i += 1
 
 class RetryManager:
     """Advanced retry mechanism with exponential backoff"""
@@ -249,12 +326,14 @@ class RetryManager:
                     raise e
                 
                 wait_time = delay * (backoff ** attempt) + random.uniform(0, 1)
+                print(f"{ColorManager.RETRY} Attempt {attempt + 1}/{max_retries + 1} failed: {str(e)[:100]}...")
+                print(f"{ColorManager.INFO} Retrying in {wait_time:.1f} seconds...")
                 time.sleep(wait_time)
         
         return None
 
 class Logger:
-    """Advanced logging system with multiple output formats"""
+    """Advanced logging system with multiple output formats and enhanced visuals"""
     
     def __init__(self, log_dir: Path):
         self.log_dir = log_dir
@@ -265,6 +344,15 @@ class Logger:
         self.success_log = log_dir / "successful_packages.log"
         self.failed_log = log_dir / "failed_packages.log"
         self.retry_log = log_dir / "retries.log"
+        
+        # Statistics tracking
+        self.stats = {
+            "success_count": 0,
+            "error_count": 0,
+            "warning_count": 0,
+            "retry_count": 0,
+            "start_time": datetime.now()
+        }
         
         # Setup logging with custom formatter
         class ComponentFormatter(logging.Formatter):
@@ -292,8 +380,18 @@ class Logger:
         self.logger = logging.getLogger('KygoX')
         
     def log(self, level: str, message: str, component: str = "system", display: bool = True):
-        """Log message with level and component"""
+        """Enhanced log message with visual improvements"""
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Update statistics
+        if level == "SUCCESS":
+            self.stats["success_count"] += 1
+        elif level == "ERROR":
+            self.stats["error_count"] += 1
+        elif level == "WARNING":
+            self.stats["warning_count"] += 1
+        elif level == "RETRY":
+            self.stats["retry_count"] += 1
         
         # Write to main log
         try:
@@ -316,7 +414,7 @@ class Logger:
             except Exception:
                 pass
         
-        # Display to console
+        # Enhanced display to console with better formatting
         if display:
             color_map = {
                 "SUCCESS": ColorManager.SUCCESS,
@@ -325,34 +423,67 @@ class Logger:
                 "WARNING": ColorManager.WARNING,
                 "PROCESS": ColorManager.PROCESS,
                 "SECURITY": ColorManager.SECURITY,
-                "RETRY": ColorManager.RETRY
+                "RETRY": ColorManager.RETRY,
+                "DOWNLOAD": ColorManager.DOWNLOAD,
+                "INSTALL": ColorManager.INSTALL
             }
             
             indicator = color_map.get(level, f"[{level}]")
-            print(f"{indicator} {message}")
+            
+            # Add component context for better debugging
+            if component != "system":
+                component_text = f"{ColorManager.DIM}[{component}]{ColorManager.RESET} "
+            else:
+                component_text = ""
+                
+            print(f"{indicator} {component_text}{message}")
     
     def log_package(self, package: str, status: str, details: str = ""):
-        """Log package installation status"""
+        """Enhanced package logging with visual feedback"""
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
         try:
             if status == "success":
                 with open(self.success_log, 'a', encoding='utf-8') as f:
                     f.write(f"[{timestamp}] {package}\n")
+                print(f"{ColorManager.INSTALL} {ColorManager.GREEN}✓{ColorManager.RESET} {package}")
             elif status == "failed":
                 with open(self.failed_log, 'a', encoding='utf-8') as f:
                     f.write(f"[{timestamp}] {package}: {details}\n")
+                print(f"{ColorManager.ERROR} {ColorManager.RED}✗{ColorManager.RESET} {package}: {details[:50]}...")
         except Exception:
             pass
+    
+    def show_statistics(self):
+        """Display installation statistics with enhanced visuals"""
+        elapsed = datetime.now() - self.stats["start_time"]
+        
+        print(ColorManager.create_section_header("INSTALLATION STATISTICS"))
+        
+        stats_display = [
+            ("Successful Operations", self.stats["success_count"], ColorManager.GREEN),
+            ("Errors Encountered", self.stats["error_count"], ColorManager.RED),
+            ("Warnings Generated", self.stats["warning_count"], ColorManager.YELLOW),
+            ("Retry Operations", self.stats["retry_count"], ColorManager.CYAN),
+            ("Total Elapsed Time", str(elapsed).split('.')[0], ColorManager.BLUE)
+        ]
+        
+        for label, value, color in stats_display:
+            print(f"{ColorManager.INFO} {label}: {color}{value}{ColorManager.RESET}")
+        
+        print(ColorManager.create_banner_line())
 
 class SystemCleaner:
-    """System cleanup utilities"""
+    """Enhanced system cleanup utilities with progress indicators"""
     
     def __init__(self, logger: Logger):
         self.logger = logger
     
     def cleanup_pacman_cache(self) -> bool:
-        """Clean pacman cache thoroughly"""
+        """Clean pacman cache thoroughly with progress indication"""
+        spinner = ProgressSpinner("Cleaning pacman cache")
+        spinner.start()
+        
         try:
             self.logger.log("PROCESS", "Cleaning pacman cache", "cleaner")
             
@@ -364,19 +495,22 @@ class SystemCleaner:
                 timeout=300
             )
             
+            spinner.stop()
+            
             if result.returncode == 0:
-                self.logger.log("SUCCESS", "Pacman cache cleaned", "cleaner")
+                self.logger.log("SUCCESS", "Pacman cache cleaned successfully", "cleaner")
                 return True
             else:
                 self.logger.log("WARNING", f"Cache cleanup warning: {result.stderr}", "cleaner")
                 return False
                 
         except Exception as e:
+            spinner.stop()
             self.logger.log("ERROR", f"Cache cleanup failed: {str(e)}", "cleaner")
             return False
     
     def remove_db_locks(self) -> bool:
-        """Remove pacman database locks"""
+        """Remove pacman database locks with enhanced feedback"""
         try:
             lock_files = [
                 "/var/lib/pacman/db.lck",
@@ -400,7 +534,10 @@ class SystemCleaner:
             return False
     
     def refresh_pacman_databases(self) -> bool:
-        """Refresh pacman databases"""
+        """Refresh pacman databases with progress indication"""
+        spinner = ProgressSpinner("Refreshing package databases")
+        spinner.start()
+        
         try:
             self.logger.log("PROCESS", "Refreshing package databases", "cleaner")
             
@@ -412,6 +549,8 @@ class SystemCleaner:
                 timeout=300
             )
             
+            spinner.stop()
+            
             if result.returncode == 0:
                 self.logger.log("SUCCESS", "Package databases refreshed", "cleaner")
                 return True
@@ -420,17 +559,19 @@ class SystemCleaner:
                 return False
                 
         except Exception as e:
+            spinner.stop()
             self.logger.log("ERROR", f"Database refresh failed: {str(e)}", "cleaner")
             return False
 
 class SystemInfo:
-    """System information and compatibility checker"""
+    """Enhanced system information and compatibility checker"""
     
     def __init__(self):
         self.distro_info = self._detect_distribution()
         self.is_arch_based = self._check_arch_compatibility()
         self.pacman_version = self._get_pacman_version()
         self.system_specs = self._get_system_specs()
+        self.python_info = self._get_python_info()
         
     def _detect_distribution(self) -> Dict[str, str]:
         """Detect Linux distribution information"""
@@ -485,7 +626,7 @@ class SystemInfo:
         return "unknown"
     
     def _get_system_specs(self) -> Dict[str, Union[int, str]]:
-        """Get basic system specifications"""
+        """Get enhanced system specifications"""
         specs = {}
         
         try:
@@ -494,23 +635,116 @@ class SystemInfo:
                 for line in f:
                     if line.startswith("MemTotal:"):
                         specs["ram_mb"] = int(line.split()[1]) // 1024
+                    elif line.startswith("MemAvailable:"):
+                        specs["available_ram_mb"] = int(line.split()[1]) // 1024
                         break
             
-            # CPU cores
+            # CPU cores and model
             specs["cpu_cores"] = os.cpu_count()
+            
+            try:
+                with open("/proc/cpuinfo", "r") as f:
+                    for line in f:
+                        if line.startswith("model name"):
+                            specs["cpu_model"] = line.split(":")[1].strip()
+                            break
+            except:
+                specs["cpu_model"] = "Unknown"
             
             # Disk space
             stat = shutil.disk_usage("/")
             specs["disk_total_gb"] = stat.total // (1024**3)
             specs["disk_free_gb"] = stat.free // (1024**3)
+            specs["disk_used_gb"] = (stat.total - stat.free) // (1024**3)
+            
+            # System uptime
+            try:
+                with open("/proc/uptime", "r") as f:
+                    uptime_seconds = float(f.read().split()[0])
+                    specs["uptime_hours"] = int(uptime_seconds // 3600)
+            except:
+                specs["uptime_hours"] = 0
+                
+            # Load average
+            try:
+                with open("/proc/loadavg", "r") as f:
+                    specs["load_average"] = f.read().split()[0]
+            except:
+                specs["load_average"] = "0.00"
             
         except Exception:
-            specs = {"ram_mb": 0, "cpu_cores": 1, "disk_total_gb": 0, "disk_free_gb": 0}
+            specs = {
+                "ram_mb": 0, "available_ram_mb": 0, "cpu_cores": 1, 
+                "cpu_model": "Unknown", "disk_total_gb": 0, "disk_free_gb": 0,
+                "disk_used_gb": 0, "uptime_hours": 0, "load_average": "0.00"
+            }
             
         return specs
+    
+    def _get_python_info(self) -> Dict[str, str]:
+        """Get Python environment information"""
+        info = {}
+        
+        try:
+            info["version"] = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+            info["executable"] = sys.executable
+            info["platform"] = sys.platform
+            
+            # Check for virtual environment
+            if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+                info["virtual_env"] = True
+            else:
+                info["virtual_env"] = False
+                
+        except Exception:
+            info = {"version": "unknown", "executable": "unknown", "platform": "unknown", "virtual_env": False}
+            
+        return info
+    
+    def display_system_info(self):
+        """Display enhanced system information with better formatting"""
+        print(ColorManager.create_section_header("SYSTEM INFORMATION"))
+        
+        # Distribution info
+        print(f"{ColorManager.INFO} Distribution: {ColorManager.CYAN}{self.distro_info['name']}{ColorManager.RESET}")
+        if self.distro_info['version']:
+            print(f"{ColorManager.INFO} Version: {ColorManager.CYAN}{self.distro_info['version']}{ColorManager.RESET}")
+        
+        # System specs with visual indicators
+        ram_color = ColorManager.GREEN if self.system_specs['ram_mb'] >= 4096 else ColorManager.YELLOW if self.system_specs['ram_mb'] >= 2048 else ColorManager.RED
+        disk_color = ColorManager.GREEN if self.system_specs['disk_free_gb'] >= 20 else ColorManager.YELLOW if self.system_specs['disk_free_gb'] >= 10 else ColorManager.RED
+        cpu_color = ColorManager.GREEN if self.system_specs['cpu_cores'] >= 4 else ColorManager.YELLOW if self.system_specs['cpu_cores'] >= 2 else ColorManager.RED
+        
+        print(f"{ColorManager.INFO} CPU: {cpu_color}{self.system_specs['cpu_model']}{ColorManager.RESET} ({cpu_color}{self.system_specs['cpu_cores']} cores{ColorManager.RESET})")
+        print(f"{ColorManager.INFO} RAM: {ram_color}{self.system_specs['ram_mb']}MB{ColorManager.RESET} (Available: {ram_color}{self.system_specs.get('available_ram_mb', 'N/A')}MB{ColorManager.RESET})")
+        print(f"{ColorManager.INFO} Disk: {disk_color}{self.system_specs['disk_free_gb']}GB free{ColorManager.RESET} / {self.system_specs['disk_total_gb']}GB total")
+        print(f"{ColorManager.INFO} System Load: {ColorManager.CYAN}{self.system_specs['load_average']}{ColorManager.RESET}")
+        print(f"{ColorManager.INFO} Uptime: {ColorManager.CYAN}{self.system_specs['uptime_hours']} hours{ColorManager.RESET}")
+        
+        # Python info
+        print(f"{ColorManager.INFO} Python: {ColorManager.CYAN}{self.python_info['version']}{ColorManager.RESET}")
+        print(f"{ColorManager.INFO} Pacman: {ColorManager.CYAN}{self.pacman_version}{ColorManager.RESET}")
+        
+        # System warnings with enhanced visuals
+        warnings = []
+        if self.system_specs['ram_mb'] < 2048:
+            warnings.append(f"{ColorManager.WARNING} Low RAM detected (<2GB) - Installation may be slow")
+        if self.system_specs['disk_free_gb'] < 10:
+            warnings.append(f"{ColorManager.WARNING} Low disk space (<10GB) - Installation may fail")
+        if float(self.system_specs['load_average']) > self.system_specs['cpu_cores']:
+            warnings.append(f"{ColorManager.WARNING} High system load detected")
+        
+        if warnings:
+            print("\n" + ColorManager.create_section_header("SYSTEM WARNINGS"))
+            for warning in warnings:
+                print(warning)
+        else:
+            print(f"\n{ColorManager.SUCCESS} System meets all recommended requirements!")
+        
+        print(ColorManager.create_banner_line())
 
 class KeyringManager:
-    """BlackArch keyring and signature verification with multiple methods"""
+    """Enhanced BlackArch keyring and signature verification with multiple methods"""
     
     def __init__(self, logger: Logger, cache_dir: Path):
         self.logger = logger
@@ -519,37 +753,42 @@ class KeyringManager:
         self.cleaner = SystemCleaner(logger)
         
     def setup_blackarch_keyring(self) -> bool:
-        """Setup BlackArch keyring with multiple fallback methods"""
+        """Setup BlackArch keyring with enhanced visual feedback"""
+        print(ColorManager.create_section_header("BLACKARCH KEYRING SETUP"))
         self.logger.log("PROCESS", "Setting up BlackArch keyring with multiple methods", "keyring")
         
         # Clean system first
         self.cleaner.remove_db_locks()
         self.cleaner.cleanup_pacman_cache()
         
-        # Method 1: Try official strap.sh script
-        if self._try_strap_installation():
-            return True
+        methods = [
+            ("Official strap.sh script", self._try_strap_installation),
+            ("Direct keyring package", self._try_keyring_package_installation),
+            ("Manual keyring setup", self._try_manual_keyring_setup),
+            ("Alternative installation", self._try_alternative_keyring)
+        ]
         
-        # Method 2: Try direct keyring package installation
-        if self._try_keyring_package_installation():
-            return True
-        
-        # Method 3: Try manual keyring setup
-        if self._try_manual_keyring_setup():
-            return True
-        
-        # Method 4: Try alternative installation
-        if self._try_alternative_keyring():
-            return True
+        for i, (method_name, method_func) in enumerate(methods, 1):
+            print(f"\n{ColorManager.PROCESS} Method {i}/4: {method_name}")
+            spinner = ProgressSpinner(f"Attempting {method_name}")
+            spinner.start()
+            
+            try:
+                if method_func():
+                    spinner.stop(f"{ColorManager.SUCCESS} {method_name} successful!")
+                    return True
+                else:
+                    spinner.stop(f"{ColorManager.ERROR} {method_name} failed")
+            except Exception as e:
+                spinner.stop(f"{ColorManager.ERROR} {method_name} failed: {str(e)[:50]}")
         
         self.logger.log("WARNING", "All keyring installation methods failed", "keyring")
+        print(f"\n{ColorManager.WARNING} All keyring installation methods failed")
         return False
     
     def _try_strap_installation(self) -> bool:
-        """Try BlackArch strap.sh installation"""
-        self.logger.log("PROCESS", "Trying strap.sh installation method", "keyring")
-        
-        for strap_url in KygoXConfig.BLACKARCH_STRAP_URLS:
+        """Try BlackArch strap.sh installation with enhanced progress tracking"""
+        for i, strap_url in enumerate(KygoXConfig.BLACKARCH_STRAP_URLS, 1):
             try:
                 strap_file = self.cache_dir / "strap.sh"
                 
@@ -590,20 +829,18 @@ class KeyringManager:
                         return True
                 
             except Exception as e:
-                self.logger.log("WARNING", f"Strap method failed for {strap_url}: {str(e)}", "keyring")
+                self.logger.log("WARNING", f"Strap method {i} failed: {str(e)}", "keyring")
                 continue
         
         return False
     
     def _try_keyring_package_installation(self) -> bool:
-        """Try direct keyring package installation"""
-        self.logger.log("PROCESS", "Trying direct keyring package installation", "keyring")
-        
-        for keyring_url in KygoXConfig.BLACKARCH_KEYRING_URLS:
+        """Try direct keyring package installation with progress tracking"""
+        for i, keyring_url in enumerate(KygoXConfig.BLACKARCH_KEYRING_URLS, 1):
             try:
                 keyring_file = self.cache_dir / "blackarch-keyring.pkg.tar.xz"
                 
-                # Download keyring with retry
+                # Download keyring with retry and progress
                 def download_keyring():
                     self._download_file_with_progress(keyring_url, keyring_file)
                     return True
@@ -634,86 +871,90 @@ class KeyringManager:
                         return True
                 
             except Exception as e:
-                self.logger.log("WARNING", f"Direct keyring method failed for {keyring_url}: {str(e)}", "keyring")
+                self.logger.log("WARNING", f"Direct keyring method {i} failed: {str(e)}", "keyring")
                 continue
         
         return False
     
     def _try_manual_keyring_setup(self) -> bool:
-        """Try manual keyring setup"""
-        self.logger.log("PROCESS", "Trying manual keyring setup", "keyring")
-        
+        """Try manual keyring setup with detailed progress"""
         try:
-            # Initialize pacman keyring
-            def init_keyring():
-                result = subprocess.run(
-                    ["pacman-key", "--init"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300
-                )
-                if result.returncode != 0:
-                    raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
-                return True
+            steps = [
+                ("Initializing pacman keyring", self._init_keyring),
+                ("Populating Arch keyring", self._populate_keyring),
+                ("Adding BlackArch key", self._add_blackarch_key)
+            ]
             
-            # Populate keyring
-            def populate_keyring():
-                result = subprocess.run(
-                    ["pacman-key", "--populate", "archlinux"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300
-                )
-                if result.returncode != 0:
-                    raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
-                return True
+            for step_name, step_func in steps:
+                print(f"{ColorManager.PROCESS} {step_name}...")
+                if not RetryManager.retry_with_backoff(step_func):
+                    return False
+                print(f"{ColorManager.SUCCESS} {step_name} completed")
             
-            # Add BlackArch key
-            def add_blackarch_key():
-                # Download and add BlackArch master key
-                result = subprocess.run([
-                    "curl", "-O", "https://blackarch.org/keyring/blackarch-keyring.pkg.tar.xz"
-                ], cwd=str(self.cache_dir), capture_output=True, text=True, timeout=120)
-                
-                if result.returncode == 0:
-                    # Extract and install
-                    result2 = subprocess.run([
-                        "pacman", "-U", "--noconfirm", 
-                        str(self.cache_dir / "blackarch-keyring.pkg.tar.xz")
-                    ], capture_output=True, text=True, timeout=300)
-                    
-                    if result2.returncode == 0:
-                        return True
-                
-                raise subprocess.CalledProcessError(1, "manual keyring", "Failed to add BlackArch key")
-            
-            # Execute steps with retry
-            if (RetryManager.retry_with_backoff(init_keyring) and
-                RetryManager.retry_with_backoff(populate_keyring) and
-                RetryManager.retry_with_backoff(add_blackarch_key)):
-                
-                self.logger.log("SUCCESS", "Manual keyring setup completed", "keyring")
-                self._add_blackarch_repo()
-                return True
+            self._add_blackarch_repo()
+            self.logger.log("SUCCESS", "Manual keyring setup completed", "keyring")
+            return True
                 
         except Exception as e:
             self.logger.log("WARNING", f"Manual keyring setup failed: {str(e)}", "keyring")
         
         return False
     
+    def _init_keyring(self):
+        """Initialize pacman keyring"""
+        result = subprocess.run(
+            ["pacman-key", "--init"],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
+        return True
+    
+    def _populate_keyring(self):
+        """Populate keyring"""
+        result = subprocess.run(
+            ["pacman-key", "--populate", "archlinux"],
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
+        return True
+    
+    def _add_blackarch_key(self):
+        """Add BlackArch key"""
+        # Download and add BlackArch master key
+        result = subprocess.run([
+            "curl", "-O", "https://blackarch.org/keyring/blackarch-keyring.pkg.tar.xz"
+        ], cwd=str(self.cache_dir), capture_output=True, text=True, timeout=120)
+        
+        if result.returncode == 0:
+            # Extract and install
+            result2 = subprocess.run([
+                "pacman", "-U", "--noconfirm", 
+                str(self.cache_dir / "blackarch-keyring.pkg.tar.xz")
+            ], capture_output=True, text=True, timeout=300)
+            
+            if result2.returncode == 0:
+                return True
+        
+        raise subprocess.CalledProcessError(1, "manual keyring", "Failed to add BlackArch key")
+    
     def _try_alternative_keyring(self) -> bool:
         """Try alternative keyring installation method"""
-        self.logger.log("PROCESS", "Trying alternative keyring method", "keyring")
-        
         try:
-            # Skip signature verification and force install
             commands = [
-                ["pacman-key", "--init"],
-                ["pacman-key", "--populate", "archlinux"],
-                ["pacman", "-Sy", "--noconfirm"],
+                (["pacman-key", "--init"], "Initialize keyring"),
+                (["pacman-key", "--populate", "archlinux"], "Populate keyring"),
+                (["pacman", "-Sy", "--noconfirm"], "Sync repositories")
             ]
             
-            for cmd in commands:
+            for cmd, desc in commands:
+                print(f"{ColorManager.PROCESS} {desc}...")
+                
                 def run_cmd():
                     result = subprocess.run(
                         cmd,
@@ -727,6 +968,8 @@ class KeyringManager:
                 
                 if not RetryManager.retry_with_backoff(run_cmd):
                     return False
+                
+                print(f"{ColorManager.SUCCESS} {desc} completed")
             
             # Add BlackArch repo without keyring first
             self._add_blackarch_repo_unsafe()
@@ -753,7 +996,7 @@ class KeyringManager:
         return False
     
     def _download_file_with_progress(self, url: str, filepath: Path, timeout: int = None):
-        """Download file with progress bar and retry logic"""
+        """Download file with enhanced progress bar"""
         timeout = timeout or KygoXConfig.DOWNLOAD_TIMEOUT
         
         response = requests.get(url, stream=True, timeout=timeout)
@@ -767,8 +1010,11 @@ class KeyringManager:
                     total=total_size,
                     unit='B',
                     unit_scale=True,
-                    desc=f"Downloading {filepath.name}",
-                    leave=False
+                    unit_divisor=1024,
+                    desc=f"{ColorManager.DOWNLOAD} {filepath.name}",
+                    colour='cyan',
+                    leave=False,
+                    bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'
                 ) as pbar:
                     for chunk in response.iter_content(chunk_size=8192):
                         if chunk:
@@ -781,7 +1027,7 @@ class KeyringManager:
                         f.write(chunk)
     
     def _add_blackarch_repo(self):
-        """Add BlackArch repository to pacman.conf safely"""
+        """Add BlackArch repository to pacman.conf with enhanced feedback"""
         pacman_conf = Path("/etc/pacman.conf")
         
         try:
@@ -795,15 +1041,17 @@ class KeyringManager:
                 self.logger.log("INFO", f"Backed up pacman.conf to {backup_path}", "keyring")
                 
                 # Add BlackArch repository with best mirror
+                print(f"{ColorManager.PROCESS} Finding best BlackArch mirror...")
                 best_mirror = self._get_best_blackarch_mirror()
                 blackarch_repo = f"\n[blackarch]\nSigLevel = Optional TrustAll\nServer = {best_mirror}\n"
                 
                 with open(pacman_conf, "a") as f:
                     f.write(blackarch_repo)
                 
+                print(f"{ColorManager.SUCCESS} BlackArch repository added")
                 self.logger.log("SUCCESS", f"BlackArch repository added with mirror: {best_mirror}", "keyring")
                 
-                # Update package databases with retry
+                # Update package databases
                 self._update_databases()
             else:
                 self.logger.log("INFO", "BlackArch repository already configured", "keyring")
@@ -830,6 +1078,7 @@ class KeyringManager:
                 with open(pacman_conf, "a") as f:
                     f.write(blackarch_repo)
                 
+                print(f"{ColorManager.WARNING} BlackArch added with signature verification disabled")
                 self.logger.log("WARNING", "BlackArch added with signature verification disabled", "keyring")
                 self._update_databases()
                 
@@ -837,9 +1086,7 @@ class KeyringManager:
             self.logger.log("ERROR", f"Failed to configure unsafe BlackArch repository: {str(e)}", "keyring")
     
     def _get_best_blackarch_mirror(self) -> str:
-        """Find the fastest responding BlackArch mirror"""
-        self.logger.log("PROCESS", "Testing BlackArch mirrors for best response", "keyring")
-        
+        """Find the fastest responding BlackArch mirror with progress indication"""
         best_mirror = KygoXConfig.BLACKARCH_MIRRORS[0]  # Default
         best_time = float('inf')
         
@@ -848,7 +1095,7 @@ class KeyringManager:
                 start_time = time.time()
                 # Test mirror response time
                 test_url = mirror.replace('$repo', 'blackarch').replace('$arch', 'x86_64')
-                response = requests.head(test_url, timeout=10)
+                response = requests.head(test_url, timeout=5)
                 response_time = time.time() - start_time
                 
                 if response.status_code == 200 and response_time < best_time:
@@ -858,11 +1105,14 @@ class KeyringManager:
             except Exception:
                 continue
         
-        self.logger.log("INFO", f"Selected fastest mirror: {best_mirror}", "keyring")
+        self.logger.log("INFO", f"Selected fastest mirror: {best_mirror} ({best_time:.2f}s)", "keyring")
         return best_mirror
     
     def _update_databases(self):
-        """Update package databases with retry logic"""
+        """Update package databases with enhanced feedback"""
+        spinner = ProgressSpinner("Updating package databases")
+        spinner.start()
+        
         def update_dbs():
             result = subprocess.run(
                 ["pacman", "-Syy"],
@@ -874,14 +1124,22 @@ class KeyringManager:
                 raise subprocess.CalledProcessError(result.returncode, "pacman", result.stderr)
             return True
         
-        if RetryManager.retry_with_backoff(update_dbs):
-            self.logger.log("SUCCESS", "Package databases updated", "keyring")
-        else:
-            self.logger.log("WARNING", "Failed to update package databases", "keyring")
+        try:
+            if RetryManager.retry_with_backoff(update_dbs):
+                spinner.stop(f"{ColorManager.SUCCESS} Package databases updated")
+                self.logger.log("SUCCESS", "Package databases updated", "keyring")
+            else:
+                spinner.stop(f"{ColorManager.WARNING} Failed to update package databases")
+                self.logger.log("WARNING", "Failed to update package databases", "keyring")
+        except:
+            spinner.stop(f"{ColorManager.ERROR} Database update failed")
     
     def _verify_blackarch_setup(self):
-        """Verify BlackArch setup is working"""
+        """Verify BlackArch setup with enhanced feedback"""
         try:
+            spinner = ProgressSpinner("Verifying BlackArch setup")
+            spinner.start()
+            
             result = subprocess.run(
                 ["pacman", "-Sl", "blackarch"],
                 capture_output=True,
@@ -891,15 +1149,18 @@ class KeyringManager:
             
             if result.returncode == 0 and result.stdout.strip():
                 package_count = len(result.stdout.strip().split('\n'))
+                spinner.stop(f"{ColorManager.SUCCESS} BlackArch verified: {package_count} packages available")
                 self.logger.log("SUCCESS", f"BlackArch repository verified with {package_count} packages", "keyring")
             else:
+                spinner.stop(f"{ColorManager.WARNING} BlackArch verification failed")
                 self.logger.log("WARNING", "BlackArch repository verification failed", "keyring")
                 
         except Exception as e:
+            spinner.stop(f"{ColorManager.WARNING} Could not verify BlackArch setup")
             self.logger.log("WARNING", f"Could not verify BlackArch setup: {str(e)}", "keyring")
 
 class PackageManager:
-    """Advanced package management with comprehensive retry logic"""
+    """Enhanced package management with comprehensive retry logic and visual feedback"""
     
     def __init__(self, logger: Logger):
         self.logger = logger
@@ -907,18 +1168,28 @@ class PackageManager:
         self.failed_packages = set()
         self.cleaner = SystemCleaner(logger)
         self.install_lock = threading.Lock()
+        self.install_stats = {"attempted": 0, "successful": 0, "failed": 0, "retried": 0}
         
     def install_packages(self, packages: List[str], max_workers: int = 2) -> Dict[str, bool]:
-        """Install packages with parallel execution and retry logic"""
+        """Install packages with parallel execution and enhanced visual feedback"""
+        print(ColorManager.create_section_header("PACKAGE INSTALLATION"))
+        
         self.logger.log("PROCESS", f"Installing {len(packages)} packages with {max_workers} workers", "installer")
+        self.install_stats["attempted"] = len(packages)
         
         # Clean system before installation
         self.cleaner.remove_db_locks()
         
         results = {}
         
-        # Process packages in smaller batches to avoid overwhelming the system
-        batch_size = max(1, len(packages) // max_workers)
+        # Create progress tracking
+        progress_bar = tqdm(
+            total=len(packages),
+            desc=f"{ColorManager.INSTALL} Installing packages",
+            unit="pkg",
+            colour='green',
+            bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]'
+        )
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_package = {}
@@ -936,39 +1207,82 @@ class PackageManager:
                     with self.install_lock:
                         if success:
                             self.installed_packages.add(package)
+                            self.install_stats["successful"] += 1
                             self.logger.log_package(package, "success")
                         else:
                             self.failed_packages.add(package)
+                            self.install_stats["failed"] += 1
+                            
+                        progress_bar.update(1)
+                        
+                        # Update progress bar description with stats
+                        success_rate = (self.install_stats["successful"] / self.install_stats["attempted"]) * 100
+                        progress_bar.set_description(
+                            f"{ColorManager.INSTALL} Installing packages (Success: {success_rate:.1f}%)"
+                        )
                             
                 except Exception as e:
                     self.logger.log("ERROR", f"Exception during installation of {package}: {str(e)}", "installer")
                     results[package] = False
                     with self.install_lock:
                         self.failed_packages.add(package)
+                        self.install_stats["failed"] += 1
+                        progress_bar.update(1)
+        
+        progress_bar.close()
+        
+        # Display final statistics
+        self._display_installation_summary()
         
         # Final cleanup
         self.cleaner.remove_db_locks()
         
         return results
     
-    def _install_package_with_retry(self, package: str, index: int) -> bool:
-        """Install a single package with comprehensive retry logic"""
-        self.logger.log("PROCESS", f"[{index+1}] Installing {package}...", "installer")
+    def _display_installation_summary(self):
+        """Display installation summary with enhanced visuals"""
+        print(ColorManager.create_section_header("INSTALLATION SUMMARY"))
         
+        total = self.install_stats["attempted"]
+        successful = self.install_stats["successful"]
+        failed = self.install_stats["failed"]
+        success_rate = (successful / total) * 100 if total > 0 else 0
+        
+        # Create visual progress bar for success rate
+        progress_bar = ColorManager.create_progress_bar(successful, total, 30)
+        
+        print(f"{ColorManager.INFO} Total Packages: {ColorManager.CYAN}{total}{ColorManager.RESET}")
+        print(f"{ColorManager.SUCCESS} Successful: {ColorManager.GREEN}{successful}{ColorManager.RESET}")
+        print(f"{ColorManager.ERROR} Failed: {ColorManager.RED}{failed}{ColorManager.RESET}")
+        print(f"{ColorManager.INFO} Success Rate: {progress_bar}")
+        
+        # Performance indicators
+        if success_rate >= 90:
+            print(f"{ColorManager.SUCCESS} Excellent installation performance!")
+        elif success_rate >= 75:
+            print(f"{ColorManager.WARNING} Good installation performance")
+        elif success_rate >= 50:
+            print(f"{ColorManager.WARNING} Moderate installation performance - check logs")
+        else:
+            print(f"{ColorManager.ERROR} Poor installation performance - system issues detected")
+        
+        print(ColorManager.create_banner_line())
+    
+    def _install_package_with_retry(self, package: str, index: int) -> bool:
+        """Install a single package with comprehensive retry logic and visual feedback"""
         # Check if already installed first
         if self._is_package_installed(package):
-            self.logger.log("INFO", f"[{index+1}] {package} already installed", "installer")
             return True
         
         # Try different installation methods
         install_methods = [
-            self._install_from_official_repos,
-            self._install_from_blackarch,
-            self._install_from_aur_helper,
-            self._install_with_force
+            ("Official repos", self._install_from_official_repos),
+            ("BlackArch", self._install_from_blackarch),
+            ("AUR helper", self._install_from_aur_helper),
+            ("Force install", self._install_with_force)
         ]
         
-        for method_index, install_method in enumerate(install_methods):
+        for method_index, (method_name, install_method) in enumerate(install_methods):
             try:
                 def attempt_install():
                     return install_method(package, index, method_index)
@@ -980,11 +1294,10 @@ class PackageManager:
                     return True
                     
             except Exception as e:
-                self.logger.log("RETRY", f"[{index+1}] Method {method_index+1} failed for {package}: {str(e)}", "installer")
+                self.install_stats["retried"] += 1
                 continue
         
         # All methods failed
-        self.logger.log("ERROR", f"[{index+1}] All installation methods failed for {package}", "installer")
         self.logger.log_package(package, "failed", "All methods exhausted")
         return False
     
@@ -1011,7 +1324,6 @@ class PackageManager:
         )
         
         if result.returncode == 0:
-            self.logger.log("SUCCESS", f"[{index+1}] Installed {package} from official repos", "installer")
             return True
         else:
             error_msg = result.stderr.strip() or "Unknown error"
@@ -1027,7 +1339,6 @@ class PackageManager:
         )
         
         if result.returncode == 0:
-            self.logger.log("SUCCESS", f"[{index+1}] Installed {package} from BlackArch", "installer")
             return True
         else:
             error_msg = result.stderr.strip() or "Unknown error"
@@ -1047,7 +1358,6 @@ class PackageManager:
                 )
                 
                 if result.returncode == 0:
-                    self.logger.log("SUCCESS", f"[{index+1}] Installed {package} via {helper}", "installer")
                     return True
         
         raise subprocess.CalledProcessError(1, "aur_helper", "No AUR helper available or all failed")
@@ -1062,14 +1372,13 @@ class PackageManager:
         )
         
         if result.returncode == 0:
-            self.logger.log("SUCCESS", f"[{index+1}] Force installed {package}", "installer")
             return True
         else:
             error_msg = result.stderr.strip() or "Unknown error"
             raise subprocess.CalledProcessError(result.returncode, "pacman", error_msg)
 
 class KygoXCore:
-    """Main KygoX toolkit engine with comprehensive error handling"""
+    """Main KygoX toolkit engine with enhanced visuals and comprehensive error handling"""
     
     def __init__(self):
         self.config = KygoXConfig()
@@ -1085,13 +1394,15 @@ class KygoXCore:
     
     def _signal_handler(self, signum, frame):
         """Handle interruption signals"""
+        print(f"\n{ColorManager.WARNING} Installation interrupted by user")
         self.logger.log("WARNING", "Installation interrupted by user", "system")
         self.cleanup()
         sys.exit(130)
     
     def cleanup(self):
-        """Comprehensive cleanup of temporary files and resources"""
+        """Comprehensive cleanup with enhanced feedback"""
         try:
+            print(f"{ColorManager.PROCESS} Performing cleanup operations...")
             self.logger.log("PROCESS", "Performing cleanup operations", "system")
             
             # Clean cache if exists
@@ -1108,13 +1419,15 @@ class KygoXCore:
             # Clean pacman cache
             self.cleaner.cleanup_pacman_cache()
             
+            print(f"{ColorManager.SUCCESS} Cleanup completed")
             self.logger.log("SUCCESS", "Cleanup completed", "system")
             
         except Exception as e:
+            print(f"{ColorManager.WARNING} Cleanup warning: {str(e)}")
             self.logger.log("WARNING", f"Cleanup warning: {str(e)}", "system")
     
     def run(self):
-        """Main execution method with comprehensive error handling"""
+        """Main execution method with enhanced visual feedback"""
         try:
             self._display_banner()
             self._check_prerequisites()
@@ -1125,85 +1438,112 @@ class KygoXCore:
             self._final_cleanup()
             
         except KeyboardInterrupt:
+            print(f"\n{ColorManager.WARNING} Installation interrupted by user")
             self.logger.log("WARNING", "Installation interrupted by user", "system")
             self.cleanup()
             sys.exit(130)
         except Exception as e:
+            print(f"\n{ColorManager.ERROR} Fatal error: {str(e)}")
             self.logger.log("ERROR", f"Fatal error: {str(e)}", "system")
             self.cleanup()
             sys.exit(1)
     
     def _display_banner(self):
-        """Display application banner"""
+        """Display enhanced application banner"""
         banner = f"""
-{ColorManager.CYAN}
+{ColorManager.CYAN}{ColorManager.BOLD}
 ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
 ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
-███████╔╝ ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
-██╔══██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
+█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
+██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
 ██║  ██║   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
 ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 {ColorManager.RESET}
-{ColorManager.BOLD}ARCH LINUX PENETRATION TESTING TOOLKIT{ColorManager.RESET}
-{ColorManager.DIM}Professional Security Arsenal Deployment{ColorManager.RESET}
+{ColorManager.create_banner_line("━", 60)}
+{ColorManager.BOLD}{ColorManager.WHITE}    ARCH LINUX PENETRATION TESTING TOOLKIT    {ColorManager.RESET}
+{ColorManager.DIM}         Professional Security Arsenal Deployment         {ColorManager.RESET}
+{ColorManager.create_banner_line("━", 60)}
 
-{ColorManager.BOLD}Version: {self.config.VERSION} | {self.config.VERSION_NAME}{ColorManager.RESET}
-{ColorManager.DIM}Repository: {self.config.REPO_URL}{ColorManager.RESET}
+{ColorManager.INFO} Version: {ColorManager.CYAN}{self.config.VERSION}{ColorManager.RESET} | {ColorManager.PURPLE}{self.config.VERSION_NAME}{ColorManager.RESET}
+{ColorManager.INFO} Repository: {ColorManager.BLUE}{self.config.REPO_URL}{ColorManager.RESET}
+{ColorManager.INFO} Author: {ColorManager.GREEN}0xbv1 | 0xb0rn3{ColorManager.RESET}
+
+{ColorManager.create_banner_line("═", 60)}
 """
         print(banner)
     
     def _check_prerequisites(self):
-        """Check system prerequisites"""
+        """Enhanced system prerequisites check with detailed feedback"""
+        print(ColorManager.create_section_header("PREREQUISITES CHECK"))
+        
         self.logger.log("PROCESS", "Checking system prerequisites", "system")
         
         # Check if running as root
         if os.geteuid() != 0:
+            print(f"{ColorManager.ERROR} KygoX must be run as root")
             self.logger.log("ERROR", "KygoX must be run as root", "system")
             sys.exit(1)
+        else:
+            print(f"{ColorManager.SUCCESS} Running with root privileges")
         
         # Check Arch compatibility
         if not self.system_info.is_arch_based:
+            print(f"{ColorManager.ERROR} KygoX requires Arch Linux or Arch-based distribution")
             self.logger.log("ERROR", "KygoX requires Arch Linux or Arch-based distribution", "system")
             sys.exit(1)
+        else:
+            print(f"{ColorManager.SUCCESS} Compatible Arch-based system detected")
         
-        # Display system information
-        self.logger.log("INFO", f"Distribution: {self.system_info.distro_info['name']}", "system")
-        self.logger.log("INFO", f"Pacman version: {self.system_info.pacman_version}", "system")
-        self.logger.log("INFO", f"RAM: {self.system_info.system_specs['ram_mb']}MB", "system")
-        self.logger.log("INFO", f"CPU cores: {self.system_info.system_specs['cpu_cores']}", "system")
-        self.logger.log("INFO", f"Free disk space: {self.system_info.system_specs['disk_free_gb']}GB", "system")
+        # Display enhanced system information
+        self.system_info.display_system_info()
         
-        # Check minimum requirements
-        if self.system_info.system_specs['disk_free_gb'] < 5:
-            self.logger.log("WARNING", "Low disk space detected (<5GB)", "system")
-        
-        if self.system_info.system_specs['ram_mb'] < 2048:
-            self.logger.log("WARNING", "Low RAM detected (<2GB)", "system")
-        
+        print(f"{ColorManager.SUCCESS} Prerequisites check completed")
         self.logger.log("SUCCESS", "Prerequisites check completed", "system")
     
     def _prepare_system(self):
-        """Prepare system for installation"""
+        """Enhanced system preparation with visual feedback"""
+        print(ColorManager.create_section_header("SYSTEM PREPARATION"))
+        
         self.logger.log("PROCESS", "Preparing system for installation", "system")
         
-        # Clean system thoroughly
-        self.cleaner.remove_db_locks()
-        self.cleaner.cleanup_pacman_cache()
-        self.cleaner.refresh_pacman_databases()
+        # Clean system thoroughly with progress indication
+        steps = [
+            ("Removing database locks", self.cleaner.remove_db_locks),
+            ("Cleaning pacman cache", self.cleaner.cleanup_pacman_cache),
+            ("Refreshing package databases", self.cleaner.refresh_pacman_databases)
+        ]
         
+        for step_name, step_func in steps:
+            print(f"{ColorManager.PROCESS} {step_name}...")
+            if step_func():
+                print(f"{ColorManager.SUCCESS} {step_name} completed")
+            else:
+                print(f"{ColorManager.WARNING} {step_name} had issues, continuing...")
+        
+        print(f"{ColorManager.SUCCESS} System preparation completed")
         self.logger.log("SUCCESS", "System preparation completed", "system")
     
     def _setup_environment(self):
-        """Setup installation environment"""
+        """Enhanced environment setup with detailed progress"""
+        print(ColorManager.create_section_header("ENVIRONMENT SETUP"))
+        
         self.logger.log("PROCESS", "Setting up installation environment", "system")
         
-        # Create directories
-        self.config.LOG_DIR.mkdir(parents=True, exist_ok=True)
-        self.config.BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-        self.config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        # Create directories with feedback
+        directories = [
+            ("Log directory", self.config.LOG_DIR),
+            ("Backup directory", self.config.BACKUP_DIR),
+            ("Cache directory", self.config.CACHE_DIR)
+        ]
         
-        # Update system with retry
-        self.logger.log("PROCESS", "Updating system packages", "system")
+        for dir_name, dir_path in directories:
+            dir_path.mkdir(parents=True, exist_ok=True)
+            print(f"{ColorManager.SUCCESS} {dir_name} ready: {ColorManager.CYAN}{dir_path}{ColorManager.RESET}")
+        
+        # Update system with enhanced feedback
+        print(f"\n{ColorManager.PROCESS} Updating system packages...")
+        spinner = ProgressSpinner("Updating system packages")
+        spinner.start()
         
         def update_system():
             result = subprocess.run(
@@ -1216,19 +1556,28 @@ class KygoXCore:
                 raise subprocess.CalledProcessError(result.returncode, "pacman", result.stderr)
             return True
         
-        if RetryManager.retry_with_backoff(update_system):
-            self.logger.log("SUCCESS", "System updated successfully", "system")
-        else:
-            self.logger.log("WARNING", "System update had issues, continuing", "system")
+        try:
+            if RetryManager.retry_with_backoff(update_system):
+                spinner.stop(f"{ColorManager.SUCCESS} System updated successfully")
+                self.logger.log("SUCCESS", "System updated successfully", "system")
+            else:
+                spinner.stop(f"{ColorManager.WARNING} System update had issues, continuing")
+                self.logger.log("WARNING", "System update had issues, continuing", "system")
+        except Exception as e:
+            spinner.stop(f"{ColorManager.WARNING} System update failed: {str(e)[:50]}")
         
-        # Setup BlackArch keyring with multiple methods
+        # Setup BlackArch keyring with comprehensive feedback
         if not self.keyring_manager.setup_blackarch_keyring():
+            print(f"{ColorManager.WARNING} BlackArch keyring setup failed, continuing with core tools only")
             self.logger.log("WARNING", "BlackArch keyring setup failed, continuing with core tools only", "system")
         
+        print(f"\n{ColorManager.SUCCESS} Environment setup completed")
         self.logger.log("SUCCESS", "Environment setup completed", "system")
     
     def _install_toolkit(self):
-        """Install security toolkit with comprehensive retry logic"""
+        """Enhanced toolkit installation with comprehensive progress tracking"""
+        print(ColorManager.create_section_header("SECURITY TOOLKIT INSTALLATION"))
+        
         self.logger.log("PROCESS", "Starting comprehensive toolkit installation", "installer")
         
         # Combine core and trending tools
@@ -1237,21 +1586,78 @@ class KygoXCore:
         # Remove any empty or invalid package names
         all_tools = [pkg for pkg in all_tools if pkg and pkg.strip()]
         
-        self.logger.log("INFO", f"Installing {len(all_tools)} security tools", "installer")
+        print(f"{ColorManager.INFO} Total packages to install: {ColorManager.CYAN}{len(all_tools)}{ColorManager.RESET}")
+        print(f"{ColorManager.INFO} Installation method: {ColorManager.CYAN}Multi-threaded with retry logic{ColorManager.RESET}")
         
-        # Install packages with retry logic
+        # Show tool categories
+        self._display_tool_categories()
+        
+        # Install packages with enhanced visual feedback
         results = self.package_manager.install_packages(all_tools, max_workers=2)
         
-        # Summary
+        # Enhanced summary with recommendations
+        self._display_final_installation_summary(results)
+    
+    def _display_tool_categories(self):
+        """Display tool categories being installed"""
+        print(f"\n{ColorManager.INFO} Security Tool Categories:")
+        
+        categories = [
+            ("🌐 Network & Web Security", ["nmap", "burpsuite", "sqlmap", "wireshark-qt"]),
+            ("🔓 Exploitation & Post-Exploitation", ["metasploit", "empire", "impacket", "bloodhound"]),
+            ("🔐 Password & Cryptography", ["john", "hashcat", "hydra", "steghide"]),
+            ("🔍 Forensics & Analysis", ["volatility3", "autopsy", "binwalk", "ghidra"]),
+            ("📱 Mobile & IoT Security", ["apktool", "frida", "jadx", "arduino"]),
+            ("🕵️ OSINT & Reconnaissance", ["theharvester", "recon-ng", "sherlock", "maltego"]),
+            ("☁️ Cloud & Container Security", ["trivy", "docker-bench-security", "prowler"]),
+            ("🤖 AI/ML Security Testing", ["garak", "counterfit", "adversarial-robustness-toolbox"])
+        ]
+        
+        for category, sample_tools in categories:
+            available_tools = [tool for tool in sample_tools if tool in (self.config.CORE_TOOLS + self.config.TRENDING_2025)]
+            if available_tools:
+                print(f"  {ColorManager.CYAN}{category}{ColorManager.RESET}: {len(available_tools)} tools")
+    
+    def _display_final_installation_summary(self, results):
+        """Display comprehensive installation summary"""
         successful = sum(1 for success in results.values() if success)
         failed = len(results) - successful
         success_rate = (successful / len(results)) * 100 if results else 0
         
-        self.logger.log("INFO", f"Installation completed: {successful} successful, {failed} failed ({success_rate:.1f}% success rate)", "installer")
+        print(ColorManager.create_section_header("FINAL INSTALLATION SUMMARY"))
         
-        # If success rate is low, try failed packages again with single thread
-        if success_rate < 50 and self.package_manager.failed_packages:
-            self.logger.log("PROCESS", "Retrying failed packages with single-threaded approach", "installer")
+        # Create detailed progress visualization
+        progress_bar = ColorManager.create_progress_bar(successful, len(results), 40)
+        
+        summary_data = [
+            ("Total Packages Attempted", len(results), ColorManager.BLUE),
+            ("Successfully Installed", successful, ColorManager.GREEN),
+            ("Failed Installations", failed, ColorManager.RED),
+            ("Success Rate", f"{success_rate:.1f}%", ColorManager.CYAN)
+        ]
+        
+        for label, value, color in summary_data:
+            print(f"{ColorManager.INFO} {label}: {color}{value}{ColorManager.RESET}")
+        
+        print(f"{ColorManager.INFO} Progress: {progress_bar}")
+        
+        # Performance assessment with recommendations
+        if success_rate >= 90:
+            print(f"\n{ColorManager.SUCCESS} Excellent! Your penetration testing arsenal is ready!")
+            print(f"{ColorManager.INFO} Recommendation: All essential tools installed successfully")
+        elif success_rate >= 75:
+            print(f"\n{ColorManager.SUCCESS} Good installation rate achieved!")
+            print(f"{ColorManager.WARNING} Consider manually installing failed critical tools")
+        elif success_rate >= 50:
+            print(f"\n{ColorManager.WARNING} Moderate success rate - some issues detected")
+            print(f"{ColorManager.INFO} Check error logs and retry failed installations")
+        else:
+            print(f"\n{ColorManager.ERROR} Low success rate - significant system issues detected")
+            print(f"{ColorManager.WARNING} Review system requirements and error logs")
+        
+        # If success rate is low, offer retry for failed packages
+        if success_rate < 75 and self.package_manager.failed_packages:
+            print(f"\n{ColorManager.PROCESS} Attempting single-threaded retry for failed packages...")
             failed_list = list(self.package_manager.failed_packages)
             self.package_manager.failed_packages.clear()
             
@@ -1259,38 +1665,66 @@ class KygoXCore:
             retry_successful = sum(1 for success in retry_results.values() if success)
             
             if retry_successful > 0:
+                print(f"{ColorManager.SUCCESS} Retry successful: {retry_successful} additional packages installed")
                 self.logger.log("SUCCESS", f"Retry successful: {retry_successful} additional packages installed", "installer")
     
     def _generate_report(self):
-        """Generate comprehensive installation report"""
+        """Generate comprehensive installation report with enhanced formatting"""
+        print(ColorManager.create_section_header("GENERATING INSTALLATION REPORT"))
+        
         self.logger.log("PROCESS", "Generating comprehensive installation report", "system")
         
         report_file = self.config.LOG_DIR / "installation_report.txt"
         
         try:
             with open(report_file, 'w', encoding='utf-8') as f:
-                f.write(f"KygoX Installation Report\n")
-                f.write(f"=" * 80 + "\n\n")
-                f.write(f"Version: {self.config.VERSION} ({self.config.VERSION_NAME})\n")
-                f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"System: {self.system_info.distro_info['name']}\n")
-                f.write(f"Pacman Version: {self.system_info.pacman_version}\n")
-                f.write(f"RAM: {self.system_info.system_specs['ram_mb']}MB\n")
-                f.write(f"CPU Cores: {self.system_info.system_specs['cpu_cores']}\n")
-                f.write(f"Disk Space: {self.system_info.system_specs['disk_free_gb']}GB free\n\n")
+                # Header with ASCII art
+                f.write("╔═══════════════════════════════════════════════════════════════════════════════╗\n")
+                f.write("║                           KYGOX INSTALLATION REPORT                          ║\n")
+                f.write("╚═══════════════════════════════════════════════════════════════════════════════╝\n\n")
                 
+                # Basic information
+                f.write(f"Version: {self.config.VERSION} ({self.config.VERSION_NAME})\n")
+                f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Duration: {datetime.now() - self.logger.stats['start_time']}\n")
+                f.write("=" * 80 + "\n\n")
+                
+                # System information
+                f.write("SYSTEM INFORMATION\n")
+                f.write("-" * 50 + "\n")
+                f.write(f"Distribution: {self.system_info.distro_info['name']}\n")
+                f.write(f"Version: {self.system_info.distro_info.get('version', 'N/A')}\n")
+                f.write(f"CPU: {self.system_info.system_specs['cpu_model']} ({self.system_info.system_specs['cpu_cores']} cores)\n")
+                f.write(f"RAM: {self.system_info.system_specs['ram_mb']}MB (Available: {self.system_info.system_specs.get('available_ram_mb', 'N/A')}MB)\n")
+                f.write(f"Disk: {self.system_info.system_specs['disk_free_gb']}GB free / {self.system_info.system_specs['disk_total_gb']}GB total\n")
+                f.write(f"Python: {self.system_info.python_info['version']}\n")
+                f.write(f"Pacman: {self.system_info.pacman_version}\n")
+                f.write(f"System Load: {self.system_info.system_specs['load_average']}\n")
+                f.write(f"Uptime: {self.system_info.system_specs['uptime_hours']} hours\n\n")
+                
+                # Installation statistics
                 total_attempted = len(self.config.CORE_TOOLS + self.config.TRENDING_2025)
                 installed_count = len(self.package_manager.installed_packages)
                 failed_count = len(self.package_manager.failed_packages)
                 success_rate = (installed_count / total_attempted) * 100 if total_attempted > 0 else 0
                 
-                f.write(f"INSTALLATION SUMMARY\n")
-                f.write(f"-" * 50 + "\n")
+                f.write("INSTALLATION SUMMARY\n")
+                f.write("-" * 50 + "\n")
                 f.write(f"Total Packages Attempted: {total_attempted}\n")
                 f.write(f"Successfully Installed: {installed_count}\n")
                 f.write(f"Failed Installations: {failed_count}\n")
-                f.write(f"Success Rate: {success_rate:.1f}%\n\n")
+                f.write(f"Success Rate: {success_rate:.1f}%\n")
+                f.write(f"Retry Operations: {self.package_manager.install_stats.get('retried', 0)}\n\n")
                 
+                # Performance metrics
+                f.write("PERFORMANCE METRICS\n")
+                f.write("-" * 50 + "\n")
+                f.write(f"Total Successful Operations: {self.logger.stats['success_count']}\n")
+                f.write(f"Total Errors: {self.logger.stats['error_count']}\n")
+                f.write(f"Total Warnings: {self.logger.stats['warning_count']}\n")
+                f.write(f"Total Retries: {self.logger.stats['retry_count']}\n\n")
+                
+                # Successfully installed packages
                 if self.package_manager.installed_packages:
                     f.write("SUCCESSFULLY INSTALLED PACKAGES\n")
                     f.write("-" * 50 + "\n")
@@ -1298,6 +1732,7 @@ class KygoXCore:
                         f.write(f"  ✓ {pkg}\n")
                     f.write("\n")
                 
+                # Failed packages
                 if self.package_manager.failed_packages:
                     f.write("FAILED PACKAGE INSTALLATIONS\n")
                     f.write("-" * 50 + "\n")
@@ -1305,66 +1740,102 @@ class KygoXCore:
                         f.write(f"  ✗ {pkg}\n")
                     f.write("\n")
                 
-                f.write("TOOL CATEGORIES INSTALLED\n")
+                # Tool categories analysis
+                f.write("SECURITY TOOL CATEGORIES ANALYSIS\n")
                 f.write("-" * 50 + "\n")
                 categories = {
-                    "Network Tools": ["nmap", "masscan", "rustscan", "wireshark-qt", "tcpdump"],
-                    "Web Security": ["burpsuite", "owasp-zap", "sqlmap", "nikto", "gobuster"],
-                    "Exploitation": ["metasploit", "empire", "beef", "searchsploit"],
-                    "Password Tools": ["john", "hashcat", "hydra", "medusa"],
-                    "Forensics": ["volatility3", "autopsy", "binwalk", "foremost"],
+                    "Network & Scanning": ["nmap", "masscan", "rustscan", "wireshark-qt", "tcpdump"],
+                    "Web Application Security": ["burpsuite", "owasp-zap", "sqlmap", "nikto", "gobuster"],
+                    "Exploitation Tools": ["metasploit", "empire", "beef", "searchsploit"],
+                    "Password & Cracking": ["john", "hashcat", "hydra", "medusa"],
+                    "Digital Forensics": ["volatility3", "autopsy", "binwalk", "foremost"],
                     "Reverse Engineering": ["ghidra", "radare2", "gdb", "strings"],
                     "Mobile Security": ["apktool", "jadx", "frida", "objection"],
-                    "OSINT": ["theharvester", "recon-ng", "sherlock", "spiderfoot"]
+                    "OSINT & Reconnaissance": ["theharvester", "recon-ng", "sherlock", "spiderfoot"],
+                    "Post-Exploitation": ["impacket", "responder", "crackmapexec", "bloodhound"],
+                    "Cloud & Container Security": ["trivy", "docker-bench-security", "prowler"],
+                    "AI/ML Security": ["garak", "counterfit", "adversarial-robustness-toolbox"]
                 }
                 
                 for category, tools in categories.items():
                     installed_in_category = [tool for tool in tools if tool in self.package_manager.installed_packages]
                     if installed_in_category:
-                        f.write(f"{category}: {len(installed_in_category)}/{len(tools)} tools\n")
+                        coverage = (len(installed_in_category) / len(tools)) * 100
+                        f.write(f"{category}: {len(installed_in_category)}/{len(tools)} tools ({coverage:.0f}% coverage)\n")
                         for tool in installed_in_category:
                             f.write(f"    • {tool}\n")
                         f.write("\n")
                 
-                f.write(f"DETAILED LOGS\n")
-                f.write(f"-" * 50 + "\n")
-                f.write(f"Main Log: {self.config.LOG_DIR / 'installation.log'}\n")
+                # System recommendations
+                f.write("SYSTEM RECOMMENDATIONS\n")
+                f.write("-" * 50 + "\n")
+                
+                if failed_count > 0:
+                    f.write("• Review failed packages in the error logs for troubleshooting\n")
+                    f.write("• Consider manual installation of critical failed tools\n")
+                    f.write("• Run 'pacman -Syu' to ensure system is up to date\n")
+                
+                if success_rate > 90:
+                    f.write("• Excellent installation rate! System is ready for professional penetration testing\n")
+                    f.write("• All essential security tools are available and ready to use\n")
+                elif success_rate > 75:
+                    f.write("• Good installation rate achieved\n")
+                    f.write("• Most essential tools are available for security testing\n")
+                elif success_rate > 50:
+                    f.write("• Moderate installation rate - some tools may be missing\n")
+                    f.write("• Consider troubleshooting failed packages and re-running installation\n")
+                else:
+                    f.write("• Low installation rate detected - significant issues present\n")
+                    f.write("• System troubleshooting recommended before use\n")
+                    f.write("• Consider checking system resources and network connectivity\n")
+                
+                f.write("• Verify BlackArch repository configuration: pacman -Sl blackarch\n")
+                f.write("• Consider installing an AUR helper (yay, paru) for additional tools\n")
+                f.write("• Regular system updates recommended: pacman -Syu\n")
+                f.write("• Backup important configurations before major system changes\n\n")
+                
+                # File locations
+                f.write("LOG FILES AND RESOURCES\n")
+                f.write("-" * 50 + "\n")
+                f.write(f"Main Installation Log: {self.config.LOG_DIR / 'installation.log'}\n")
                 f.write(f"Error Log: {self.config.LOG_DIR / 'errors.log'}\n")
                 f.write(f"Success Log: {self.config.LOG_DIR / 'successful_packages.log'}\n")
-                f.write(f"Failed Log: {self.config.LOG_DIR / 'failed_packages.log'}\n")
-                f.write(f"Retry Log: {self.config.LOG_DIR / 'retries.log'}\n")
-                f.write(f"Cache Directory: {self.config.CACHE_DIR}\n\n")
+                f.write(f"Failed Packages Log: {self.config.LOG_DIR / 'failed_packages.log'}\n")
+                f.write(f"Retry Operations Log: {self.config.LOG_DIR / 'retries.log'}\n")
+                f.write(f"Cache Directory: {self.config.CACHE_DIR}\n")
+                f.write(f"Backup Directory: {self.config.BACKUP_DIR}\n\n")
                 
-                f.write(f"RECOMMENDATIONS\n")
-                f.write(f"-" * 50 + "\n")
-                if failed_count > 0:
-                    f.write(f"• Review failed packages log for troubleshooting\n")
-                    f.write(f"• Consider manual installation of critical failed tools\n")
-                    f.write(f"• Run 'pacman -Syu' to update system packages\n")
-                
-                if success_rate > 80:
-                    f.write(f"• Excellent installation rate! System ready for penetration testing\n")
-                elif success_rate > 60:
-                    f.write(f"• Good installation rate. Most essential tools available\n")
-                else:
-                    f.write(f"• Consider troubleshooting system issues and re-running installation\n")
-                
-                f.write(f"• Verify BlackArch repository is properly configured\n")
-                f.write(f"• Consider installing AUR helper (yay, paru) for additional tools\n")
-                
+                # Footer
+                f.write("=" * 80 + "\n")
+                f.write("KygoX - Arch Linux Penetration Testing Toolkit\n")
+                f.write(f"Repository: {self.config.REPO_URL}\n")
+                f.write("Author: 0xbv1 | 0xb0rn3\n")
+                f.write("=" * 80 + "\n")
+        
         except Exception as e:
+            print(f"{ColorManager.ERROR} Failed to generate report: {str(e)}")
             self.logger.log("ERROR", f"Failed to generate report: {str(e)}", "system")
             return
         
+        print(f"{ColorManager.SUCCESS} Installation report generated: {ColorManager.CYAN}{report_file}{ColorManager.RESET}")
         self.logger.log("SUCCESS", f"Installation report saved to {report_file}", "system")
     
     def _final_cleanup(self):
-        """Perform final cleanup operations"""
+        """Enhanced final cleanup with detailed feedback"""
+        print(ColorManager.create_section_header("FINAL CLEANUP"))
+        
         self.logger.log("PROCESS", "Performing final cleanup", "system")
         
         # Clean system one final time
-        self.cleaner.remove_db_locks()
-        self.cleaner.cleanup_pacman_cache()
+        cleanup_steps = [
+            ("Removing database locks", self.cleaner.remove_db_locks),
+            ("Cleaning pacman cache", self.cleaner.cleanup_pacman_cache)
+        ]
+        
+        for step_name, step_func in cleanup_steps:
+            print(f"{ColorManager.PROCESS} {step_name}...")
+            if step_func():
+                print(f"{ColorManager.SUCCESS} {step_name} completed")
         
         # Generate toolkit summary file
         toolkit_summary = self.config.LOG_DIR / "installed_tools.txt"
@@ -1372,41 +1843,76 @@ class KygoXCore:
             with open(toolkit_summary, 'w', encoding='utf-8') as f:
                 f.write("KygoX Installed Security Tools\n")
                 f.write("=" * 50 + "\n")
+                f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Total Tools: {len(self.package_manager.installed_packages)}\n")
+                f.write("=" * 50 + "\n\n")
+                
                 for tool in sorted(self.package_manager.installed_packages):
                     f.write(f"{tool}\n")
-        except Exception:
-            pass
+            
+            print(f"{ColorManager.SUCCESS} Tool summary saved: {ColorManager.CYAN}{toolkit_summary}{ColorManager.RESET}")
+            
+        except Exception as e:
+            print(f"{ColorManager.WARNING} Could not generate tool summary: {str(e)}")
+        
+        # Display final statistics
+        self.logger.show_statistics()
+        
+        # Final success message with enhanced visuals
+        print(ColorManager.create_section_header("INSTALLATION COMPLETE"))
+        
+        print(f"""
+{ColorManager.SUCCESS} {ColorManager.BOLD}KygoX Security Toolkit Installation Complete!{ColorManager.RESET}
+
+{ColorManager.INFO} Installation Summary:
+  • Installed Tools: {ColorManager.GREEN}{len(self.package_manager.installed_packages)}{ColorManager.RESET}
+  • Failed Installations: {ColorManager.RED}{len(self.package_manager.failed_packages)}{ColorManager.RESET}
+  • Success Rate: {ColorManager.CYAN}{(len(self.package_manager.installed_packages) / len(self.config.CORE_TOOLS + self.config.TRENDING_2025)) * 100:.1f}%{ColorManager.RESET}
+
+{ColorManager.INFO} Resources:
+  • Installation Report: {ColorManager.CYAN}{self.config.LOG_DIR / 'installation_report.txt'}{ColorManager.RESET}
+  • Installed Tools List: {ColorManager.CYAN}{self.config.LOG_DIR / 'installed_tools.txt'}{ColorManager.RESET}
+  • All Logs: {ColorManager.CYAN}{self.config.LOG_DIR}{ColorManager.RESET}
+
+{ColorManager.INFO} Next Steps:
+  • Verify tools: {ColorManager.CYAN}pacman -Qs blackarch{ColorManager.RESET}
+  • Update system: {ColorManager.CYAN}sudo pacman -Syu{ColorManager.RESET}
+  • Repository: {ColorManager.BLUE}{self.config.REPO_URL}{ColorManager.RESET}
+
+{ColorManager.create_banner_line("🎯", 60)}
+{ColorManager.BOLD}{ColorManager.GREEN}    Your Arch Linux penetration testing arsenal is ready!    {ColorManager.RESET}
+{ColorManager.create_banner_line("🎯", 60)}
+""")
         
         self.logger.log("SUCCESS", "KygoX installation completed successfully!", "system")
-        print(f"\n{ColorManager.SUCCESS} {ColorManager.BOLD}Installation Complete!{ColorManager.RESET}")
-        print(f"{ColorManager.INFO} Installed: {len(self.package_manager.installed_packages)} tools")
-        print(f"{ColorManager.INFO} Report: {self.config.LOG_DIR / 'installation_report.txt'}")
 
 def main():
-    """Main entry point"""
+    """Enhanced main entry point with comprehensive argument handling"""
     parser = argparse.ArgumentParser(
-        description="KygoX - Arch Linux Penetration Testing Toolkit",
+        description="KygoX - Enhanced Arch Linux Penetration Testing Toolkit",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
-Examples:
-  python3 {sys.argv[0]}              # Full installation with retry logic
-  python3 {sys.argv[0]} --core-only  # Core tools only
-  python3 {sys.argv[0]} --check      # System check only
-  python3 {sys.argv[0]} --version    # Show version information
+{ColorManager.BOLD}Examples:{ColorManager.RESET}
+  python3 {sys.argv[0]}                    # Full installation with enhanced UI
+  python3 {sys.argv[0]} --core-only        # Core security tools only
+  python3 {sys.argv[0]} --trending-only    # Latest 2025 security tools
+  python3 {sys.argv[0]} --max-workers 4    # Use 4 parallel installation threads
+  python3 {sys.argv[0]} --check            # System compatibility check only
 
-Security Toolkit Categories:
-  • Network Discovery & Scanning     • Web Application Security
-  • Exploitation & Penetration       • Password Attacks & Cracking
-  • Digital Forensics & Analysis     • Reverse Engineering
-  • Mobile Security Testing          • Information Gathering (OSINT)
-  • Post-Exploitation Tools          • Vulnerability Assessment
-  • Steganography & Cryptography     • Hardware & IoT Security
-  • Social Engineering Tools        • Modern DevSecOps Tools
+{ColorManager.BOLD}Security Toolkit Categories:{ColorManager.RESET}
+  🌐 Network Discovery & Scanning       🔓 Web Application Security
+  ⚡ Exploitation & Penetration        🔐 Password Attacks & Cracking  
+  🔍 Digital Forensics & Analysis      🔧 Reverse Engineering & Analysis
+  📱 Mobile Security Testing           🕵️ Information Gathering (OSINT)
+  🚀 Post-Exploitation Tools           🛡️ Vulnerability Assessment
+  🎭 Steganography & Cryptography      🔌 Hardware & IoT Security
+  🎯 Social Engineering Tools          ☁️ Cloud & Container Security
+  🤖 AI/ML Security Testing            🔄 DevSecOps & Automation Tools
 
-Author: 0xbv1 | 0xb0rn3
-Contact: IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
-Repository: {KygoXConfig.REPO_URL}
-License: Do whatever the hell you want, but don't blame me when it breaks
+{ColorManager.BOLD}Author:{ColorManager.RESET} 0xbv1 | 0xb0rn3
+{ColorManager.BOLD}Contact:{ColorManager.RESET} IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
+{ColorManager.BOLD}Repository:{ColorManager.RESET} {KygoXConfig.REPO_URL}
+{ColorManager.BOLD}License:{ColorManager.RESET} Do whatever the hell you want, but don't blame me when it breaks
 """
     )
     
@@ -1460,24 +1966,55 @@ License: Do whatever the hell you want, but don't blame me when it breaks
         help="Set logging level (default: INFO)"
     )
     
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable colored output"
+    )
+    
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simulate installation without actually installing packages"
+    )
+    
     args = parser.parse_args()
+    
+    # Disable colors if requested
+    if args.no_color:
+        ColorManager.SUCCESS = "[SUCCESS]"
+        ColorManager.ERROR = "[ERROR]"
+        ColorManager.INFO = "[INFO]"
+        ColorManager.WARNING = "[WARNING]"
+        ColorManager.PROCESS = "[PROCESS]"
+        ColorManager.SECURITY = "[SECURITY]"
+        ColorManager.RETRY = "[RETRY]"
+        ColorManager.DOWNLOAD = "[DOWNLOAD]"
+        ColorManager.INSTALL = "[INSTALL]"
+        ColorManager.CYAN = ColorManager.GREEN = ColorManager.RED = ""
+        ColorManager.YELLOW = ColorManager.BLUE = ColorManager.PURPLE = ""
+        ColorManager.WHITE = ColorManager.BOLD = ColorManager.RESET = ""
     
     try:
         # Handle specific actions
         if args.check:
+            print(f"{ColorManager.create_section_header('SYSTEM COMPATIBILITY CHECK')}")
             core = KygoXCore()
             core._display_banner()
             core._check_prerequisites()
             print(f"\n{ColorManager.SUCCESS} System compatibility check passed!")
+            print(f"{ColorManager.INFO} Your system is ready for KygoX installation")
             return 0
         
         if args.cleanup:
+            print(f"{ColorManager.create_section_header('SYSTEM CLEANUP')}")
             core = KygoXCore()
             core.cleanup()
             print(f"{ColorManager.SUCCESS} System cleanup completed!")
             return 0
         
         if args.setup_keyring:
+            print(f"{ColorManager.create_section_header('BLACKARCH KEYRING SETUP')}")
             core = KygoXCore()
             core._display_banner()
             core._check_prerequisites()
@@ -1488,11 +2025,34 @@ License: Do whatever the hell you want, but don't blame me when it breaks
             core.config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
             
             if core.keyring_manager.setup_blackarch_keyring():
-                print(f"{ColorManager.SUCCESS} BlackArch keyring setup completed!")
+                print(f"{ColorManager.SUCCESS} BlackArch keyring setup completed successfully!")
                 return 0
             else:
                 print(f"{ColorManager.ERROR} BlackArch keyring setup failed!")
                 return 1
+        
+        # Dry run mode
+        if args.dry_run:
+            print(f"{ColorManager.create_section_header('DRY RUN MODE')}")
+            print(f"{ColorManager.WARNING} This is a simulation - no packages will be installed")
+            
+            core = KygoXCore()
+            
+            # Modify configuration based on arguments
+            if args.core_only:
+                core.config.TRENDING_2025 = []
+                print(f"{ColorManager.INFO} Mode: Core tools only")
+            elif args.trending_only:
+                core.config.CORE_TOOLS = []
+                print(f"{ColorManager.INFO} Mode: Trending 2025 tools only")
+            
+            all_tools = list(set(core.config.CORE_TOOLS + core.config.TRENDING_2025))
+            print(f"{ColorManager.INFO} Would install {len(all_tools)} packages")
+            print(f"{ColorManager.INFO} Worker threads: {args.max_workers}")
+            print(f"{ColorManager.INFO} Log level: {args.log_level}")
+            
+            print(f"\n{ColorManager.SUCCESS} Dry run completed - use without --dry-run to install")
+            return 0
         
         # Main installation
         core = KygoXCore()
@@ -1506,7 +2066,7 @@ License: Do whatever the hell you want, but don't blame me when it breaks
             core.logger.log("INFO", "Running in trending-only mode", "system")
         
         # Set max workers
-        if hasattr(args, 'max_workers'):
+        if hasattr(args, 'max_workers') and args.max_workers:
             core.logger.log("INFO", f"Using {args.max_workers} worker threads", "system")
         
         # Run the main installation
