@@ -86,6 +86,13 @@ Launch the interactive menu system:
 
 ```bash
 sudo ./run
+sudo ./run -q                    # Quick setup with recommended settings
+sudo ./run --workers 4          # Set specific worker count
+sudo ./run --core-only           # Core tools only
+sudo ./run --trending-only       # Trending 2025 tools only
+sudo ./run --log-level DEBUG     # Set logging level
+sudo ./run --no-interactive      # Skip interactive mode
+sudo ./run -h or ./run -h        # Toolkit usage help
 ```
 
 The interactive mode provides:
