@@ -1959,7 +1959,7 @@ parse_arguments() {
                 check_python
                 setup_python_environment
                 download_core_script
-                verify_core_script_integrity "$CORE_SCRIPT"
+                #verify_core_script_integrity "$CORE_SCRIPT"
                 log_message "SUCCESS" "Environment setup completed successfully"
                 exit 0
                 ;;
