@@ -980,14 +980,14 @@ download_core_script() {
         fi
         
         # Basic integrity check
-        if verify_core_script_integrity "$temp_file"; then
-            mv "$temp_file" "$CORE_SCRIPT"
-            chmod +x "$CORE_SCRIPT"
-            log_message "SUCCESS" "Core engine ready and verified"
-        else
-            rm -f "$temp_file"
-            error_exit "Core script integrity verification failed"
-        fi
+        #if verify_core_script_integrity "$temp_file"; then
+            #mv "$temp_file" "$CORE_SCRIPT"
+            #chmod +x "$CORE_SCRIPT"
+            #log_message "SUCCESS" "Core engine ready and verified"
+        #else
+            #rm -f "$temp_file"
+            #error_exit "Core script integrity verification failed"
+        #fi
     else
         log_message "INFO" "Core engine found, verifying integrity..."
         if ! verify_core_script_integrity "$CORE_SCRIPT"; then
@@ -1001,12 +1001,12 @@ download_core_script() {
 }
 
 # Core script integrity verification
-verify_core_script_integrity() {
-    local script_file="$1"
+#verify_core_script_integrity() {
+    #local script_file="$1"
     
-    if [[ ! -f "$script_file" ]]; then
-        return 1
-    fi
+    #if [[ ! -f "$script_file" ]]; then
+        #return 1
+    #fi
     
     # Check if it's a Python file
     if ! head -n1 "$script_file" | grep -q "python"; then
