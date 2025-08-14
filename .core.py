@@ -226,9 +226,9 @@ class ColorManager:
     SUCCESS = f"[{GREEN}✓{RESET}]"
     ERROR = f"[{RED}✗{RESET}]"
     INFO = f"[{BLUE}ℹ{RESET}]"
-    WARNING = f"[{YELLOW}⚠{RESET}]"
+    WARNING = f"[{YELLOW}⚠ {RESET}]"
     PROCESS = f"[{PURPLE}⚡{RESET}]"
-    SECURITY = f"[{CYAN}🔒{RESET}]"
+    SECURITY = f"[{CYAN}🔐{RESET}]"
     RETRY = f"[{YELLOW}🔄{RESET}]"
 
 class RetryManager:
@@ -244,7 +244,510 @@ class RetryManager:
         for attempt in range(max_retries + 1):
             try:
                 return func(*args, **kwargs)
+            except exceptions as e:
+                if attempt == max_retries:
+                    raise e
+                
+                wait_time = delay * (backoff ** attempt) + random.uniform(0, 1)
+                time.sleep(wait_time)
+        
+        return None
+
+class Logger:
+    """Advanced logging system with multiple output formats"""
+    
+    def __init__(self, log_dir: Path):
+        self.log_dir = log_dir
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.main_log = log_dir / "installation.log"
+        self.error_log = log_dir / "errors.log"
+        self.success_log = log_dir / "successful_packages.log"
+        self.failed_log = log_dir / "failed_packages.log"
+        self.retry_log = log_dir / "retries.log"
+        
+        # Setup logging with custom formatter
+        class ComponentFormatter(logging.Formatter):
+            def format(self, record):
+                if not hasattr(record, 'component'):
+                    record.component = 'system'
+                return super().format(record)
+        
+        formatter = ComponentFormatter('%(asctime)s - %(levelname)s - %(component)s - %(message)s')
+        
+        # File handler
+        file_handler = logging.FileHandler(self.main_log)
+        file_handler.setFormatter(formatter)
+        
+        # Console handler with reduced verbosity
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.WARNING)
+        console_handler.setFormatter(formatter)
+        
+        logging.basicConfig(
+            level=logging.DEBUG,
+            handlers=[file_handler]
+        )
+        
+        self.logger = logging.getLogger('KygoX')
+        
+    def log(self, level: str, message: str, component: str = "system", display: bool = True):
+        """Log message with level and component"""
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Write to main log
+        try:
+            with open(self.main_log, 'a', encoding='utf-8') as f:
+                f.write(f"[{timestamp}] [{level}] [{component}] {message}\n")
+        except Exception:
+            pass
+        
+        # Write to specific logs
+        if level == "ERROR":
+            try:
+                with open(self.error_log, 'a', encoding='utf-8') as f:
+                    f.write(f"[{timestamp}] [{component}] {message}\n")
+            except Exception:
+                pass
+        elif level == "RETRY":
+            try:
+                with open(self.retry_log, 'a', encoding='utf-8') as f:
+                    f.write(f"[{timestamp}] [{component}] {message}\n")
+            except Exception:
+                pass
+        
+        # Display to console
+        if display:
+            color_map = {
+                "SUCCESS": ColorManager.SUCCESS,
+                "ERROR": ColorManager.ERROR,
+                "INFO": ColorManager.INFO,
+                "WARNING": ColorManager.WARNING,
+                "PROCESS": ColorManager.PROCESS,
+                "SECURITY": ColorManager.SECURITY,
+                "RETRY": ColorManager.RETRY
+            }
+            
+            indicator = color_map.get(level, f"[{level}]")
+            print(f"{indicator} {message}")
+    
+    def log_package(self, package: str, status: str, details: str = ""):
+        """Log package installation status"""
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        try:
+            if status == "success":
+                with open(self.success_log, 'a', encoding='utf-8') as f:
+                    f.write(f"[{timestamp}] {package}\n")
+            elif status == "failed":
+                with open(self.failed_log, 'a', encoding='utf-8') as f:
+                    f.write(f"[{timestamp}] {package}: {details}\n")
+        except Exception:
+            pass
+
+class SystemCleaner:
+    """System cleanup utilities"""
+    
+    def __init__(self, logger: Logger):
+        self.logger = logger
+    
+    def cleanup_pacman_cache(self) -> bool:
+        """Clean pacman cache thoroughly"""
+        try:
+            self.logger.log("PROCESS", "Cleaning pacman cache", "cleaner")
+            
+            # Clean all cache
+            result = subprocess.run(
+                ["pacman", "-Scc", "--noconfirm"],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            
+            if result.returncode == 0:
+                self.logger.log("SUCCESS", "Pacman cache cleaned", "cleaner")
+                return True
+            else:
+                self.logger.log("WARNING", f"Cache cleanup warning: {result.stderr}", "cleaner")
+                return False
+                
+        except Exception as e:
+            self.logger.log("ERROR", f"Cache cleanup failed: {str(e)}", "cleaner")
+            return False
+    
+    def remove_db_locks(self) -> bool:
+        """Remove pacman database locks"""
+        try:
+            lock_files = [
+                "/var/lib/pacman/db.lck",
+                "/var/cache/pacman/pkg/db.lck"
+            ]
+            
+            removed_any = False
+            for lock_file in lock_files:
+                if Path(lock_file).exists():
+                    os.remove(lock_file)
+                    self.logger.log("SUCCESS", f"Removed lock file: {lock_file}", "cleaner")
+                    removed_any = True
+            
+            if not removed_any:
+                self.logger.log("INFO", "No database locks found", "cleaner")
+            
+            return True
+            
+        except Exception as e:
+            self.logger.log("ERROR", f"Failed to remove db locks: {str(e)}", "cleaner")
+            return False
+    
+    def refresh_pacman_databases(self) -> bool:
+        """Refresh pacman databases"""
+        try:
+            self.logger.log("PROCESS", "Refreshing package databases", "cleaner")
+            
+            # Force refresh
+            result = subprocess.run(
+                ["pacman", "-Syy"],
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            
+            if result.returncode == 0:
+                self.logger.log("SUCCESS", "Package databases refreshed", "cleaner")
+                return True
+            else:
+                self.logger.log("WARNING", f"Database refresh warning: {result.stderr}", "cleaner")
+                return False
+                
+        except Exception as e:
+            self.logger.log("ERROR", f"Database refresh failed: {str(e)}", "cleaner")
+            return False
+
+class SystemInfo:
+    """System information and compatibility checker"""
+    
+    def __init__(self):
+        self.distro_info = self._detect_distribution()
+        self.is_arch_based = self._check_arch_compatibility()
+        self.pacman_version = self._get_pacman_version()
+        self.system_specs = self._get_system_specs()
+        
+    def _detect_distribution(self) -> Dict[str, str]:
+        """Detect Linux distribution information"""
+        info = {"id": "", "version": "", "name": "", "codename": ""}
+        
+        try:
+            with open("/etc/os-release", "r") as f:
+                for line in f:
+                    if line.startswith("ID="):
+                        info["id"] = line.split("=", 1)[1].strip().strip('"').lower()
+                    elif line.startswith("VERSION_ID="):
+                        info["version"] = line.split("=", 1)[1].strip().strip('"')
+                    elif line.startswith("NAME="):
+                        info["name"] = line.split("=", 1)[1].strip().strip('"')
+                    elif line.startswith("VERSION_CODENAME="):
+                        info["codename"] = line.split("=", 1)[1].strip().strip('"')
+        except FileNotFoundError:
+            # Fallback detection
+            if Path("/etc/arch-release").exists():
+                info["id"] = "arch"
+                info["name"] = "Arch Linux"
+            elif Path("/etc/manjaro-release").exists():
+                info["id"] = "manjaro"
+                info["name"] = "Manjaro Linux"
+                
+        return info
+    
+    def _check_arch_compatibility(self) -> bool:
+        """Check if system is Arch-based"""
+        arch_indicators = [
+            Path("/etc/arch-release").exists(),
+            Path("/etc/manjaro-release").exists(),
+            shutil.which("pacman") is not None,
+            self.distro_info["id"] in ["arch", "manjaro", "endeavouros", "garuda", "artix", "blackarch", "archcraft"]
+        ]
+        
+        return any(arch_indicators)
+    
+    def _get_pacman_version(self) -> str:
+        """Get pacman version"""
+        try:
+            result = subprocess.run(
+                ["pacman", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode == 0:
+                return result.stdout.split("\n")[0].split()[-1].strip("v")
+        except:
+            pass
+        return "unknown"
+    
+    def _get_system_specs(self) -> Dict[str, Union[int, str]]:
+        """Get basic system specifications"""
+        specs = {}
+        
+        try:
+            # RAM
+            with open("/proc/meminfo", "r") as f:
+                for line in f:
+                    if line.startswith("MemTotal:"):
+                        specs["ram_mb"] = int(line.split()[1]) // 1024
+                        break
+            
+            # CPU cores
+            specs["cpu_cores"] = os.cpu_count()
+            
+            # Disk space
+            stat = shutil.disk_usage("/")
+            specs["disk_total_gb"] = stat.total // (1024**3)
+            specs["disk_free_gb"] = stat.free // (1024**3)
+            
+        except Exception:
+            specs = {"ram_mb": 0, "cpu_cores": 1, "disk_total_gb": 0, "disk_free_gb": 0}
+            
+        return specs
+
+class KeyringManager:
+    """BlackArch keyring and signature verification with multiple methods"""
+    
+    def __init__(self, logger: Logger, cache_dir: Path):
+        self.logger = logger
+        self.cache_dir = cache_dir
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cleaner = SystemCleaner(logger)
+        
+    def setup_blackarch_keyring(self) -> bool:
+        """Setup BlackArch keyring with multiple fallback methods"""
+        self.logger.log("PROCESS", "Setting up BlackArch keyring with multiple methods", "keyring")
+        
+        # Clean system first
+        self.cleaner.remove_db_locks()
+        self.cleaner.cleanup_pacman_cache()
+        
+        # Method 1: Try official strap.sh script
+        if self._try_strap_installation():
+            return True
+        
+        # Method 2: Try direct keyring package installation
+        if self._try_keyring_package_installation():
+            return True
+        
+        # Method 3: Try manual keyring setup
+        if self._try_manual_keyring_setup():
+            return True
+        
+        # Method 4: Try alternative installation
+        if self._try_alternative_keyring():
+            return True
+        
+        self.logger.log("WARNING", "All keyring installation methods failed", "keyring")
+        return False
+    
+    def _try_strap_installation(self) -> bool:
+        """Try BlackArch strap.sh installation"""
+        self.logger.log("PROCESS", "Trying strap.sh installation method", "keyring")
+        
+        for strap_url in KygoXConfig.BLACKARCH_STRAP_URLS:
+            try:
+                strap_file = self.cache_dir / "strap.sh"
+                
+                # Download strap script with retry
+                def download_strap():
+                    response = requests.get(strap_url, timeout=KygoXConfig.DOWNLOAD_TIMEOUT)
+                    response.raise_for_status()
+                    with open(strap_file, 'wb') as f:
+                        f.write(response.content)
+                    return True
+                
+                if RetryManager.retry_with_backoff(
+                    download_strap,
+                    exceptions=(requests.RequestException, IOError)
+                ):
+                    # Make executable and run
+                    strap_file.chmod(0o755)
+                    
+                    def run_strap():
+                        result = subprocess.run(
+                            ["bash", str(strap_file)],
+                            capture_output=True,
+                            text=True,
+                            timeout=KygoXConfig.INSTALL_TIMEOUT,
+                            cwd="/tmp"
+                        )
+                        if result.returncode == 0:
+                            return True
+                        else:
+                            raise subprocess.CalledProcessError(result.returncode, "strap.sh", result.stderr)
+                    
+                    if RetryManager.retry_with_backoff(
+                        run_strap,
+                        exceptions=(subprocess.CalledProcessError, subprocess.TimeoutExpired)
+                    ):
+                        self.logger.log("SUCCESS", "BlackArch installed via strap.sh", "keyring")
+                        self._verify_blackarch_setup()
+                        return True
+                
             except Exception as e:
+                self.logger.log("WARNING", f"Strap method failed for {strap_url}: {str(e)}", "keyring")
+                continue
+        
+        return False
+    
+    def _try_keyring_package_installation(self) -> bool:
+        """Try direct keyring package installation"""
+        self.logger.log("PROCESS", "Trying direct keyring package installation", "keyring")
+        
+        for keyring_url in KygoXConfig.BLACKARCH_KEYRING_URLS:
+            try:
+                keyring_file = self.cache_dir / "blackarch-keyring.pkg.tar.xz"
+                
+                # Download keyring with retry
+                def download_keyring():
+                    self._download_file_with_progress(keyring_url, keyring_file)
+                    return True
+                
+                if RetryManager.retry_with_backoff(
+                    download_keyring,
+                    exceptions=(requests.RequestException, IOError)
+                ):
+                    # Install keyring
+                    def install_keyring():
+                        result = subprocess.run(
+                            ["pacman", "-U", "--noconfirm", "--overwrite", "*", str(keyring_file)],
+                            capture_output=True,
+                            text=True,
+                            timeout=KygoXConfig.INSTALL_TIMEOUT
+                        )
+                        if result.returncode == 0:
+                            return True
+                        else:
+                            raise subprocess.CalledProcessError(result.returncode, "pacman", result.stderr)
+                    
+                    if RetryManager.retry_with_backoff(
+                        install_keyring,
+                        exceptions=(subprocess.CalledProcessError, subprocess.TimeoutExpired)
+                    ):
+                        self.logger.log("SUCCESS", "BlackArch keyring installed directly", "keyring")
+                        self._add_blackarch_repo()
+                        return True
+                
+            except Exception as e:
+                self.logger.log("WARNING", f"Direct keyring method failed for {keyring_url}: {str(e)}", "keyring")
+                continue
+        
+        return False
+    
+    def _try_manual_keyring_setup(self) -> bool:
+        """Try manual keyring setup"""
+        self.logger.log("PROCESS", "Trying manual keyring setup", "keyring")
+        
+        try:
+            # Initialize pacman keyring
+            def init_keyring():
+                result = subprocess.run(
+                    ["pacman-key", "--init"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                if result.returncode != 0:
+                    raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
+                return True
+            
+            # Populate keyring
+            def populate_keyring():
+                result = subprocess.run(
+                    ["pacman-key", "--populate", "archlinux"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300
+                )
+                if result.returncode != 0:
+                    raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
+                return True
+            
+            # Add BlackArch key
+            def add_blackarch_key():
+                # Download and add BlackArch master key
+                result = subprocess.run([
+                    "curl", "-O", "https://blackarch.org/keyring/blackarch-keyring.pkg.tar.xz"
+                ], cwd=str(self.cache_dir), capture_output=True, text=True, timeout=120)
+                
+                if result.returncode == 0:
+                    # Extract and install
+                    result2 = subprocess.run([
+                        "pacman", "-U", "--noconfirm", 
+                        str(self.cache_dir / "blackarch-keyring.pkg.tar.xz")
+                    ], capture_output=True, text=True, timeout=300)
+                    
+                    if result2.returncode == 0:
+                        return True
+                
+                raise subprocess.CalledProcessError(1, "manual keyring", "Failed to add BlackArch key")
+            
+            # Execute steps with retry
+            if (RetryManager.retry_with_backoff(init_keyring) and
+                RetryManager.retry_with_backoff(populate_keyring) and
+                RetryManager.retry_with_backoff(add_blackarch_key)):
+                
+                self.logger.log("SUCCESS", "Manual keyring setup completed", "keyring")
+                self._add_blackarch_repo()
+                return True
+                
+        except Exception as e:
+            self.logger.log("WARNING", f"Manual keyring setup failed: {str(e)}", "keyring")
+        
+        return False
+    
+    def _try_alternative_keyring(self) -> bool:
+        """Try alternative keyring installation method"""
+        self.logger.log("PROCESS", "Trying alternative keyring method", "keyring")
+        
+        try:
+            # Skip signature verification and force install
+            commands = [
+                ["pacman-key", "--init"],
+                ["pacman-key", "--populate", "archlinux"],
+                ["pacman", "-Sy", "--noconfirm"],
+            ]
+            
+            for cmd in commands:
+                def run_cmd():
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=300
+                    )
+                    if result.returncode != 0:
+                        raise subprocess.CalledProcessError(result.returncode, " ".join(cmd), result.stderr)
+                    return True
+                
+                if not RetryManager.retry_with_backoff(run_cmd):
+                    return False
+            
+            # Add BlackArch repo without keyring first
+            self._add_blackarch_repo_unsafe()
+            
+            # Try to install BlackArch keyring from repo
+            def install_from_repo():
+                result = subprocess.run(
+                    ["pacman", "-S", "--noconfirm", "--disable-download-timeout", "blackarch-keyring"],
+                    capture_output=True,
+                    text=True,
+                    timeout=600
+                )
+                if result.returncode == 0:
+                    return True
+                raise subprocess.CalledProcessError(result.returncode, "pacman", result.stderr)
+            
+            if RetryManager.retry_with_backoff(install_from_repo):
+                self.logger.log("SUCCESS", "Alternative keyring method succeeded", "keyring")
+                return True
+                
+        except Exception as e:
             self.logger.log("WARNING", f"Alternative keyring method failed: {str(e)}", "keyring")
         
         return False
@@ -889,507 +1392,133 @@ Examples:
   python3 {sys.argv[0]}              # Full installation with retry logic
   python3 {sys.argv[0]} --core-only  # Core tools only
   python3 {sys.argv[0]} --check      # System check only
-  python exceptions as e:
-                if attempt == max_retries:
-                    raise e
-                
-                wait_time = delay * (backoff ** attempt) + random.uniform(0, 1)
-                time.sleep(wait_time)
-        
-        return None
+  python3 {sys.argv[0]} --version    # Show version information
 
-class Logger:
-    """Advanced logging system with multiple output formats"""
-    
-    def __init__(self, log_dir: Path):
-        self.log_dir = log_dir
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        
-        self.main_log = log_dir / "installation.log"
-        self.error_log = log_dir / "errors.log"
-        self.success_log = log_dir / "successful_packages.log"
-        self.failed_log = log_dir / "failed_packages.log"
-        self.retry_log = log_dir / "retries.log"
-        
-        # Setup logging with custom formatter
-        class ComponentFormatter(logging.Formatter):
-            def format(self, record):
-                if not hasattr(record, 'component'):
-                    record.component = 'system'
-                return super().format(record)
-        
-        formatter = ComponentFormatter('%(asctime)s - %(levelname)s - %(component)s - %(message)s')
-        
-        # File handler
-        file_handler = logging.FileHandler(self.main_log)
-        file_handler.setFormatter(formatter)
-        
-        # Console handler with reduced verbosity
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.WARNING)
-        console_handler.setFormatter(formatter)
-        
-        logging.basicConfig(
-            level=logging.DEBUG,
-            handlers=[file_handler]
-        )
-        
-        self.logger = logging.getLogger('KygoX')
-        
-    def log(self, level: str, message: str, component: str = "system", display: bool = True):
-        """Log message with level and component"""
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Write to main log
-        try:
-            with open(self.main_log, 'a', encoding='utf-8') as f:
-                f.write(f"[{timestamp}] [{level}] [{component}] {message}\n")
-        except Exception:
-            pass
-        
-        # Write to specific logs
-        if level == "ERROR":
-            try:
-                with open(self.error_log, 'a', encoding='utf-8') as f:
-                    f.write(f"[{timestamp}] [{component}] {message}\n")
-            except Exception:
-                pass
-        elif level == "RETRY":
-            try:
-                with open(self.retry_log, 'a', encoding='utf-8') as f:
-                    f.write(f"[{timestamp}] [{component}] {message}\n")
-            except Exception:
-                pass
-        
-        # Display to console
-        if display:
-            color_map = {
-                "SUCCESS": ColorManager.SUCCESS,
-                "ERROR": ColorManager.ERROR,
-                "INFO": ColorManager.INFO,
-                "WARNING": ColorManager.WARNING,
-                "PROCESS": ColorManager.PROCESS,
-                "SECURITY": ColorManager.SECURITY,
-                "RETRY": ColorManager.RETRY
-            }
-            
-            indicator = color_map.get(level, f"[{level}]")
-            print(f"{indicator} {message}")
-    
-    def log_package(self, package: str, status: str, details: str = ""):
-        """Log package installation status"""
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        try:
-            if status == "success":
-                with open(self.success_log, 'a', encoding='utf-8') as f:
-                    f.write(f"[{timestamp}] {package}\n")
-            elif status == "failed":
-                with open(self.failed_log, 'a', encoding='utf-8') as f:
-                    f.write(f"[{timestamp}] {package}: {details}\n")
-        except Exception:
-            pass
+Security Toolkit Categories:
+  • Network Discovery & Scanning     • Web Application Security
+  • Exploitation & Penetration       • Password Attacks & Cracking
+  • Digital Forensics & Analysis     • Reverse Engineering
+  • Mobile Security Testing          • Information Gathering (OSINT)
+  • Post-Exploitation Tools          • Vulnerability Assessment
+  • Steganography & Cryptography     • Hardware & IoT Security
+  • Social Engineering Tools        • Modern DevSecOps Tools
 
-class SystemCleaner:
-    """System cleanup utilities"""
+Author: 0xbv1 | 0xb0rn3
+Contact: IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
+Repository: {KygoXConfig.REPO_URL}
+License: Do whatever the hell you want, but don't blame me when it breaks
+"""
+    )
     
-    def __init__(self, logger: Logger):
-        self.logger = logger
+    parser.add_argument(
+        "--version", 
+        action="version", 
+        version=f"KygoX {KygoXConfig.VERSION} ({KygoXConfig.VERSION_NAME})"
+    )
     
-    def cleanup_pacman_cache(self) -> bool:
-        """Clean pacman cache thoroughly"""
-        try:
-            self.logger.log("PROCESS", "Cleaning pacman cache", "cleaner")
+    parser.add_argument(
+        "--core-only",
+        action="store_true",
+        help="Install only core security tools (faster installation)"
+    )
+    
+    parser.add_argument(
+        "--trending-only",
+        action="store_true", 
+        help="Install only trending 2025 security tools"
+    )
+    
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Perform system compatibility check only"
+    )
+    
+    parser.add_argument(
+        "--setup-keyring",
+        action="store_true",
+        help="Setup BlackArch keyring only"
+    )
+    
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="Cleanup system and remove temporary files"
+    )
+    
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=2,
+        help="Maximum number of parallel installation workers (default: 2)"
+    )
+    
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Set logging level (default: INFO)"
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        # Handle specific actions
+        if args.check:
+            core = KygoXCore()
+            core._display_banner()
+            core._check_prerequisites()
+            print(f"\n{ColorManager.SUCCESS} System compatibility check passed!")
+            return 0
+        
+        if args.cleanup:
+            core = KygoXCore()
+            core.cleanup()
+            print(f"{ColorManager.SUCCESS} System cleanup completed!")
+            return 0
+        
+        if args.setup_keyring:
+            core = KygoXCore()
+            core._display_banner()
+            core._check_prerequisites()
+            core._prepare_system()
             
-            # Clean all cache
-            result = subprocess.run(
-                ["pacman", "-Scc", "--noconfirm"],
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
+            # Create directories
+            core.config.LOG_DIR.mkdir(parents=True, exist_ok=True)
+            core.config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
             
-            if result.returncode == 0:
-                self.logger.log("SUCCESS", "Pacman cache cleaned", "cleaner")
-                return True
+            if core.keyring_manager.setup_blackarch_keyring():
+                print(f"{ColorManager.SUCCESS} BlackArch keyring setup completed!")
+                return 0
             else:
-                self.logger.log("WARNING", f"Cache cleanup warning: {result.stderr}", "cleaner")
-                return False
-                
-        except Exception as e:
-            self.logger.log("ERROR", f"Cache cleanup failed: {str(e)}", "cleaner")
-            return False
-    
-    def remove_db_locks(self) -> bool:
-        """Remove pacman database locks"""
-        try:
-            lock_files = [
-                "/var/lib/pacman/db.lck",
-                "/var/cache/pacman/pkg/db.lck"
-            ]
-            
-            removed_any = False
-            for lock_file in lock_files:
-                if Path(lock_file).exists():
-                    os.remove(lock_file)
-                    self.logger.log("SUCCESS", f"Removed lock file: {lock_file}", "cleaner")
-                    removed_any = True
-            
-            if not removed_any:
-                self.logger.log("INFO", "No database locks found", "cleaner")
-            
-            return True
-            
-        except Exception as e:
-            self.logger.log("ERROR", f"Failed to remove db locks: {str(e)}", "cleaner")
-            return False
-    
-    def refresh_pacman_databases(self) -> bool:
-        """Refresh pacman databases"""
-        try:
-            self.logger.log("PROCESS", "Refreshing package databases", "cleaner")
-            
-            # Force refresh
-            result = subprocess.run(
-                ["pacman", "-Syy"],
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
-            
-            if result.returncode == 0:
-                self.logger.log("SUCCESS", "Package databases refreshed", "cleaner")
-                return True
-            else:
-                self.logger.log("WARNING", f"Database refresh warning: {result.stderr}", "cleaner")
-                return False
-                
-        except Exception as e:
-            self.logger.log("ERROR", f"Database refresh failed: {str(e)}", "cleaner")
-            return False
+                print(f"{ColorManager.ERROR} BlackArch keyring setup failed!")
+                return 1
+        
+        # Main installation
+        core = KygoXCore()
+        
+        # Modify configuration based on arguments
+        if args.core_only:
+            core.config.TRENDING_2025 = []
+            core.logger.log("INFO", "Running in core-only mode", "system")
+        elif args.trending_only:
+            core.config.CORE_TOOLS = []
+            core.logger.log("INFO", "Running in trending-only mode", "system")
+        
+        # Set max workers
+        if hasattr(args, 'max_workers'):
+            core.logger.log("INFO", f"Using {args.max_workers} worker threads", "system")
+        
+        # Run the main installation
+        core.run()
+        return 0
+        
+    except KeyboardInterrupt:
+        print(f"\n{ColorManager.WARNING} Installation interrupted by user")
+        return 130
+    except Exception as e:
+        print(f"{ColorManager.ERROR} Fatal error: {str(e)}")
+        return 1
 
-class SystemInfo:
-    """System information and compatibility checker"""
-    
-    def __init__(self):
-        self.distro_info = self._detect_distribution()
-        self.is_arch_based = self._check_arch_compatibility()
-        self.pacman_version = self._get_pacman_version()
-        self.system_specs = self._get_system_specs()
-        
-    def _detect_distribution(self) -> Dict[str, str]:
-        """Detect Linux distribution information"""
-        info = {"id": "", "version": "", "name": "", "codename": ""}
-        
-        try:
-            with open("/etc/os-release", "r") as f:
-                for line in f:
-                    if line.startswith("ID="):
-                        info["id"] = line.split("=", 1)[1].strip().strip('"').lower()
-                    elif line.startswith("VERSION_ID="):
-                        info["version"] = line.split("=", 1)[1].strip().strip('"')
-                    elif line.startswith("NAME="):
-                        info["name"] = line.split("=", 1)[1].strip().strip('"')
-                    elif line.startswith("VERSION_CODENAME="):
-                        info["codename"] = line.split("=", 1)[1].strip().strip('"')
-        except FileNotFoundError:
-            # Fallback detection
-            if Path("/etc/arch-release").exists():
-                info["id"] = "arch"
-                info["name"] = "Arch Linux"
-            elif Path("/etc/manjaro-release").exists():
-                info["id"] = "manjaro"
-                info["name"] = "Manjaro Linux"
-                
-        return info
-    
-    def _check_arch_compatibility(self) -> bool:
-        """Check if system is Arch-based"""
-        arch_indicators = [
-            Path("/etc/arch-release").exists(),
-            Path("/etc/manjaro-release").exists(),
-            shutil.which("pacman") is not None,
-            self.distro_info["id"] in ["arch", "manjaro", "endeavouros", "garuda", "artix", "blackarch", "archcraft"]
-        ]
-        
-        return any(arch_indicators)
-    
-    def _get_pacman_version(self) -> str:
-        """Get pacman version"""
-        try:
-            result = subprocess.run(
-                ["pacman", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            if result.returncode == 0:
-                return result.stdout.split("\n")[0].split()[-1].strip("v")
-        except:
-            pass
-        return "unknown"
-    
-    def _get_system_specs(self) -> Dict[str, Union[int, str]]:
-        """Get basic system specifications"""
-        specs = {}
-        
-        try:
-            # RAM
-            with open("/proc/meminfo", "r") as f:
-                for line in f:
-                    if line.startswith("MemTotal:"):
-                        specs["ram_mb"] = int(line.split()[1]) // 1024
-                        break
-            
-            # CPU cores
-            specs["cpu_cores"] = os.cpu_count()
-            
-            # Disk space
-            stat = shutil.disk_usage("/")
-            specs["disk_total_gb"] = stat.total // (1024**3)
-            specs["disk_free_gb"] = stat.free // (1024**3)
-            
-        except Exception:
-            specs = {"ram_mb": 0, "cpu_cores": 1, "disk_total_gb": 0, "disk_free_gb": 0}
-            
-        return specs
-
-class KeyringManager:
-    """BlackArch keyring and signature verification with multiple methods"""
-    
-    def __init__(self, logger: Logger, cache_dir: Path):
-        self.logger = logger
-        self.cache_dir = cache_dir
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cleaner = SystemCleaner(logger)
-        
-    def setup_blackarch_keyring(self) -> bool:
-        """Setup BlackArch keyring with multiple fallback methods"""
-        self.logger.log("PROCESS", "Setting up BlackArch keyring with multiple methods", "keyring")
-        
-        # Clean system first
-        self.cleaner.remove_db_locks()
-        self.cleaner.cleanup_pacman_cache()
-        
-        # Method 1: Try official strap.sh script
-        if self._try_strap_installation():
-            return True
-        
-        # Method 2: Try direct keyring package installation
-        if self._try_keyring_package_installation():
-            return True
-        
-        # Method 3: Try manual keyring setup
-        if self._try_manual_keyring_setup():
-            return True
-        
-        # Method 4: Try alternative installation
-        if self._try_alternative_keyring():
-            return True
-        
-        self.logger.log("WARNING", "All keyring installation methods failed", "keyring")
-        return False
-    
-    def _try_strap_installation(self) -> bool:
-        """Try BlackArch strap.sh installation"""
-        self.logger.log("PROCESS", "Trying strap.sh installation method", "keyring")
-        
-        for strap_url in KygoXConfig.BLACKARCH_STRAP_URLS:
-            try:
-                strap_file = self.cache_dir / "strap.sh"
-                
-                # Download strap script with retry
-                def download_strap():
-                    response = requests.get(strap_url, timeout=KygoXConfig.DOWNLOAD_TIMEOUT)
-                    response.raise_for_status()
-                    with open(strap_file, 'wb') as f:
-                        f.write(response.content)
-                    return True
-                
-                if RetryManager.retry_with_backoff(
-                    download_strap,
-                    exceptions=(requests.RequestException, IOError)
-                ):
-                    # Make executable and run
-                    strap_file.chmod(0o755)
-                    
-                    def run_strap():
-                        result = subprocess.run(
-                            ["bash", str(strap_file)],
-                            capture_output=True,
-                            text=True,
-                            timeout=KygoXConfig.INSTALL_TIMEOUT,
-                            cwd="/tmp"
-                        )
-                        if result.returncode == 0:
-                            return True
-                        else:
-                            raise subprocess.CalledProcessError(result.returncode, "strap.sh", result.stderr)
-                    
-                    if RetryManager.retry_with_backoff(
-                        run_strap,
-                        exceptions=(subprocess.CalledProcessError, subprocess.TimeoutExpired)
-                    ):
-                        self.logger.log("SUCCESS", "BlackArch installed via strap.sh", "keyring")
-                        self._verify_blackarch_setup()
-                        return True
-                
-            except Exception as e:
-                self.logger.log("WARNING", f"Strap method failed for {strap_url}: {str(e)}", "keyring")
-                continue
-        
-        return False
-    
-    def _try_keyring_package_installation(self) -> bool:
-        """Try direct keyring package installation"""
-        self.logger.log("PROCESS", "Trying direct keyring package installation", "keyring")
-        
-        for keyring_url in KygoXConfig.BLACKARCH_KEYRING_URLS:
-            try:
-                keyring_file = self.cache_dir / "blackarch-keyring.pkg.tar.xz"
-                
-                # Download keyring with retry
-                def download_keyring():
-                    self._download_file_with_progress(keyring_url, keyring_file)
-                    return True
-                
-                if RetryManager.retry_with_backoff(
-                    download_keyring,
-                    exceptions=(requests.RequestException, IOError)
-                ):
-                    # Install keyring
-                    def install_keyring():
-                        result = subprocess.run(
-                            ["pacman", "-U", "--noconfirm", "--overwrite", "*", str(keyring_file)],
-                            capture_output=True,
-                            text=True,
-                            timeout=KygoXConfig.INSTALL_TIMEOUT
-                        )
-                        if result.returncode == 0:
-                            return True
-                        else:
-                            raise subprocess.CalledProcessError(result.returncode, "pacman", result.stderr)
-                    
-                    if RetryManager.retry_with_backoff(
-                        install_keyring,
-                        exceptions=(subprocess.CalledProcessError, subprocess.TimeoutExpired)
-                    ):
-                        self.logger.log("SUCCESS", "BlackArch keyring installed directly", "keyring")
-                        self._add_blackarch_repo()
-                        return True
-                
-            except Exception as e:
-                self.logger.log("WARNING", f"Direct keyring method failed for {keyring_url}: {str(e)}", "keyring")
-                continue
-        
-        return False
-    
-    def _try_manual_keyring_setup(self) -> bool:
-        """Try manual keyring setup"""
-        self.logger.log("PROCESS", "Trying manual keyring setup", "keyring")
-        
-        try:
-            # Initialize pacman keyring
-            def init_keyring():
-                result = subprocess.run(
-                    ["pacman-key", "--init"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300
-                )
-                if result.returncode != 0:
-                    raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
-                return True
-            
-            # Populate keyring
-            def populate_keyring():
-                result = subprocess.run(
-                    ["pacman-key", "--populate", "archlinux"],
-                    capture_output=True,
-                    text=True,
-                    timeout=300
-                )
-                if result.returncode != 0:
-                    raise subprocess.CalledProcessError(result.returncode, "pacman-key", result.stderr)
-                return True
-            
-            # Add BlackArch key
-            def add_blackarch_key():
-                # Download and add BlackArch master key
-                result = subprocess.run([
-                    "curl", "-O", "https://blackarch.org/keyring/blackarch-keyring.pkg.tar.xz"
-                ], cwd=str(self.cache_dir), capture_output=True, text=True, timeout=120)
-                
-                if result.returncode == 0:
-                    # Extract and install
-                    result2 = subprocess.run([
-                        "pacman", "-U", "--noconfirm", 
-                        str(self.cache_dir / "blackarch-keyring.pkg.tar.xz")
-                    ], capture_output=True, text=True, timeout=300)
-                    
-                    if result2.returncode == 0:
-                        return True
-                
-                raise subprocess.CalledProcessError(1, "manual keyring", "Failed to add BlackArch key")
-            
-            # Execute steps with retry
-            if (RetryManager.retry_with_backoff(init_keyring) and
-                RetryManager.retry_with_backoff(populate_keyring) and
-                RetryManager.retry_with_backoff(add_blackarch_key)):
-                
-                self.logger.log("SUCCESS", "Manual keyring setup completed", "keyring")
-                self._add_blackarch_repo()
-                return True
-                
-        except Exception as e:
-            self.logger.log("WARNING", f"Manual keyring setup failed: {str(e)}", "keyring")
-        
-        return False
-    
-    def _try_alternative_keyring(self) -> bool:
-        """Try alternative keyring installation method"""
-        self.logger.log("PROCESS", "Trying alternative keyring method", "keyring")
-        
-        try:
-            # Skip signature verification and force install
-            commands = [
-                ["pacman-key", "--init"],
-                ["pacman-key", "--populate", "archlinux"],
-                ["pacman", "-Sy", "--noconfirm"],
-            ]
-            
-            for cmd in commands:
-                def run_cmd():
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True,
-                        timeout=300
-                    )
-                    if result.returncode != 0:
-                        raise subprocess.CalledProcessError(result.returncode, " ".join(cmd), result.stderr)
-                    return True
-                
-                if not RetryManager.retry_with_backoff(run_cmd):
-                    return False
-            
-            # Add BlackArch repo without keyring first
-            self._add_blackarch_repo_unsafe()
-            
-            # Try to install BlackArch keyring from repo
-            def install_from_repo():
-                result = subprocess.run(
-                    ["pacman", "-S", "--noconfirm", "--disable-download-timeout", "blackarch-keyring"],
-                    capture_output=True,
-                    text=True,
-                    timeout=600
-                )
-                if result.returncode == 0:
-                    return True
-                raise subprocess.CalledProcessError(result.returncode, "pacman", result.stderr)
-            
-            if RetryManager.retry_with_backoff(install_from_repo):
-                self.logger.log("SUCCESS", "Alternative keyring method succeeded", "keyring")
-                return True
-                
-        except
+if __name__ == "__main__":
+    sys.exit(main())
