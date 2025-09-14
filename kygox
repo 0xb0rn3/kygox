@@ -4,7 +4,7 @@
 # Version 0.2.0 Phoenix
 # Author: 0xb0rn3 | Contact: IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
 #
-# Advanced security toolkit installer with integrated repository management
+# Advanced security toolkit installer with animated UI interface
 #
 
 set -euo pipefail
@@ -24,19 +24,13 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly LOG_DIR="$HOME/.kygox"
 readonly CACHE_DIR="/tmp/kygox_cache"
 
-# Security Repository Configuration (Obfuscated)
-readonly SECURITY_REPO_NAME="pentesting"
-readonly SECURITY_REPO_DISPLAY="Security Arsenal"
-readonly SECURITY_MIRROR_FILE="arsenal-mirrorlist"
-readonly SECURITY_KEYRING_NAME="arsenal-keyring"
-readonly SECURITY_OFFICIALS_PKG="arsenal-officials"
-
-# Repository URLs (obfuscated variable names)
-readonly ARSENAL_BASE_URL="https://blackarch.org"
-readonly ARSENAL_KEYRING_URL="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.zst"
-readonly ARSENAL_KEYRING_SIG_URL="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.zst.sig"
-readonly ARSENAL_MIRROR_URL="https://blackarch.org/blackarch-mirrorlist"
-readonly ARSENAL_GPG_KEY="4345771566D76038C7FEB43863EC0ADBEA87E4E3"
+# BlackArch Repository Configuration (Original)
+readonly BLACKARCH_STRAP_URL="https://blackarch.org/strap.sh"
+readonly BLACKARCH_KEYRING_URL="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.zst"
+readonly BLACKARCH_KEYRING_SIG_URL="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.zst.sig"
+readonly BLACKARCH_MIRROR_URL="https://blackarch.org/blackarch-mirrorlist"
+readonly BLACKARCH_GPG_KEY="4345771566D76038C7FEB43863EC0ADBEA87E4E3"
+readonly BLACKARCH_MIRROR_FILE="blackarch-mirrorlist"
 
 # Colors and UI
 readonly RED='\033[0;31m'
@@ -71,43 +65,272 @@ declare -A CATEGORIES=(
 )
 
 # =============================================================================
+# ANIMATED UI SYSTEM
+# =============================================================================
+
+# Create Python UI loader system
+create_ui_loader() {
+    cat > "$CACHE_DIR/ui_loader.py" << 'PYTHON_SCRIPT'
+#!/usr/bin/env python3
+"""
+kygoX Animated UI Loader System
+Provides clean animated interfaces for all system operations
+"""
+
+import sys
+import time
+import threading
+import subprocess
+import signal
+from itertools import cycle
+
+class AnimatedLoader:
+    def __init__(self):
+        self.running = False
+        self.thread = None
+        
+    def spinner_animation(self, message, spinner_chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"):
+        """Display animated spinner with message"""
+        spinner = cycle(spinner_chars)
+        while self.running:
+            sys.stdout.write(f'\r\033[96m{next(spinner)}\033[0m {message}')
+            sys.stdout.flush()
+            time.sleep(0.1)
+    
+    def progress_bar(self, message, duration=10, width=40):
+        """Display animated progress bar"""
+        for i in range(width + 1):
+            if not self.running:
+                break
+            percent = int((i / width) * 100)
+            filled = '█' * i
+            empty = '░' * (width - i)
+            sys.stdout.write(f'\r\033[94m[{filled}{empty}]\033[0m {percent}% {message}')
+            sys.stdout.flush()
+            time.sleep(duration / width)
+    
+    def dots_animation(self, message, max_dots=3):
+        """Display animated dots"""
+        while self.running:
+            for dots in range(max_dots + 1):
+                if not self.running:
+                    break
+                dots_str = '.' * dots + ' ' * (max_dots - dots)
+                sys.stdout.write(f'\r\033[93m{message}{dots_str}\033[0m')
+                sys.stdout.flush()
+                time.sleep(0.5)
+    
+    def wave_animation(self, message):
+        """Display wave animation"""
+        wave_chars = "▁▂▃▄▅▆▇█▇▆▅▄▃▂"
+        wave = cycle(wave_chars)
+        while self.running:
+            wave_display = ''.join([next(wave) for _ in range(8)])
+            sys.stdout.write(f'\r\033[95m{wave_display}\033[0m {message} \033[95m{wave_display}\033[0m')
+            sys.stdout.flush()
+            time.sleep(0.1)
+    
+    def start_animation(self, animation_type, message, duration=None):
+        """Start specific animation type"""
+        self.running = True
+        
+        if animation_type == "spinner":
+            self.thread = threading.Thread(target=self.spinner_animation, args=(message,))
+        elif animation_type == "progress":
+            self.thread = threading.Thread(target=self.progress_bar, args=(message, duration or 10))
+        elif animation_type == "dots":
+            self.thread = threading.Thread(target=self.dots_animation, args=(message,))
+        elif animation_type == "wave":
+            self.thread = threading.Thread(target=self.wave_animation, args=(message,))
+        else:
+            self.thread = threading.Thread(target=self.spinner_animation, args=(message,))
+        
+        self.thread.daemon = True
+        self.thread.start()
+    
+    def stop_animation(self, success_message=None, error_message=None):
+        """Stop animation and show result"""
+        self.running = False
+        if self.thread:
+            self.thread.join(timeout=1)
+        
+        # Clear line
+        sys.stdout.write('\r' + ' ' * 80 + '\r')
+        
+        if success_message:
+            print(f'\033[92m✓\033[0m {success_message}')
+        elif error_message:
+            print(f'\033[91m✗\033[0m {error_message}')
+        
+        sys.stdout.flush()
+
+class UIManager:
+    def __init__(self):
+        self.loader = AnimatedLoader()
+        
+    def run_with_loader(self, command, animation_type="spinner", message="Processing", 
+                       success_msg=None, error_msg=None, timeout=300):
+        """Run command with animated loader"""
+        
+        # Start animation
+        self.loader.start_animation(animation_type, message)
+        
+        try:
+            # Run command silently
+            if isinstance(command, str):
+                result = subprocess.run(command, shell=True, capture_output=True, 
+                                      text=True, timeout=timeout)
+            else:
+                result = subprocess.run(command, capture_output=True, 
+                                      text=True, timeout=timeout)
+            
+            # Stop animation with result
+            if result.returncode == 0:
+                self.loader.stop_animation(success_message=success_msg or f"{message} completed")
+                return True
+            else:
+                self.loader.stop_animation(error_message=error_msg or f"{message} failed")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self.loader.stop_animation(error_message=f"{message} timed out")
+            return False
+        except Exception as e:
+            self.loader.stop_animation(error_message=f"{message} error: {str(e)}")
+            return False
+    
+    def run_multi_step(self, steps):
+        """Run multiple steps with individual loaders"""
+        results = []
+        
+        for step in steps:
+            command = step.get('command')
+            animation = step.get('animation', 'spinner')
+            message = step.get('message', 'Processing')
+            success_msg = step.get('success_msg')
+            error_msg = step.get('error_msg')
+            timeout = step.get('timeout', 300)
+            
+            result = self.run_with_loader(command, animation, message, 
+                                        success_msg, error_msg, timeout)
+            results.append(result)
+            
+            if not result and step.get('critical', False):
+                break
+        
+        return results
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: ui_loader.py <action> [args]")
+        sys.exit(1)
+    
+    action = sys.argv[1]
+    manager = UIManager()
+    
+    if action == "run_command":
+        if len(sys.argv) < 4:
+            print("Usage: ui_loader.py run_command <command> <message> [animation_type]")
+            sys.exit(1)
+        
+        command = sys.argv[2]
+        message = sys.argv[3]
+        animation_type = sys.argv[4] if len(sys.argv) > 4 else "spinner"
+        
+        success = manager.run_with_loader(command, animation_type, message)
+        sys.exit(0 if success else 1)
+    
+    elif action == "test_animations":
+        # Test all animation types
+        animations = [
+            ("spinner", "Testing spinner animation"),
+            ("progress", "Testing progress animation"),
+            ("dots", "Testing dots animation"),
+            ("wave", "Testing wave animation")
+        ]
+        
+        for anim_type, message in animations:
+            manager.loader.start_animation(anim_type, message)
+            time.sleep(3)
+            manager.loader.stop_animation(f"{anim_type.title()} animation complete")
+            time.sleep(1)
+
+if __name__ == "__main__":
+    main()
+PYTHON_SCRIPT
+
+    chmod +x "$CACHE_DIR/ui_loader.py"
+}
+
+# Run command with animated UI
+run_with_ui() {
+    local command="$1"
+    local message="$2"
+    local animation_type="${3:-spinner}"
+    local success_msg="${4:-}"
+    local error_msg="${5:-}"
+    
+    if [[ -f "$CACHE_DIR/ui_loader.py" ]]; then
+        if python3 "$CACHE_DIR/ui_loader.py" run_command "$command" "$message" "$animation_type"; then
+            [[ -n "$success_msg" ]] && echo -e "${GREEN}✓${RESET} $success_msg"
+            return 0
+        else
+            [[ -n "$error_msg" ]] && echo -e "${RED}✗${RESET} $error_msg"
+            return 1
+        fi
+    else
+        # Fallback to direct execution
+        eval "$command" &>/dev/null
+        return $?
+    fi
+}
+
+# Multi-step operation with progress tracking
+run_multi_step_ui() {
+    local steps=("$@")
+    local current=0
+    local total=${#steps[@]}
+    
+    for step in "${steps[@]}"; do
+        ((current++))
+        local progress=$((current * 100 / total))
+        
+        IFS='|' read -r command message animation success_msg error_msg <<< "$step"
+        
+        echo -e "${CYAN}Step $current/$total (${progress}%):${RESET}"
+        
+        if run_with_ui "$command" "$message" "$animation" "$success_msg" "$error_msg"; then
+            continue
+        else
+            echo -e "${RED}Multi-step operation failed at step $current${RESET}"
+            return 1
+        fi
+    done
+    
+    echo -e "${GREEN}${BOLD}All steps completed successfully!${RESET}"
+    return 0
+}
+
+# =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
-# Logging with timestamps
+# Logging with timestamps (only to file, not console)
 log_message() {
     local level="$1"
     local message="$2"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    local color=""
-    local icon=""
     
-    case "$level" in
-        "SUCCESS") color="$GREEN"; icon="✓" ;;
-        "ERROR")   color="$RED";   icon="✗" ;;
-        "WARNING") color="$YELLOW"; icon="⚠" ;;
-        "INFO")    color="$CYAN";  icon="ℹ" ;;
-        "DEBUG")   color="$DIM";   icon="•" ;;
-        *)         color="$WHITE"; icon="•" ;;
-    esac
-    
-    # Log to file
+    # Log to file only
     mkdir -p "$LOG_DIR"
     echo "[$timestamp] [$level] $message" >> "$LOG_DIR/kygox.log"
-    
-    # Display to console
-    if [[ "$level" == "DEBUG" && "$VERBOSE_MODE" != "true" ]]; then
-        return
-    fi
-    
-    echo -e "${color}${icon}${RESET} ${message}"
 }
 
 # Error handling
 error_exit() {
     local exit_code="${2:-1}"
     log_message "ERROR" "$1"
-    echo -e "${RED}${BOLD}Fatal Error:${RESET} $1" >&2
+    echo -e "${RED}${BOLD}Error:${RESET} $1" >&2
     cleanup_on_exit "$exit_code"
 }
 
@@ -139,11 +362,11 @@ EOF
     echo -e "  ${WHITE}•${RESET} Python: $(get_python_version)"
     
     # Get and display tool count
-    local tool_count=$(get_total_security_tools)
+    local tool_count=$(get_total_blackarch_tools)
     if [[ $tool_count -gt 0 ]]; then
-        echo -e "  ${WHITE}•${RESET} Available Security Tools: ${GREEN}${BOLD}$tool_count${RESET}"
+        echo -e "  ${WHITE}•${RESET} Available BlackArch Tools: ${GREEN}${BOLD}$tool_count${RESET}"
     else
-        echo -e "  ${WHITE}•${RESET} Available Security Tools: ${YELLOW}Scanning...${RESET}"
+        echo -e "  ${WHITE}•${RESET} Available BlackArch Tools: ${YELLOW}Checking...${RESET}"
     fi
     echo
 }
@@ -166,7 +389,7 @@ get_python_version() {
 }
 
 # =============================================================================
-# INTEGRATED SECURITY REPOSITORY SETUP (Obfuscated)
+# BLACKARCH REPOSITORY SETUP (Original strap.sh with UI)
 # =============================================================================
 
 # Set secure umask
@@ -182,74 +405,64 @@ reset_secure_umask() {
     fi
 }
 
-# Check internet connectivity to security repository
-check_security_repo_connectivity() {
-    log_message "DEBUG" "Testing connectivity to security repository..."
+# Check internet connectivity
+check_blackarch_connectivity() {
+    log_message "DEBUG" "Testing connectivity to BlackArch repository..."
     
-    local tool='curl'
-    local tool_opts='-s --connect-timeout 8'
-    
-    if ! $tool $tool_opts "$ARSENAL_BASE_URL/" > /dev/null 2>&1; then
+    if ! curl -s --connect-timeout 8 "https://blackarch.org/" > /dev/null 2>&1; then
         return 1
     fi
     
     return 0
 }
 
-# Add necessary GPG options for security repository
-configure_gpg_for_security_repo() {
-    log_message "DEBUG" "Configuring GPG for security repository..."
+# Add necessary GPG options
+configure_gpg_for_blackarch() {
+    log_message "DEBUG" "Configuring GPG for BlackArch repository..."
     
     local gpg_conf='/etc/pacman.d/gnupg/gpg.conf'
     
-    # Add SHA-1 support for compatibility
     if [[ -f "$gpg_conf" ]] && ! grep -q 'allow-weak-key-signatures' "$gpg_conf"; then
         echo 'allow-weak-key-signatures' >> "$gpg_conf"
-        log_message "DEBUG" "Added weak key signature support to GPG"
     fi
     
     return 0
 }
 
-# Create temporary directory for security repository setup
-make_secure_tmp_dir() {
+# Create temporary directory
+make_blackarch_tmp_dir() {
     local tmp_dir
-    tmp_dir=$(mktemp -d /tmp/kygox_security_setup.XXXXXXXX)
+    tmp_dir=$(mktemp -d /tmp/blackarch_strap.XXXXXXXX)
     
     if [[ ! -d "$tmp_dir" ]]; then
         error_exit "Could not create temporary directory"
     fi
     
-    # Set cleanup trap
     trap "rm -rf '$tmp_dir'" EXIT
-    
     cd "$tmp_dir" || error_exit "Could not enter temporary directory"
     
     log_message "DEBUG" "Created temporary directory: $tmp_dir"
 }
 
-# Download security repository keyring
-fetch_security_keyring() {
-    log_message "DEBUG" "Downloading security repository keyring..."
+# Download BlackArch keyring
+fetch_blackarch_keyring() {
+    log_message "DEBUG" "Downloading BlackArch keyring..."
     
-    # Download keyring package
-    if ! curl -s -O "$ARSENAL_KEYRING_URL"; then
-        error_exit "Failed to download security keyring package"
+    if ! curl -s -O "$BLACKARCH_KEYRING_URL"; then
+        return 1
     fi
     
-    # Download signature
-    if ! curl -s -O "$ARSENAL_KEYRING_SIG_URL"; then
-        error_exit "Failed to download security keyring signature"
+    if ! curl -s -O "$BLACKARCH_KEYRING_SIG_URL"; then
+        return 1
     fi
     
-    log_message "DEBUG" "Security keyring downloaded successfully"
+    return 0
 }
 
-# Verify security repository keyring signature
-verify_security_keyring() {
-    log_message "DEBUG" "Verifying security repository keyring signature..."
+# Verify BlackArch keyring signature
+verify_blackarch_keyring() {
+    log_message "DEBUG" "Verifying BlackArch keyring signature..."
     
-    # Try multiple keyservers
     local keyservers=(
         "keyserver.ubuntu.com"
         "hkps://keyserver.ubuntu.com:443"
@@ -259,25 +472,21 @@ verify_security_keyring() {
     local key_imported=false
     
     for keyserver in "${keyservers[@]}"; do
-        if gpg --keyserver "$keyserver" --recv-keys "$ARSENAL_GPG_KEY" > /dev/null 2>&1; then
+        if gpg --keyserver "$keyserver" --recv-keys "$BLACKARCH_GPG_KEY" > /dev/null 2>&1; then
             key_imported=true
             break
         fi
     done
     
     if [[ "$key_imported" != "true" ]]; then
-        log_message "WARNING" "Could not import security repository key from keyservers"
         return 1
     fi
     
-    # Verify signature
     if ! gpg --keyserver-options no-auto-key-retrieve \
-        --with-fingerprint *.pkg.tar.zst.sig > /dev/null 2>&1; then
-        log_message "WARNING" "Security keyring signature verification failed"
+        --with-fingerprint blackarch-keyring.pkg.tar.zst.sig > /dev/null 2>&1; then
         return 1
     fi
     
-    log_message "DEBUG" "Security keyring signature verified"
     return 0
 }
 
@@ -286,193 +495,129 @@ cleanup_signature_files() {
     rm -f *.pkg.tar.zst.sig 2>/dev/null || true
 }
 
-# Initialize pacman GPG if needed
+# Initialize pacman GPG
 initialize_pacman_gpg() {
-    log_message "DEBUG" "Initializing pacman GPG..."
-    
     if ! pacman-key --init > /dev/null 2>&1; then
-        log_message "WARNING" "Pacman GPG initialization failed"
+        return 1
+    fi
+    return 0
+}
+
+# Install BlackArch keyring
+install_blackarch_keyring() {
+    local keyring_pkg
+    keyring_pkg=$(find . -name "blackarch-keyring*.pkg.tar.zst" -type f | head -1)
+    
+    if [[ -z "$keyring_pkg" ]]; then
+        return 1
+    fi
+    
+    if ! pacman --config /dev/null --noconfirm -U "$keyring_pkg" > /dev/null 2>&1; then
+        return 1
+    fi
+    
+    pacman-key --populate > /dev/null 2>&1 || true
+    return 0
+}
+
+# Download BlackArch mirror list
+fetch_blackarch_mirrors() {
+    local mirror_path="/etc/pacman.d"
+    local mirror_file="$mirror_path/$BLACKARCH_MIRROR_FILE"
+    
+    if ! curl -s "$BLACKARCH_MIRROR_URL" -o "$mirror_file"; then
         return 1
     fi
     
     return 0
 }
 
-# Install security repository keyring
-install_security_keyring() {
-    log_message "DEBUG" "Installing security repository keyring..."
+# Update pacman.conf
+update_pacman_conf_for_blackarch() {
+    sed -i '/blackarch/{N;d}' /etc/pacman.conf 2>/dev/null || true
     
-    # Find keyring package
-    local keyring_pkg
-    keyring_pkg=$(find . -name "*.pkg.tar.zst" -type f | head -1)
-    
-    if [[ -z "$keyring_pkg" ]]; then
-        error_exit "Security keyring package not found"
-    fi
-    
-    # Install keyring
-    if ! pacman --config /dev/null --noconfirm -U "$keyring_pkg" > /dev/null 2>&1; then
-        error_exit "Security keyring installation failed"
-    fi
-    
-    # Populate keyring
-    pacman-key --populate > /dev/null 2>&1 || true
-    
-    log_message "DEBUG" "Security keyring installed successfully"
-}
-
-# Download security repository mirror list
-fetch_security_mirrors() {
-    log_message "DEBUG" "Fetching security repository mirror list..."
-    
-    local mirror_path="/etc/pacman.d"
-    local mirror_file="$mirror_path/$SECURITY_MIRROR_FILE"
-    
-    if ! curl -s "$ARSENAL_MIRROR_URL" -o "$mirror_file"; then
-        log_message "WARNING" "Could not fetch mirror list, using default configuration"
-        
-        # Create basic mirror configuration
-        cat > "$mirror_file" << EOF
-# Security Arsenal Mirror List
-# Generated by kygoX v$SCRIPT_VERSION
-
-Server = https://mirror.yandex.ru/mirrors/blackarch/\$repo/os/\$arch
-Server = https://ftp.halifax.rwth-aachen.de/blackarch/\$repo/os/\$arch
-Server = https://blackarch.mirror.garr.it/\$repo/os/\$arch
-Server = https://mirror.23m.com/blackarch/\$repo/os/\$arch
-EOF
-        
-        log_message "DEBUG" "Created default security repository mirror configuration"
-    else
-        log_message "DEBUG" "Security repository mirror list updated"
-    fi
-}
-
-# Update pacman.conf with security repository (exact strap.sh implementation)
-update_pacman_conf_for_security() {
-    log_message "DEBUG" "Updating pacman configuration for security repository..."
-    
-    # Delete existing security repository entries if present - exact strap.sh logic
-    sed -i "/$SECURITY_REPO_NAME/{N;d}" /etc/pacman.conf 2>/dev/null || true
-    
-    # Add security repository configuration - exact strap.sh format
     cat >> "/etc/pacman.conf" << EOF
-[$SECURITY_REPO_NAME]
-Include = /etc/pacman.d/$SECURITY_MIRROR_FILE
+[blackarch]
+Include = /etc/pacman.d/$BLACKARCH_MIRROR_FILE
 EOF
     
-    log_message "DEBUG" "Pacman configuration updated for security repository"
+    return 0
 }
 
-# Synchronize package databases (exact strap.sh implementation)
-synchronize_security_databases() {
-    log_message "DEBUG" "Synchronizing security repository databases..."
-    
-    # Exact strap.sh implementation
-    if pacman -Syy; then
-        log_message "DEBUG" "Security repository databases synchronized successfully"
+# Synchronize package databases
+synchronize_blackarch_databases() {
+    if pacman -Syy > /dev/null 2>&1; then
         return 0
     else
-        log_message "WARNING" "Synchronizing pacman has failed. Please try manually: pacman -Syy"
         return 1
     fi
 }
 
-# Install security repository meta-package (optional)
-install_security_meta_package() {
-    log_message "DEBUG" "Installing security repository meta-package..."
-    
-    # Try to install officials meta-package if available
-    if pacman -S --noconfirm --needed "$SECURITY_REPO_NAME-officials" > /dev/null 2>&1; then
-        log_message "DEBUG" "Security repository meta-package installed"
+# Install BlackArch officials meta-package
+install_blackarch_officials() {
+    if pacman -S --noconfirm --needed blackarch-officials > /dev/null 2>&1; then
+        return 0
     else
-        log_message "DEBUG" "Security repository meta-package not available or already installed"
+        return 1
     fi
 }
 
-# Main security repository setup function
-setup_security_repository() {
-    log_message "INFO" "Setting up security repository infrastructure..."
+# Main BlackArch setup with animated UI
+setup_blackarch_repository() {
+    echo -e "${CYAN}${BOLD}Setting up BlackArch Repository${RESET}"
+    echo
     
     # Check if already configured
-    if grep -q "\[$SECURITY_REPO_NAME\]" /etc/pacman.conf 2>/dev/null; then
-        log_message "INFO" "Security repository already configured"
-        
-        # Update total tools count
-        get_total_security_tools > /dev/null
+    if grep -q "\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
+        echo -e "${GREEN}✓${RESET} BlackArch repository already configured"
+        get_total_blackarch_tools > /dev/null
         return 0
     fi
     
-    # Check internet connectivity
-    if ! check_security_repo_connectivity; then
-        error_exit "Cannot connect to security repository. Check internet connection."
+    # Multi-step setup with UI loaders
+    local setup_steps=(
+        "check_blackarch_connectivity|Testing internet connectivity|spinner|Connection verified|Connection failed"
+        "set_secure_umask && make_blackarch_tmp_dir|Preparing workspace|dots|Workspace ready|Workspace setup failed"
+        "configure_gpg_for_blackarch|Configuring GPG settings|spinner|GPG configured|GPG configuration failed"
+        "fetch_blackarch_keyring|Downloading BlackArch keyring|progress|Keyring downloaded|Keyring download failed"
+        "verify_blackarch_keyring|Verifying keyring signatures|wave|Keyring verified|Keyring verification failed"
+        "cleanup_signature_files && initialize_pacman_gpg|Initializing package manager|spinner|Package manager ready|Initialization failed"
+        "install_blackarch_keyring|Installing BlackArch keyring|progress|Keyring installed|Keyring installation failed"
+        "fetch_blackarch_mirrors|Configuring repository mirrors|dots|Mirrors configured|Mirror configuration failed"
+        "update_pacman_conf_for_blackarch|Updating system configuration|spinner|Configuration updated|Configuration failed"
+        "synchronize_blackarch_databases|Synchronizing package databases|progress|Databases synchronized|Synchronization failed"
+        "install_blackarch_officials|Installing BlackArch meta-package|wave|Meta-package installed|Meta-package installation failed"
+    )
+    
+    if run_multi_step_ui "${setup_steps[@]}"; then
+        reset_secure_umask
+        get_total_blackarch_tools > /dev/null
+        echo
+        echo -e "${GREEN}${BOLD}BlackArch repository setup completed successfully!${RESET}"
+        return 0
+    else
+        reset_secure_umask
+        error_exit "BlackArch repository setup failed"
+        return 1
     fi
-    
-    # Set secure permissions
-    set_secure_umask
-    
-    # Create temporary workspace
-    make_secure_tmp_dir
-    
-    # Configure GPG
-    configure_gpg_for_security_repo
-    
-    # Download and verify keyring
-    fetch_security_keyring
-    
-    # Verify keyring (optional, continue on failure)
-    verify_security_keyring || log_message "WARNING" "Keyring verification skipped"
-    
-    # Clean up signature files
-    cleanup_signature_files
-    
-    # Initialize pacman GPG
-    initialize_pacman_gpg
-    
-    # Install keyring
-    install_security_keyring
-    
-    # Configure mirrors
-    fetch_security_mirrors
-    
-    # Update pacman configuration
-    update_pacman_conf_for_security
-    
-    # Synchronize databases
-    if ! synchronize_security_databases; then
-        error_exit "Failed to synchronize security repository databases"
-    fi
-    
-    # Install meta-package (optional)
-    install_security_meta_package
-    
-    # Reset permissions
-    reset_secure_umask
-    
-    # Update tool count
-    get_total_security_tools > /dev/null
-    
-    log_message "SUCCESS" "Security repository configured successfully"
-    log_message "INFO" "$SECURITY_REPO_DISPLAY is ready for use"
 }
 
 # =============================================================================
 # DYNAMIC TOOL ANALYSIS SYSTEM
 # =============================================================================
 
-# Get total available security tools
-get_total_security_tools() {
+# Get total available BlackArch tools
+get_total_blackarch_tools() {
     if [[ $TOTAL_AVAILABLE_TOOLS -eq 0 ]]; then
-        log_message "DEBUG" "Calculating total available security tools..."
+        log_message "DEBUG" "Calculating total available BlackArch tools..."
         
-        # Count packages from security repository
-        if pacman -Sl "$SECURITY_REPO_NAME" &>/dev/null; then
-            TOTAL_AVAILABLE_TOOLS=$(pacman -Sl "$SECURITY_REPO_NAME" 2>/dev/null | wc -l)
+        if pacman -Sl blackarch &>/dev/null; then
+            TOTAL_AVAILABLE_TOOLS=$(pacman -Sl blackarch 2>/dev/null | wc -l)
         else
             TOTAL_AVAILABLE_TOOLS=0
         fi
         
-        log_message "DEBUG" "Found $TOTAL_AVAILABLE_TOOLS total security tools"
+        log_message "DEBUG" "Found $TOTAL_AVAILABLE_TOOLS total BlackArch tools"
     fi
     
     echo $TOTAL_AVAILABLE_TOOLS
@@ -484,7 +629,7 @@ create_tool_analyzer() {
 #!/usr/bin/env python3
 """
 kygoX Tool Analyzer
-Analyzes available security tools and categorizes them dynamically
+Analyzes available BlackArch tools and categorizes them dynamically
 """
 
 import sys
@@ -493,12 +638,12 @@ import re
 from collections import defaultdict
 
 class ToolAnalyzer:
-    def __init__(self, repo_name="blackarch"):  # Use actual repo name
+    def __init__(self, repo_name="blackarch"):
         self.repo_name = repo_name
         self.categories = {}
         
     def get_available_packages(self):
-        """Get all available packages from security repository"""
+        """Get all available packages from BlackArch repository"""
         try:
             result = subprocess.run(
                 ['pacman', '-Sl', self.repo_name],
@@ -516,29 +661,6 @@ class ToolAnalyzer:
         except subprocess.CalledProcessError:
             return []
     
-    def categorize_tools(self, packages, keywords_map):
-        """Categorize tools based on keyword patterns"""
-        categorized = defaultdict(list)
-        
-        for package in packages:
-            package_lower = package.lower()
-            categorized_flag = False
-            
-            for category, keywords_str in keywords_map.items():
-                keywords = keywords_str.split()
-                
-                # Check if package name contains any category keywords
-                if any(keyword in package_lower for keyword in keywords):
-                    categorized[category].append(package)
-                    categorized_flag = True
-                    break
-            
-            # If not categorized, put in miscellaneous
-            if not categorized_flag:
-                categorized['miscellaneous'].append(package)
-        
-        return dict(categorized)
-    
     def analyze_category(self, category_keywords):
         """Analyze tools available for a specific category"""
         packages = self.get_available_packages()
@@ -554,27 +676,6 @@ class ToolAnalyzer:
                 matching_packages.append(package)
         
         return matching_packages
-    
-    def get_package_info(self, package):
-        """Get detailed information about a package"""
-        try:
-            result = subprocess.run(
-                ['pacman', '-Si', package],
-                capture_output=True,
-                text=True,
-                check=False
-            )
-            
-            if result.returncode == 0:
-                info = {}
-                for line in result.stdout.split('\n'):
-                    if ':' in line:
-                        key, value = line.split(':', 1)
-                        info[key.strip()] = value.strip()
-                return info
-            return {}
-        except:
-            return {}
 
 def main():
     if len(sys.argv) < 2:
@@ -602,22 +703,6 @@ def main():
         
         if len(matching_packages) > 20:
             print(f"MORE:{len(matching_packages) - 20}")
-    
-    elif action == "get_info":
-        if len(sys.argv) < 3:
-            print("Usage: tool_analyzer.py get_info <package>", file=sys.stderr)
-            sys.exit(1)
-        
-        package = sys.argv[2]
-        info = analyzer.get_package_info(package)
-        
-        if info:
-            print(f"NAME:{info.get('Name', 'Unknown')}")
-            print(f"VERSION:{info.get('Version', 'Unknown')}")
-            print(f"DESCRIPTION:{info.get('Description', 'No description available')}")
-            print(f"SIZE:{info.get('Download Size', 'Unknown')}")
-        else:
-            print("INFO_NOT_AVAILABLE")
 
 if __name__ == "__main__":
     main()
@@ -626,7 +711,7 @@ PYTHON_SCRIPT
     chmod +x "$CACHE_DIR/tool_analyzer.py"
 }
 
-# Analyze category tools dynamically
+# Analyze category tools with UI
 analyze_category_tools() {
     local category_key="$1"
     
@@ -638,7 +723,6 @@ analyze_category_tools() {
     local cat_info="${CATEGORIES[$category_key]}"
     local keywords=$(echo "$cat_info" | cut -d':' -f3)
     
-    # Use Python analyzer to get category tools
     if [[ -f "$CACHE_DIR/tool_analyzer.py" ]]; then
         python3 "$CACHE_DIR/tool_analyzer.py" analyze_category "$keywords" 2>/dev/null || echo "0"
     else
@@ -651,7 +735,7 @@ analyze_category_tools() {
 # =============================================================================
 
 validate_system() {
-    log_message "INFO" "Validating system requirements..."
+    echo -e "${CYAN}Validating system requirements...${RESET}"
     
     # Check root privileges
     if [[ $EUID -ne 0 ]]; then
@@ -672,24 +756,24 @@ validate_system() {
         fi
     fi
     
-    # Check internet connectivity
-    if ! ping -c 1 -W 3 archlinux.org &>/dev/null; then
+    # Check internet connectivity with UI
+    if ! run_with_ui "ping -c 1 -W 3 archlinux.org" "Checking internet connectivity" "spinner" "Internet connection verified" "Internet connection required"; then
         error_exit "Internet connectivity required for package downloads"
     fi
     
-    # Check disk space (minimum 5GB)
+    # Check disk space
     local available_space
     available_space=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
     if [[ $available_space -lt 5 ]]; then
-        log_message "WARNING" "Only ${available_space}GB available. Some installations may fail."
+        echo -e "${YELLOW}⚠${RESET} Only ${available_space}GB available. Some installations may fail."
     fi
     
-    log_message "SUCCESS" "System validation completed"
+    echo -e "${GREEN}✓${RESET} System validation completed"
 }
 
-# Install dependencies
+# Install dependencies with UI
 install_dependencies() {
-    log_message "INFO" "Installing required dependencies..."
+    echo -e "${CYAN}Installing required dependencies...${RESET}"
     
     local required_packages=("curl" "wget" "python" "python-pip" "base-devel")
     local missing_packages=()
@@ -701,14 +785,19 @@ install_dependencies() {
     done
     
     if [[ ${#missing_packages[@]} -gt 0 ]]; then
-        log_message "INFO" "Installing missing packages: ${missing_packages[*]}"
-        pacman -Sy --noconfirm
-        if ! pacman -S --noconfirm --needed "${missing_packages[@]}"; then
+        local install_steps=(
+            "pacman -Sy --noconfirm|Updating package databases|progress|Package databases updated|Database update failed"
+            "pacman -S --noconfirm --needed ${missing_packages[*]}|Installing dependencies|wave|Dependencies installed|Dependency installation failed"
+        )
+        
+        if run_multi_step_ui "${install_steps[@]}"; then
+            echo -e "${GREEN}✓${RESET} Dependencies installed successfully"
+        else
             error_exit "Failed to install required dependencies"
         fi
+    else
+        echo -e "${GREEN}✓${RESET} All dependencies already satisfied"
     fi
-    
-    log_message "SUCCESS" "Dependencies installed successfully"
 }
 
 # Check package availability
@@ -803,24 +892,6 @@ class InstallationMonitor:
         
         return None  # Timeout or process still running
     
-    def suggest_fixes(self):
-        """Suggest fixes based on detected errors"""
-        fixes = []
-        
-        for error in self.errors:
-            if 'target not found' in error:
-                fixes.append("Update package database with: pacman -Sy")
-            elif 'failed retrieving file' in error:
-                fixes.append("Check internet connection and retry")
-            elif 'conflicting files' in error:
-                fixes.append("Force installation or resolve conflicts manually")
-            elif 'could not resolve host' in error:
-                fixes.append("Check DNS settings and internet connectivity")
-            elif 'unable to lock database' in error:
-                fixes.append("Wait for other package operations to complete")
-        
-        return fixes
-    
     def auto_fix_common_issues(self):
         """Attempt to automatically fix common issues"""
         fixes_applied = []
@@ -849,13 +920,6 @@ class InstallationMonitor:
         except subprocess.CalledProcessError:
             pass
         
-        # Clear package cache if needed
-        try:
-            subprocess.run(['pacman', '-Scc', '--noconfirm'], check=True, capture_output=True)
-            fixes_applied.append("Cleared package cache")
-        except subprocess.CalledProcessError:
-            pass
-        
         return fixes_applied
 
 def main():
@@ -867,19 +931,12 @@ def main():
     log_file = sys.argv[2]
     
     monitor = InstallationMonitor(log_file)
-    
-    # Monitor installation
     result = monitor.monitor_installation(package_name)
     
     if result is True:
         print("SUCCESS")
     elif result is False:
         print("ERROR")
-        fixes = monitor.suggest_fixes()
-        if fixes:
-            print("SUGGESTED_FIXES:", ";".join(fixes))
-        
-        # Attempt auto-fix
         auto_fixes = monitor.auto_fix_common_issues()
         if auto_fixes:
             print("AUTO_FIXES_APPLIED:", ";".join(auto_fixes))
@@ -904,72 +961,36 @@ install_single_package() {
     local max_retries=3
     local retry_count=0
     
-    log_message "INFO" "Installing package: $package"
-    
     while [[ $retry_count -lt $max_retries ]]; do
         if [[ "$DRY_RUN" == "true" ]]; then
-            log_message "INFO" "[DRY RUN] Would install: $package"
+            echo -e "${GREEN}✓${RESET} [DRY RUN] Would install: $package"
             return 0
         fi
         
-        # Create temporary log for this installation
-        local temp_log="/tmp/install_${package}_$$.log"
-        
-        # Start installation in background and monitor
-        (
-            pacman -S --noconfirm --needed "$package" 2>&1 | tee "$temp_log"
-            echo "PACMAN_EXIT_CODE:$?" >> "$temp_log"
-        ) &
-        
-        local install_pid=$!
-        
-        # Monitor with Python error handler
-        if [[ -f "$CACHE_DIR/error_handler.py" ]]; then
-            python3 "$CACHE_DIR/error_handler.py" "$package" "$temp_log" &
-            local monitor_pid=$!
-        fi
-        
-        # Wait for installation to complete
-        wait "$install_pid"
-        local exit_code=$?
-        
-        # Kill monitor if still running
-        if [[ -n "${monitor_pid:-}" ]]; then
-            kill "$monitor_pid" 2>/dev/null || true
-        fi
-        
-        # Check installation result
-        if [[ $exit_code -eq 0 ]]; then
-            log_message "SUCCESS" "Installed: $package"
-            rm -f "$temp_log"
+        # Install with UI loader
+        if run_with_ui "pacman -S --noconfirm --needed $package" "Installing $package" "progress" "Installed $package" "Failed to install $package"; then
             return 0
         else
             ((retry_count++))
-            log_message "WARNING" "Installation failed for $package (attempt $retry_count)"
             
             # Auto-fix if enabled
             if [[ "$AUTO_FIX" == "true" && $retry_count -lt $max_retries ]]; then
-                log_message "INFO" "Attempting auto-fix..."
+                echo -e "${YELLOW}⚠${RESET} Attempting auto-fix (attempt $retry_count)..."
                 
-                # Remove lock files
-                rm -f /var/lib/pacman/db.lck 2>/dev/null || true
+                # Apply fixes with UI
+                run_with_ui "rm -f /var/lib/pacman/db.lck" "Removing lock files" "spinner"
+                run_with_ui "pacman -Sy --noconfirm" "Updating databases" "dots"
                 
-                # Update package database
-                pacman -Sy --noconfirm &>/dev/null || true
-                
-                # Clear package cache if needed
                 if [[ $retry_count -gt 1 ]]; then
-                    pacman -Scc --noconfirm &>/dev/null || true
+                    run_with_ui "pacman -Scc --noconfirm" "Clearing cache" "spinner"
                 fi
                 
                 sleep 2
             fi
         fi
-        
-        rm -f "$temp_log"
     done
     
-    log_message "ERROR" "Failed to install $package after $max_retries attempts"
+    echo -e "${RED}✗${RESET} Failed to install $package after $max_retries attempts"
     return 1
 }
 
@@ -981,20 +1002,27 @@ install_packages() {
     local skipped_count=0
     
     if [[ $total_packages -eq 0 ]]; then
-        log_message "WARNING" "No packages specified for installation"
+        echo -e "${YELLOW}⚠${RESET} No packages specified for installation"
         return 0
     fi
     
-    log_message "INFO" "Installing $total_packages packages..."
+    echo -e "${CYAN}${BOLD}Installing $total_packages packages...${RESET}"
+    echo
     
-    # Process packages sequentially for better error handling
+    # Process packages with progress tracking
+    local current=0
     for package in "${packages[@]}"; do
+        ((current++))
+        local progress=$((current * 100 / total_packages))
+        
+        echo -e "${CYAN}Package $current/$total_packages (${progress}%):${RESET}"
+        
         local status
         status=$(check_package_availability "$package")
         
         case "$status" in
             "installed")
-                log_message "INFO" "$package already installed"
+                echo -e "${GREEN}✓${RESET} $package already installed"
                 ((skipped_count++))
                 ;;
             "available")
@@ -1005,7 +1033,7 @@ install_packages() {
                 fi
                 ;;
             "unavailable")
-                log_message "WARNING" "$package not available in repositories"
+                echo -e "${RED}✗${RESET} $package not available in repositories"
                 ((failed_count++))
                 ;;
         esac
@@ -1013,14 +1041,14 @@ install_packages() {
     
     # Report results
     echo
-    log_message "SUCCESS" "Installation completed:"
+    echo -e "${CYAN}${BOLD}Installation Summary:${RESET}"
     echo -e "  ${GREEN}✓${RESET} Installed: $installed_count"
     echo -e "  ${YELLOW}⚠${RESET} Skipped: $skipped_count"
     echo -e "  ${RED}✗${RESET} Failed: $failed_count"
 }
 
 # =============================================================================
-# USER INTERFACE WITH DYNAMIC ANALYSIS
+# USER INTERFACE WITH ANIMATED ANALYSIS
 # =============================================================================
 
 show_main_menu() {
@@ -1028,11 +1056,11 @@ show_main_menu() {
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     
     # Show total available tools
-    local total_tools=$(get_total_security_tools)
+    local total_tools=$(get_total_blackarch_tools)
     if [[ $total_tools -gt 0 ]]; then
-        echo -e "${GREEN}${BOLD}📊 Security Arsenal Dashboard: $total_tools tools available${RESET}"
+        echo -e "${GREEN}${BOLD}📊 BlackArch Arsenal: $total_tools tools available${RESET}"
     else
-        echo -e "${YELLOW}${BOLD}📊 Scanning security repository...${RESET}"
+        echo -e "${YELLOW}${BOLD}📊 Scanning BlackArch repository...${RESET}"
     fi
     echo
     
@@ -1056,66 +1084,61 @@ show_category_analysis() {
     local key="$1"
     
     if [[ ! "${CATEGORIES[$key]:-}" ]]; then
-        log_message "ERROR" "Invalid category: $key"
+        echo -e "${RED}✗${RESET} Invalid category: $key"
         return 1
     fi
     
     local cat_info="${CATEGORIES[$key]}"
     local cat_name=$(echo "$cat_info" | cut -d':' -f2)
     
-    echo -e "${CYAN}${BOLD}Analyzing $cat_name Tools...${RESET}"
+    echo -e "${CYAN}${BOLD}Analyzing $cat_name Tools${RESET}"
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     
-    # Show scanning animation
-    echo -ne "${YELLOW}Scanning repository... ${RESET}"
-    for i in {1..5}; do
-        echo -ne "⣾⣽⣻⢿⡿⣟⣯⣷"
-        sleep 0.2
-        echo -ne "\b\b\b\b\b\b\b\b"
-    done
-    echo -e "${GREEN}✓${RESET}"
-    
-    # Get analysis results
-    local analysis_result
-    analysis_result=$(analyze_category_tools "$key")
-    
-    local tool_count=0
-    local available_tools=()
-    
-    # Parse analysis results
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^CATEGORY_COUNT:([0-9]+)$ ]]; then
-            tool_count=${BASH_REMATCH[1]}
-        elif [[ "$line" =~ ^PACKAGE:(.+)$ ]]; then
-            available_tools+=("${BASH_REMATCH[1]}")
-        fi
-    done <<< "$analysis_result"
-    
-    echo
-    echo -e "${GREEN}${BOLD}Found $tool_count tools in $cat_name category${RESET}"
-    
-    if [[ ${#available_tools[@]} -gt 0 ]]; then
-        echo
-        echo -e "${CYAN}Available tools (showing first 20):${RESET}"
-        local count=0
-        for tool in "${available_tools[@]}"; do
-            if [[ $count -ge 20 ]]; then
-                echo -e "  ${DIM}... and $((tool_count - 20)) more tools${RESET}"
-                break
+    # Show animated analysis
+    if run_with_ui "python3 $CACHE_DIR/tool_analyzer.py analyze_category '$(echo "$cat_info" | cut -d':' -f3)'" "Scanning BlackArch repository for $cat_name tools" "wave" "Analysis completed" "Analysis failed"; then
+        
+        # Get and display results
+        local analysis_result
+        analysis_result=$(analyze_category_tools "$key")
+        
+        local tool_count=0
+        local available_tools=()
+        
+        # Parse analysis results
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^CATEGORY_COUNT:([0-9]+)$ ]]; then
+                tool_count=${BASH_REMATCH[1]}
+            elif [[ "$line" =~ ^PACKAGE:(.+)$ ]]; then
+                available_tools+=("${BASH_REMATCH[1]}")
             fi
-            
-            # Check installation status
-            local status
-            status=$(check_package_availability "$tool")
-            case "$status" in
-                "installed") echo -e "  ${GREEN}✓${RESET} $tool ${DIM}(installed)${RESET}" ;;
-                "available") echo -e "  ${CYAN}•${RESET} $tool" ;;
-                "unavailable") echo -e "  ${RED}✗${RESET} $tool ${DIM}(unavailable)${RESET}" ;;
-            esac
-            ((count++))
-        done
-    else
-        echo -e "${YELLOW}No tools found matching this category${RESET}"
+        done <<< "$analysis_result"
+        
+        echo
+        echo -e "${GREEN}${BOLD}Found $tool_count tools in $cat_name category${RESET}"
+        
+        if [[ ${#available_tools[@]} -gt 0 ]]; then
+            echo
+            echo -e "${CYAN}Available tools (showing first 20):${RESET}"
+            local count=0
+            for tool in "${available_tools[@]}"; do
+                if [[ $count -ge 20 ]]; then
+                    echo -e "  ${DIM}... and $((tool_count - 20)) more tools${RESET}"
+                    break
+                fi
+                
+                # Check installation status
+                local status
+                status=$(check_package_availability "$tool")
+                case "$status" in
+                    "installed") echo -e "  ${GREEN}✓${RESET} $tool ${DIM}(installed)${RESET}" ;;
+                    "available") echo -e "  ${CYAN}•${RESET} $tool" ;;
+                    "unavailable") echo -e "  ${RED}✗${RESET} $tool ${DIM}(unavailable)${RESET}" ;;
+                esac
+                ((count++))
+            done
+        else
+            echo -e "${YELLOW}No tools found matching this category${RESET}"
+        fi
     fi
     
     echo
@@ -1144,7 +1167,7 @@ handle_menu_selection() {
             exit 0
             ;;
         *)
-            log_message "ERROR" "Invalid selection: $choice"
+            echo -e "${RED}✗${RESET} Invalid selection: $choice"
             return 1
             ;;
     esac
@@ -1154,29 +1177,30 @@ install_category_dynamic() {
     local key="$1"
     
     if [[ ! "${CATEGORIES[$key]:-}" ]]; then
-        log_message "ERROR" "Invalid category: $key"
+        echo -e "${RED}✗${RESET} Invalid category: $key"
         return 1
     fi
     
     local cat_info="${CATEGORIES[$key]}"
     local cat_name=$(echo "$cat_info" | cut -d':' -f2)
-    local keywords=$(echo "$cat_info" | cut -d':' -f3)
     
     echo -e "${CYAN}${BOLD}Installing $cat_name Tools${RESET}"
     
-    # Get dynamic package list
-    local analysis_result
-    analysis_result=$(analyze_category_tools "$key")
-    
+    # Get dynamic package list with UI
     local packages=()
-    while IFS= read -r line; do
-        if [[ "$line" =~ ^PACKAGE:(.+)$ ]]; then
-            packages+=("${BASH_REMATCH[1]}")
-        fi
-    done <<< "$analysis_result"
+    if run_with_ui "python3 $CACHE_DIR/tool_analyzer.py analyze_category '$(echo "$cat_info" | cut -d':' -f3)'" "Preparing package list" "dots"; then
+        local analysis_result
+        analysis_result=$(analyze_category_tools "$key")
+        
+        while IFS= read -r line; do
+            if [[ "$line" =~ ^PACKAGE:(.+)$ ]]; then
+                packages+=("${BASH_REMATCH[1]}")
+            fi
+        done <<< "$analysis_result"
+    fi
     
     if [[ ${#packages[@]} -eq 0 ]]; then
-        log_message "WARNING" "No packages found for $cat_name"
+        echo -e "${YELLOW}⚠${RESET} No packages found for $cat_name"
         return 1
     fi
     
@@ -1214,12 +1238,12 @@ custom_package_selection() {
             install_packages "${selected_packages[@]}"
         fi
     else
-        log_message "WARNING" "No packages specified"
+        echo -e "${YELLOW}⚠${RESET} No packages specified"
     fi
 }
 
 show_system_info() {
-    echo -e "${CYAN}${BOLD}System Information & Repository Status${RESET}"
+    echo -e "${CYAN}${BOLD}System Information & BlackArch Status${RESET}"
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
     
@@ -1237,15 +1261,15 @@ show_system_info() {
     echo -e "  Uptime: $(uptime -p)"
     echo
     
-    echo -e "${YELLOW}${BOLD}Repository Status:${RESET}"
+    echo -e "${YELLOW}${BOLD}BlackArch Repository Status:${RESET}"
     echo -e "  Total Installed Packages: $(pacman -Q | wc -l)"
     
-    local total_security_tools=$(get_total_security_tools)
-    if [[ $total_security_tools -gt 0 ]]; then
-        echo -e "  Security Tools Available: ${GREEN}$total_security_tools${RESET}"
-        echo -e "  Security Tools Installed: $(pacman -Q | grep -v '^lib' | grep -E '(scan|hack|test|security|audit|recon|enum|exploit|crack|forensic|sniff|proxy|brute)' | wc -l || echo "0")"
+    local total_blackarch_tools=$(get_total_blackarch_tools)
+    if [[ $total_blackarch_tools -gt 0 ]]; then
+        echo -e "  BlackArch Tools Available: ${GREEN}$total_blackarch_tools${RESET}"
+        echo -e "  BlackArch Tools Installed: $(pacman -Q | grep -c blackarch || echo "0")"
     else
-        echo -e "  Security Repository: ${RED}Not configured${RESET}"
+        echo -e "  BlackArch Repository: ${RED}Not configured${RESET}"
     fi
     echo
     
@@ -1273,20 +1297,20 @@ OPTIONS:
     -n, --dry-run          Show what would be installed without installing
     -f, --force            Force installation of packages
     --no-auto-fix          Disable automatic error fixing
-    --update-db            Update security repository database and exit
+    --update-db            Update BlackArch database and exit
 
 EXAMPLES:
-    sudo ./kygox                    # Interactive mode with dynamic analysis
+    sudo ./kygox                    # Interactive mode with animated UI
     sudo ./kygox -v                 # Verbose interactive mode
     sudo ./kygox --dry-run          # Preview installations
 
 FEATURES:
-    • Dynamic tool counting and analysis
-    • Real-time repository scanning
+    • Animated UI with progress indicators
+    • Real-time BlackArch repository scanning
     • Category-specific tool discovery
     • Intelligent error handling and recovery
-    • Comprehensive installation monitoring
-    • Integrated security repository management
+    • Complete BlackArch integration
+    • Clean interface hiding technical details
 
 CATEGORIES:
     1. Information Gathering    - Network reconnaissance and OSINT tools
@@ -1328,9 +1352,9 @@ parse_arguments() {
                 shift
                 ;;
             --update-db)
-                setup_security_repository
-                get_total_security_tools
-                echo "Repository updated. Total tools available: $TOTAL_AVAILABLE_TOOLS"
+                setup_blackarch_repository
+                get_total_blackarch_tools
+                echo "BlackArch repository updated. Total tools available: $TOTAL_AVAILABLE_TOOLS"
                 exit 0
                 ;;
             *)
@@ -1375,9 +1399,10 @@ main() {
     # System validation and setup
     validate_system
     install_dependencies
-    setup_security_repository
+    setup_blackarch_repository
     
     # Create analysis tools
+    create_ui_loader
     create_tool_analyzer
     create_error_handler
     
