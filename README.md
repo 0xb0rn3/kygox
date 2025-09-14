@@ -1,277 +1,403 @@
-# KYGOX Enhanced v0.2.0 "Phoenix"
+# kygoX v0.2.0 "Phoenix"
 
 <div align="center">
 
 ```
-██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗    ███████╗███╗   ██╗██╗  ██╗
-██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝    ██╔════╝████╗  ██║██║  ██║
-█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝     █████╗  ██╔██╗ ██║███████║
-██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗     ██╔══╝  ██║╚██╗██║██╔══██║
-██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗    ███████╗██║ ╚████║██║  ██║
-╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝
+██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
+██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
+█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
+██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
+██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
+╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
 ```
 
-**Next-Generation Arch Linux Security Arsenal**  
-*Professional • Intelligent • Reliable*
+**Professional Arch Linux Security Testing Suite**  
+*Dynamic • Intelligent • Reliable*
 
 [![Version](https://img.shields.io/badge/version-0.2.0--phoenix-orange.svg)](https://github.com/0xb0rn3/kygox)
 [![License](https://img.shields.io/badge/license-WTFPL-red.svg)](#license)
-[![Architecture](https://img.shields.io/badge/architecture-hybrid--bash--python-blue.svg)](https://github.com/0xb0rn3/kygox)
+[![Architecture](https://img.shields.io/badge/architecture-bash--python-blue.svg)](https://github.com/0xb0rn3/kygox)
 [![Platform](https://img.shields.io/badge/platform-arch--linux-1793d1.svg)](https://archlinux.org)
 
 </div>
 
 ---
 
-## Revolutionary Security Toolkit Management
+## Advanced Security Arsenal Management
 
-KYGOX Enhanced represents a fundamental advancement in security tool deployment for Arch Linux systems. This complete architectural rewrite introduces intelligent package discovery, sophisticated error recovery, and enterprise-grade reliability that transforms how security professionals manage penetration testing environments.
+kygoX v0.2.0 represents a complete architectural transformation, introducing dynamic repository analysis, intelligent tool categorization, and enterprise-grade reliability for Arch Linux security professionals. This version eliminates complexity while maximizing functionality through streamlined bash operations and targeted Python intelligence.
 
-### Core Innovation: Dynamic BlackArch Integration
+### Revolutionary Features
 
-Unlike traditional installers that rely on static package lists, KYGOX Enhanced implements real-time repository analysis. The system combines direct pacman database queries with intelligent web scraping to build comprehensive, current tool catalogs. This approach ensures you always have access to the latest security tools without manual updates.
+**Dynamic Tool Discovery**: Real-time scanning of security repositories provides live counts of available tools across all categories, ensuring users always see current arsenal capabilities.
 
-### Hybrid Architecture Excellence
+**Intelligent Category Analysis**: When selecting categories, kygoX performs live analysis to show exactly how many tools are available, their installation status, and detailed package information before installation begins.
 
-KYGOX Enhanced employs a strategically designed hybrid bash-Python architecture. Bash handles system-level operations where shell integration provides natural advantages, while Python manages complex data processing tasks including algorithmic package categorization and repository analysis. This design achieves both reliable system integration and sophisticated functionality.
+**Streamlined Architecture**: Bash handles all system operations and package management for maximum reliability, while Python provides sophisticated error monitoring and repository analysis only where needed.
 
 ---
 
-## Professional Features
+## Core Capabilities
 
-### Intelligent Package Management
-- **Real-time Discovery**: Dynamic BlackArch repository scanning and analysis
-- **Smart Categorization**: Algorithmic tool classification using pattern recognition
-- **Availability Checking**: Pre-installation validation prevents failed operations
-- **Parallel Processing**: Multi-threaded installations with progress tracking
-- **Error Recovery**: Sophisticated retry mechanisms with exponential backoff
+### Dynamic Repository Intelligence
+- **Live Tool Counting**: Dashboard displays total available security tools in real-time
+- **Category-Specific Analysis**: Deep scanning shows exact tool counts per category
+- **Installation Status Tracking**: Pre-installation validation shows what's already installed
+- **Repository Health Monitoring**: Continuous validation of repository accessibility and integrity
 
-### Enterprise-Grade Reliability
+### Professional Installation Engine
+- **Sequential Processing**: Reliable single-threaded installation with comprehensive error handling
+- **Intelligent Retry Logic**: Automatic recovery from common installation failures
+- **Real-time Monitoring**: Python-based process monitoring detects and resolves errors during installation
+- **Auto-fixing Capabilities**: Automatic resolution of lock files, cache issues, and database problems
+
+### Enterprise User Experience
+- **Interactive Dashboard**: Live statistics and tool availability information
+- **Category Preview System**: See exactly what tools are available before installing
 - **Comprehensive Logging**: Detailed operation tracking with multiple verbosity levels
-- **System Safety**: Automatic cleanup and rollback capabilities
-- **Resource Management**: Intelligent disk space and network monitoring
-- **Graceful Degradation**: Continues operation when partial functionality is available
-
-### Advanced User Experience
-- **Interactive Menus**: Intuitive category-based tool selection
-- **Progress Monitoring**: Real-time installation status with completion estimates
-- **Flexible Operation**: Supports both interactive and automated deployment
-- **Custom Selection**: Expert mode for precise tool combinations
+- **Graceful Error Handling**: Intelligent recovery from network, repository, and system issues
 
 ---
 
-## Quick Deployment
+## Quick Start Guide
 
-### System Requirements
+### Prerequisites
 - Arch Linux or Arch-based distribution (Manjaro, EndeavourOS, Garuda, etc.)
-- Root privileges via sudo
+- Root privileges (sudo access)
 - Internet connectivity for repository access
-- Minimum 5GB available disk space (20GB+ recommended for complete installation)
+- Minimum 5GB free disk space (20GB+ recommended for comprehensive installations)
 
-### Installation Process
+### Installation
 
 ```bash
-# Clone repository
+# Clone the repository
 git clone https://github.com/0xb0rn3/kygox.git
 cd kygox
 
-# Execute with administrative privileges
+# Make executable and run
+chmod +x kygox
 sudo ./kygox
 ```
 
-The system automatically handles dependency installation, repository configuration, and package database updates during initial execution.
+kygoX automatically handles all setup requirements including dependency installation, repository configuration, and security tool database initialization.
 
 ### Command Line Options
 
 ```bash
-# Interactive mode with verbose output
+# Standard interactive mode
+sudo ./kygox
+
+# Verbose output for troubleshooting
 sudo ./kygox --verbose
 
-# Preview operations without making changes
+# Preview mode - see what would be installed
 sudo ./kygox --dry-run
 
-# Optimize for high-performance systems
-sudo ./kygox --jobs 6
+# Update repository database
+sudo ./kygox --update-db
 
-# Non-interactive automated deployment
-sudo ./kygox --quiet
+# Disable automatic error fixing
+sudo ./kygox --no-auto-fix
 ```
 
 ---
 
-## Security Tool Categories
+## Security Tool Arsenal
 
-### Information Gathering
-Network reconnaissance and intelligence collection tools including advanced port scanners, DNS enumeration utilities, and OSINT frameworks. Essential for understanding target environments and identifying potential attack vectors.
+### Dynamic Category System
 
-### Vulnerability Analysis
-Comprehensive security assessment tools for identifying weaknesses in systems and applications. Includes specialized scanners for web applications, network services, and configuration analysis frameworks.
+kygoX organizes security tools into eight comprehensive categories, each with live tool counting and availability analysis:
 
-### Web Application Security
-Specialized tools for testing web-based systems including automated scanners, manual testing proxies, and payload injection frameworks. Supports testing of modern web applications and API endpoints.
+| Category | Focus Area | Typical Tools |
+|----------|------------|---------------|
+| **Information Gathering** | Network reconnaissance, OSINT | nmap, masscan, rustscan, dnsrecon, theharvester |
+| **Vulnerability Analysis** | Security assessment, scanning | nikto, dirb, gobuster, sqlmap, lynis |
+| **Web Application Analysis** | Web security testing | burpsuite, zaproxy, w3af, arachni |
+| **Password Attacks** | Authentication testing | john, hashcat, hydra, medusa, crunch |
+| **Wireless Attacks** | WiFi and wireless security | aircrack-ng, wifite, reaver, kismet |
+| **Exploitation Tools** | Penetration testing frameworks | metasploit, exploitdb, set, beef |
+| **Digital Forensics** | Forensics and incident response | autopsy, volatility, binwalk, sleuthkit |
+| **Sniffing & Spoofing** | Network monitoring, manipulation | wireshark, ettercap, responder, mitmproxy |
 
-### Exploitation Frameworks
-Advanced penetration testing platforms for controlled security testing. Includes payload generators, post-exploitation utilities, and comprehensive frameworks for simulating real-world attacks.
+### Category Analysis Example
 
-### Wireless Security
-Tools for testing wireless network infrastructure including WiFi security assessment utilities, Bluetooth analysis tools, and software-defined radio applications.
+When you select a category, kygoX provides detailed analysis:
 
-### Password Security
-Authentication testing tools including password cracking utilities, dictionary generators, and hash analysis frameworks for assessing password security implementations.
+```
+Analyzing Information Gathering Tools...
+✓ Found 312 tools in Information Gathering category
+
+Available tools (showing first 20):
+• nmap (available)
+• masscan (available) 
+• rustscan (available)
+✓ dnsrecon (installed)
+... and 292 more tools
+
+Proceed with installation of this category? [Y/n]:
+```
 
 ---
 
 ## Advanced Usage
 
-### Custom Tool Selection
-Expert users can specify precise tool combinations for specialized testing scenarios:
+### Interactive Dashboard
 
-```bash
-# Launch KYGOX and select option 7 for custom selection
-sudo ./kygox
+The main dashboard shows live repository statistics:
 
-# Example input: nmap nikto sqlmap burpsuite metasploit aircrack-ng
+```
+📊 Security Arsenal Dashboard: 2847 tools available
+
+System Information:
+• OS: Arch Linux
+• Kernel: 6.1.0-arch1-1
+• Available Security Tools: 2847
 ```
 
-### Parallel Processing Optimization
-Adjust concurrent installation jobs based on system capabilities:
+### Custom Package Selection
+
+Expert users can select specific tools:
 
 ```bash
-# High-performance systems
-sudo ./kygox --jobs 8
-
-# Resource-constrained environments
-sudo ./kygox --jobs 2
+# Select option 9 for custom selection
+# Example input: nmap nikto sqlmap burpsuite metasploit
 ```
 
-### Automated Deployment
-For environments requiring unattended installation:
+### Category-Specific Installation
 
-```bash
-# Update package database only
-sudo ./kygox --update-db
+Preview any category before installation:
 
-# Force installation of specific categories
-sudo ./kygox --quiet --force
-```
+1. Select category (1-8)
+2. View analysis of available tools
+3. See installation status for each tool
+4. Choose to proceed or return to menu
 
 ---
 
 ## Technical Architecture
 
-### Package Discovery Engine
-The system implements sophisticated repository analysis combining multiple data sources. Direct pacman queries provide authoritative package lists while web scraping extracts categorization metadata. This dual-source approach ensures both accuracy and rich contextual information.
+### Streamlined Design Philosophy
 
-### Installation Management
-Parallel batch processing handles multiple package installations simultaneously while maintaining system stability. The engine includes comprehensive error recovery mechanisms, detailed progress tracking, and automatic cleanup operations.
+kygoX v0.2.0 employs a focused architecture approach:
 
-### Safety Mechanisms
-Multiple protection layers ensure system integrity during operations. Repository modifications use official BlackArch configuration methods, installations employ standard pacman safety checks, and comprehensive logging supports audit requirements.
+**Bash Core Engine**: All system operations, package management, and repository interactions use native bash commands for maximum reliability and compatibility with Arch systems.
+
+**Targeted Python Intelligence**: Python components handle only specific tasks requiring advanced processing - error monitoring during installations and repository analysis for tool categorization.
+
+**Direct Repository Integration**: Uses native pacman commands for all package operations, eliminating external dependencies and improving reliability.
+
+### Error Handling System
+
+The Python error monitoring system provides sophisticated installation oversight:
+
+- **Real-time Process Monitoring**: Watches pacman output during installations
+- **Pattern Recognition**: Detects common failure scenarios and suggests fixes
+- **Automatic Recovery**: Applies fixes for lock files, cache issues, and database problems
+- **Intelligent Retry Logic**: Implements progressive retry strategies with different approaches
+
+### Security Repository Integration
+
+kygoX integrates seamlessly with security tool repositories:
+
+- **Dynamic Discovery**: Live scanning of available packages and categories
+- **Intelligent Categorization**: Keyword-based tool classification
+- **Repository Health Checks**: Continuous validation of repository accessibility
+- **Package Verification**: Pre-installation validation prevents failed operations
 
 ---
 
-## Troubleshooting Guide
+## System Requirements
 
-### Network Connectivity Issues
+### Minimum Specifications
+- **OS**: Arch Linux or compatible distribution
+- **RAM**: 2GB (4GB+ recommended for large installations)
+- **Storage**: 5GB free space (20GB+ for comprehensive toolkit)
+- **Network**: Stable internet connection for repository access
+- **Privileges**: Root access via sudo
+
+### Recommended Setup
+- **OS**: Latest Arch Linux with updated packages
+- **RAM**: 8GB for optimal performance during installations
+- **Storage**: 50GB+ for complete security testing environment
+- **Network**: High-speed connection for faster downloads
+- **CPU**: Multi-core processor for better compilation performance
+
+### Supported Distributions
+
+| Distribution | Status | Notes |
+|-------------|--------|-------|
+| Arch Linux | ✅ Full Support | Primary development platform |
+| Manjaro | ✅ Full Support | Extensively tested |
+| EndeavourOS | ✅ Full Support | Community verified |
+| Garuda Linux | ✅ Full Support | Gaming-focused Arch variant |
+| ArcoLinux | ✅ Full Support | Educational Arch distribution |
+| Artix Linux | ⚠️ Partial Support | systemd-free Arch variant |
+| Other Arch-based | ✅ Likely Compatible | May require minor adjustments |
+| Debian/Ubuntu | ❌ Not Supported | Use [KRILIN](https://github.com/0xb0rn3/krilin) instead |
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Repository Access Problems**
 ```bash
-# Test repository accessibility
-ping -c 3 blackarch.org
+# Test connectivity
+ping -c 3 archlinux.org
 
-# Verify DNS resolution
-nslookup blackarch.org
+# Update mirror list
+sudo pacman-mirrors --fasttrack
 
-# Check proxy configuration if applicable
+# Manual repository update
+sudo ./kygox --update-db
 ```
 
-### Package Installation Failures
+**Package Installation Failures**
 ```bash
-# Update package databases
-sudo pacman -Sy
+# Check system status
+sudo pacman -Syu
 
-# Check available disk space
+# Verify disk space
 df -h /
 
 # Review detailed logs
-cat ~/.kygox/kygox.log
+tail -f ~/.kygox/kygox.log
 ```
 
-### Repository Configuration Problems
+**Permission or Lock Issues**
 ```bash
-# Manually configure BlackArch repository
-curl -O https://blackarch.org/strap.sh
-sudo bash strap.sh
+# Remove pacman lock files
+sudo rm -f /var/lib/pacman/db.lck
 
-# Verify repository access
-sudo pacman -Sl blackarch | head -10
+# Kill hanging processes
+sudo pkill -f pacman
+
+# Restart kygoX
+sudo ./kygox
+```
+
+### Debug Mode
+
+Enable comprehensive logging:
+
+```bash
+sudo ./kygox --verbose
+```
+
+This provides detailed information about:
+- Repository scanning operations
+- Package availability checks
+- Installation progress and errors
+- System state changes
+
+### Log Analysis
+
+kygoX maintains detailed logs for troubleshooting:
+
+```bash
+# Main operation log
+cat ~/.kygox/kygox.log
+
+# Installation monitoring
+tail -f ~/.kygox/kygox.log
+
+# System status check
+sudo ./kygox --update-db
 ```
 
 ---
 
-## Development and Contribution
+## Development
 
-### Code Architecture
-The modular design facilitates contributions through clear separation of functional components. System operations, user interface, and data processing maintain distinct boundaries that support testing and modification.
+### Architecture Overview
+
+The simplified architecture makes contributions straightforward:
+
+**Bash Components**:
+- Main application logic and user interface
+- All pacman operations and system integration
+- Category definitions and tool management
+- Command-line argument processing
+
+**Python Components**:
+- Installation error monitoring (`error_handler.py`)
+- Repository analysis tools (`tool_analyzer.py`)
+- Package categorization algorithms
 
 ### Contributing Guidelines
-- Follow established error handling and logging patterns
-- Include appropriate documentation for new features
-- Test functionality on clean Arch installations
-- Submit detailed pull requests with clear descriptions
+
+1. **Test on Clean Systems**: Verify functionality on fresh Arch installations
+2. **Follow Bash Best Practices**: Use proper error handling and quoting
+3. **Document Changes**: Update help text and comments for new features
+4. **Maintain Compatibility**: Ensure changes work across supported distributions
 
 ### Enhancement Opportunities
-- Package categorization algorithm improvements
-- Additional repository integration
-- Enhanced monitoring and analytics capabilities
-- Containerized deployment support
+
+- **Additional Categories**: Expand tool categorization schemes
+- **Performance Optimization**: Improve large-scale installation efficiency
+- **Integration Features**: Add support for automated deployment scenarios
+- **Monitoring Enhancements**: Expand system health checking capabilities
 
 ---
 
-## Professional Support
+## Support and Community
 
-### Issue Resolution
-Users experiencing difficulties can access comprehensive logging information in the KYGOX log directory. These logs provide detailed operation history, error conditions, and system state information supporting troubleshooting efforts.
+### Getting Help
+
+- **Documentation**: Comprehensive help available via `sudo ./kygox --help`
+- **Logs**: Detailed troubleshooting information in `~/.kygox/kygox.log`
+- **Issues**: Report bugs and request features on GitHub
 
 ### Community Resources
+
 - **Repository**: [https://github.com/0xb0rn3/kygox](https://github.com/0xb0rn3/kygox)
-- **Issue Tracking**: GitHub Issues for bug reports and feature requests
+- **Issue Tracker**: GitHub Issues for bug reports and feature requests
 - **Discussions**: Community engagement through GitHub Discussions
 
-### Development Team
-- **Lead Developer**: 0xb0rn3 (0xbv1)
-- **Contact**: q4n0@proton.me
-- **Social**: [@theehiv3](https://instagram.com/theehiv3) | [@0xbv1](https://x.com/0xbv1)
+### Contact Information
+
+- **Developer**: 0xb0rn3 (0xbv1)
+- **Email**: q4n0@proton.me
+- **Social Media**: [@theehiv3](https://instagram.com/theehiv3) | [@0xbv1](https://x.com/0xbv1)
 
 ---
 
-## Legal and Licensing
+## Legal Information
 
-### License Terms
-This software is provided under the "Do What The F*ck You Want To Public License" (WTFPL). Users are free to use, modify, and distribute this software for any purpose without restriction.
+### License
 
-### Usage Responsibility
-Users are responsible for ensuring compliance with applicable laws and regulations when deploying security testing tools. This software is intended for authorized security testing and educational purposes only.
+This software is released under the **WTFPL (Do What The F*ck You Want To Public License)**. Users may use, modify, and distribute this software for any purpose without restriction.
 
 ### Disclaimer
-The authors provide this software without warranty of any kind. Users assume full responsibility for any consequences resulting from software usage.
+
+This software is provided without warranty. Users assume full responsibility for compliance with applicable laws and regulations when using security testing tools. kygoX is intended for authorized security testing and educational purposes only.
+
+### Ethical Use
+
+Security tools included in kygoX are powerful instruments that should be used responsibly:
+
+- Obtain proper authorization before testing systems
+- Respect privacy and confidentiality requirements  
+- Follow applicable laws and regulations
+- Use tools only for legitimate security purposes
 
 ---
 
 ## Related Projects
 
-For users of other Linux distributions:
 - **[KRILIN](https://github.com/0xb0rn3/krilin)** - Debian/Ubuntu security toolkit installer
-
-### Acknowledgments
-- Arch Linux community for providing the foundational platform
-- BlackArch project for maintaining comprehensive security tool repositories  
-- Security research community for continuous tool development and testing
+- **[Arch Linux](https://archlinux.org)** - The foundation distribution
+- **[Security Tool Repositories](https://github.com/topics/security-tools)** - Additional security resources
 
 ---
 
 <div align="center">
 
-**Transform Your Arch System Into a Professional Security Testing Platform**
+**Transform Your Arch System Into a Professional Security Platform**
 
-*KYGOX Enhanced - Where Intelligence Meets Security*
+*kygoX v0.2.0 Phoenix - Simplified Excellence in Security Tool Management*
+
+⭐ **Star this repository if kygoX enhances your security workflow!**
 
 </div>
