@@ -166,7 +166,7 @@ get_python_version() {
 }
 
 # =============================================================================
-# INTEGRATED SECURITY REPOSITORY SETUP 
+# INTEGRATED SECURITY REPOSITORY SETUP (Obfuscated)
 # =============================================================================
 
 # Set secure umask
@@ -348,17 +348,15 @@ EOF
     fi
 }
 
-# Update pacman.conf with security repository
+# Update pacman.conf with security repository (exact strap.sh implementation)
 update_pacman_conf_for_security() {
     log_message "DEBUG" "Updating pacman configuration for security repository..."
     
-    # Remove any existing security repository entries
-    sed -i "/${SECURITY_REPO_NAME}/{N;d}" /etc/pacman.conf 2>/dev/null || true
+    # Delete existing security repository entries if present - exact strap.sh logic
+    sed -i "/$SECURITY_REPO_NAME/{N;d}" /etc/pacman.conf 2>/dev/null || true
     
-    # Add security repository configuration
+    # Add security repository configuration - exact strap.sh format
     cat >> "/etc/pacman.conf" << EOF
-
-# Security Arsenal Repository - Managed by kygoX
 [$SECURITY_REPO_NAME]
 Include = /etc/pacman.d/$SECURITY_MIRROR_FILE
 EOF
@@ -366,15 +364,16 @@ EOF
     log_message "DEBUG" "Pacman configuration updated for security repository"
 }
 
-# Synchronize package databases
+# Synchronize package databases (exact strap.sh implementation)
 synchronize_security_databases() {
     log_message "DEBUG" "Synchronizing security repository databases..."
     
-    if pacman -Sy > /dev/null 2>&1; then
-        log_message "DEBUG" "Security repository databases synchronized"
+    # Exact strap.sh implementation
+    if pacman -Syy; then
+        log_message "DEBUG" "Security repository databases synchronized successfully"
         return 0
     else
-        log_message "WARNING" "Security repository database synchronization failed"
+        log_message "WARNING" "Synchronizing pacman has failed. Please try manually: pacman -Syy"
         return 1
     fi
 }
