@@ -1,2423 +1,1204 @@
 #!/usr/bin/env bash
-# KYGOX - Enhanced Arch Linux Penetration Testing Toolkit Runner
-# Author: 0xbv1 | 0xb0rn3 
-# Contact: IG: theehiv3 | X: 0xbv1 | Threads: theehiv3 | Email: q4n0@proton.me
-# License: Do whatever the hell you want, but don't blame me when it breaks
+#
+# KYGOX - Enhanced Arch Linux Security Testing Suite
+# Version 0.2.0 - Complete Rewrite
+# Author: 0xb0rn3 | Contact: IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
+#
+# This version focuses on:
+# - Real-time BlackArch repository scraping
+# - Intelligent package availability checking
+# - Hybrid bash-Python architecture for optimal performance
+# - Reliable tool management and installation
+#
+
 set -euo pipefail
 
-# Core Configuration
-readonly VERSION="0.2.0-alpha"
-readonly VERSION_NAME="Cobra"
-readonly SCRIPT_NAME="KygoX"
+# =============================================================================
+# CONFIGURATION AND GLOBALS
+# =============================================================================
+
+readonly SCRIPT_VERSION="0.2.0"
+readonly SCRIPT_CODENAME="Phoenix"
+readonly AUTHOR="0xb0rn3"
 readonly REPO_URL="https://github.com/0xb0rn3/kygox"
-readonly ALT_REPO="https://github.com/0xb0rn3/krilin"
-readonly CORE_SCRIPT=".core.py"
-readonly RUNNER_SCRIPT="run"
-readonly UPDATE_CHECK_URL="https://api.github.com/repos/0xb0rn3/kygox/releases/latest"
-readonly RAW_REPO_URL="https://raw.githubusercontent.com/0xb0rn3/kygox/main"
-readonly HASH_CHECK_URL="$RAW_REPO_URL/checksums.sha256"
 
-# Enhanced Color Definitions with Background Support
-declare -r RED='\033[0;31m'
-declare -r GREEN='\033[0;32m'
-declare -r YELLOW='\033[0;33m'
-declare -r BLUE='\033[0;34m'
-declare -r PURPLE='\033[0;35m'
-declare -r CYAN='\033[0;36m'
-declare -r WHITE='\033[1;37m'
-declare -r DARK='\033[1;30m'
-declare -r BOLD='\033[1m'
-declare -r DIM='\033[2m'
-declare -r RESET='\033[0m'
+# System Configuration
+readonly ORIGINAL_USER="${SUDO_USER:-$(whoami)}"
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly LOG_DIR="$HOME/.kygox"
+readonly CACHE_DIR="/tmp/kygox_cache"
+readonly BLACKARCH_MIRROR="https://blackarch.org"
+readonly BLACKARCH_REPO_URL="https://blackarch.org/strap.sh"
 
-# Background colors for enhanced visuals
-declare -r BG_RED='\033[41m'
-declare -r BG_GREEN='\033[42m'
-declare -r BG_YELLOW='\033[43m'
-declare -r BG_BLUE='\033[44m'
-declare -r BG_CYAN='\033[46m'
-declare -r BG_WHITE='\033[47m'
+# Performance Settings
+readonly MAX_PARALLEL_JOBS=4
+readonly DOWNLOAD_TIMEOUT=30
+readonly INSTALL_TIMEOUT=300
 
-# Enhanced Status Indicators with better Unicode and backgrounds
-declare -r SUCCESS="${BG_GREEN}${WHITE}   ✅ SUCCESS   ${RESET}"
-declare -r ERROR="${BG_RED}${WHITE}   ❌ ERROR   ${RESET}"
-declare -r INFO="${BG_BLUE}${WHITE}   ℹ️  INFO   ${RESET}"
-declare -r WARNING="${BG_YELLOW}${DARK}   ⚠️  WARNING   ${RESET}"
-declare -r PROCESS="${BG_CYAN}${WHITE}   ⚡ PROCESS   ${RESET}"
-declare -r SECURITY="${CYAN}🔒 SECURITY${RESET}"
-declare -r CONFIG="${WHITE}⚙️  CONFIG${RESET}"
-declare -r PROMPT="${YELLOW}➤ PROMPT${RESET}"
-declare -r UPDATE="${GREEN}🔄 UPDATE${RESET}"
-declare -r DOWNLOAD="${BLUE}📥 DOWNLOAD${RESET}"
-declare -r INSTALL="${GREEN}📦 INSTALL${RESET}"
-declare -r NETWORK="${PURPLE}🌐 NETWORK${RESET}"
-declare -r PERFORMANCE="${CYAN}⚡ PERFORMANCE${RESET}"
+# Colors and UI Elements
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly PURPLE='\033[0;35m'
+readonly CYAN='\033[0;36m'
+readonly WHITE='\033[1;37m'
+readonly BOLD='\033[1m'
+readonly DIM='\033[2m'
+readonly RESET='\033[0m'
 
-# System Detection Variables
-declare CPU_CORES
-declare TOTAL_RAM_GB
-declare FREE_DISK_GB
-declare RECOMMENDED_WORKERS
-declare MAX_WORKERS
-declare PYTHON_VERSION
-declare INTERNET_SPEED
+# Status Icons
+readonly ICON_SUCCESS="✓"
+readonly ICON_ERROR="✗"
+readonly ICON_WARNING="⚠"
+readonly ICON_INFO="ℹ"
+readonly ICON_LOADING="⟳"
+readonly ICON_ROCKET="🚀"
+readonly ICON_SHIELD="🛡"
+readonly ICON_TOOLS="🔧"
 
-# Configuration Variables
-declare WORKER_THREADS=2
-declare INSTALLATION_MODE="full"
-declare LOG_LEVEL="INFO"
-declare SKIP_KEYRING=false
-declare CLEANUP_AFTER=true
-declare INTERACTIVE_MODE=true
-declare ENABLE_COLORS=true
-declare FAST_MODE=false
-declare VERBOSE_OUTPUT=false
-declare AUTO_INSTALL_REQUIREMENTS=true
+# Global State Variables
+declare -g INTERACTIVE_MODE=true
+declare -g VERBOSE_MODE=false
+declare -g DRY_RUN=false
+declare -g FORCE_INSTALL=false
+declare -g CLEANUP_AFTER=true
+declare -g PARALLEL_JOBS=2
 
-# =============================================================================
-# BUILT-IN PYTHON REQUIREMENTS - No external requirements.txt needed!
-# =============================================================================
-
-# Core requirements - absolutely essential
-declare -a CORE_PYTHON_PACKAGES=(
-    "requests>=2.25.0"
-    "urllib3>=1.26.0"
-    "tqdm>=4.60.0"
-    "cryptography>=3.4.0"
-    "packaging>=20.0"
-    "colorama"
-)
-
-# Enhanced UI packages - for better user experience
-declare -a UI_PYTHON_PACKAGES=(
-    "rich>=10.0.0"
-    "click>=8.0.0"
-    "prompt-toolkit>=3.0.0"
-    "tabulate>=0.8.0"
-    "pyfiglet>=0.8.0"
-)
-
-# System and utility packages
-declare -a SYSTEM_PYTHON_PACKAGES=(
-    "psutil>=5.8.0"
-    "python-dotenv>=0.19.0"
-    "alive-progress>=3.0.0"
-    "ujson>=5.0.0"
-    "PyYAML>=6.0"
-    "loguru>=0.6.0"
-    "py-cpuinfo>=8.0.0"
-)
-
-# Security-specific packages
-declare -a SECURITY_PYTHON_PACKAGES=(
-    "python-nmap>=0.7.1"
-    "beautifulsoup4>=4.10.0"
-    "lxml>=4.6.0"
-    "dnspython>=2.1.0"
-    "httpx>=0.23.0"
-    "paramiko>=2.8.0"
-    "scapy>=2.4.5"
-    "impacket>=0.9.24"
-    "requests-toolbelt>=0.9.1"
-    "pyOpenSSL>=21.0.0"
-)
-
-# Performance optimization packages
-declare -a PERFORMANCE_PYTHON_PACKAGES=(
-    "orjson>=3.8.0"
-    "joblib>=1.1.0"
-    "pympler>=0.9"
-)
-
-# Development and testing packages (optional)
-declare -a DEV_PYTHON_PACKAGES=(
-    "pytest>=6.0.0"
-    "pytest-cov>=4.0.0"
-    "black>=21.0.0"
-    "flake8>=3.9.0"
-    "pylint>=2.15.0"
-    "mypy>=0.991"
-    "bandit>=1.7.0"
-    "safety>=2.0.0"
-)
-
-# Required system packages
-declare -a REQUIRED_SYSTEM_PACKAGES=(
-    "python"
-    "python-pip"
-    "pacman"
-    "curl"
-    "wget"
-    "git"
-    "base-devel"
-    "sudo"
-    "bc"  # For calculations
-)
+# Package Management
+declare -gA AVAILABLE_PACKAGES
+declare -gA INSTALLED_PACKAGES
+declare -gA FAILED_PACKAGES
+declare -ga INSTALL_QUEUE
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
-# Enhanced Banner Display with ASCII Art
-display_banner() {
-    clear
-    
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        cat << 'EOF'
-╔═══════════════════════════════════════════════════════════════════════════════╗
-║                                                                               ║
-║  ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗    ██████╗  ██████╗ ██████╗   ║
-║  ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝    ╚════██╗██╔═████╗╚════██╗  ║
-║  █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝      █████╔═╝██║██╔██║ █████╔╝  ║
-║  ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗     ██╔═══╝ ████╔╝██║██╔═══╝   ║
-║  ██║  ██║   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗    ███████╗╚██████╔╝███████╗  ║
-║  ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚══════╝ ╚═════╝ ╚══════╝  ║
-║                                                                               ║
-╚═══════════════════════════════════════════════════════════════════════════════╝
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    ENHANCED ARCH LINUX PENETRATION TESTING TOOLKIT
-     Professional Security Arsenal Deployment System
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EOF
-    else
-        echo "KYGOX - Arch Linux Penetration Testing Toolkit"
-        echo "=============================================="
-    fi
-    
-    echo -e "            ${BOLD}Version $VERSION | $VERSION_NAME${RESET}"
-    echo -e "   ${DIM}Author: 0xbv1 | Contact: IG: theehiv3 | X: 0xbv1 | q4n0@proton.me${RESET}"
-    echo -e "      ${DIM}Repository: $REPO_URL${RESET}"
-    
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    else
-        echo "=============================================================================="
-    fi
-    echo
-}
-
-# Enhanced Error handling with detailed logging
-error_exit() {
-    echo -e "${ERROR} $1" >&2
-    
-    # Log error to file if log directory exists
-    if [[ -d "kygox_logs" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "kygox_logs/runner_errors.log"
-    fi
-    
-    exit "${2:-1}"
-}
-
-# Enhanced logging function
+# Logging functions with timestamps and levels
 log_message() {
     local level="$1"
     local message="$2"
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local color=""
+    local icon=""
     
-    # Create log directory if it doesn't exist
-    mkdir -p "kygox_logs"
+    case "$level" in
+        "SUCCESS") color="$GREEN"; icon="$ICON_SUCCESS" ;;
+        "ERROR")   color="$RED";   icon="$ICON_ERROR" ;;
+        "WARNING") color="$YELLOW"; icon="$ICON_WARNING" ;;
+        "INFO")    color="$CYAN";  icon="$ICON_INFO" ;;
+        "DEBUG")   color="$DIM";   icon="•" ;;
+        *)         color="$WHITE"; icon="•" ;;
+    esac
     
     # Log to file
-    echo "[$timestamp] [$level] $message" >> "kygox_logs/runner.log"
+    mkdir -p "$LOG_DIR"
+    echo "[$timestamp] [$level] $message" >> "$LOG_DIR/kygox.log"
     
-    # Display to console based on level
-    case "$level" in
-        "INFO")
-            echo -e "${INFO} $message"
-            ;;
-        "SUCCESS")
-            echo -e "${SUCCESS} $message"
-            ;;
-        "WARNING")
-            echo -e "${WARNING} $message"
-            ;;
-        "ERROR")
-            echo -e "${ERROR} $message"
-            ;;
-        "PROCESS")
-            echo -e "${PROCESS} $message"
-            ;;
-        *)
-            echo -e "${INFO} $message"
-            ;;
-    esac
-}
-
-# Check if running as root
-check_root() {
-    if [[ $EUID -ne 0 ]]; then
-        error_exit "This script must be run as root. Use: sudo $0"
+    # Display to console
+    if [[ "$level" == "DEBUG" && "$VERBOSE_MODE" != "true" ]]; then
+        return
     fi
-    log_message "SUCCESS" "Running with root privileges"
+    
+    echo -e "${color}${icon}${RESET} ${message}"
 }
 
-# =============================================================================
-# ENHANCED PYTHON REQUIREMENTS MANAGEMENT
-# =============================================================================
-
-# Get all Python packages based on installation mode
-get_python_packages() {
-    local mode="${1:-full}"
-    local packages=()
-    
-    # Always include core packages
-    packages+=("${CORE_PYTHON_PACKAGES[@]}")
-    
-    case "$mode" in
-        "full")
-            packages+=("${UI_PYTHON_PACKAGES[@]}")
-            packages+=("${SYSTEM_PYTHON_PACKAGES[@]}")
-            packages+=("${SECURITY_PYTHON_PACKAGES[@]}")
-            packages+=("${PERFORMANCE_PYTHON_PACKAGES[@]}")
-            ;;
-        "core-only"|"minimal")
-            packages+=("${UI_PYTHON_PACKAGES[@]}")
-            packages+=("${SYSTEM_PYTHON_PACKAGES[@]}")
-            ;;
-        "security-focused")
-            packages+=("${UI_PYTHON_PACKAGES[@]}")
-            packages+=("${SECURITY_PYTHON_PACKAGES[@]}")
-            packages+=("${SYSTEM_PYTHON_PACKAGES[@]}")
-            ;;
-        "performance")
-            packages+=("${UI_PYTHON_PACKAGES[@]}")
-            packages+=("${PERFORMANCE_PYTHON_PACKAGES[@]}")
-            ;;
-        "development")
-            packages+=("${UI_PYTHON_PACKAGES[@]}")
-            packages+=("${SYSTEM_PYTHON_PACKAGES[@]}")
-            packages+=("${DEV_PYTHON_PACKAGES[@]}")
-            ;;
-    esac
-    
-    printf '%s\n' "${packages[@]}"
+# Enhanced error handling with context
+error_exit() {
+    local exit_code="${2:-1}"
+    log_message "ERROR" "$1"
+    echo -e "${RED}${BOLD}Fatal Error:${RESET} $1" >&2
+    echo -e "${YELLOW}Check logs at: ${LOG_DIR}/kygox.log${RESET}" >&2
+    cleanup_on_exit "$exit_code"
 }
 
-# Create dynamic requirements.txt for debugging/reference
-create_dynamic_requirements_file() {
-    local mode="${1:-full}"
-    local req_file="kygox_logs/requirements_${mode}.txt"
+# Progress indicator for long operations
+show_progress() {
+    local pid=$1
+    local message="$2"
+    local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+    local i=0
     
-    log_message "PROCESS" "Creating dynamic requirements file for reference..."
-    
-    mkdir -p "kygox_logs"
-    
-    cat > "$req_file" << EOF
-# KygoX Dynamic Requirements - Generated $(date)
-# Installation Mode: $mode
-# Python Requirements File
-# Version: $VERSION ($VERSION_NAME)
-# Author: 0xbv1 | 0xb0rn3
-
-# ============================================================================
-# CORE DEPENDENCIES (Required for basic functionality)
-# ============================================================================
-EOF
-    
-    # Add core packages
-    for pkg in "${CORE_PYTHON_PACKAGES[@]}"; do
-        echo "$pkg" >> "$req_file"
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r${CYAN}%s${RESET} %s..." "${chars:$i:1}" "$message"
+        i=$(((i + 1) % ${#chars}))
+        sleep 0.1
     done
     
-    # Add mode-specific packages
-    case "$mode" in
-        "full")
-            cat >> "$req_file" << EOF
-
-# ============================================================================
-# ENHANCED USER INTERFACE (Better experience)
-# ============================================================================
-EOF
-            for pkg in "${UI_PYTHON_PACKAGES[@]}"; do
-                echo "$pkg" >> "$req_file"
-            done
-            
-            cat >> "$req_file" << EOF
-
-# ============================================================================
-# SYSTEM AND UTILITIES
-# ============================================================================
-EOF
-            for pkg in "${SYSTEM_PYTHON_PACKAGES[@]}"; do
-                echo "$pkg" >> "$req_file"
-            done
-            
-            cat >> "$req_file" << EOF
-
-# ============================================================================
-# SECURITY SPECIFIC LIBRARIES
-# ============================================================================
-EOF
-            for pkg in "${SECURITY_PYTHON_PACKAGES[@]}"; do
-                echo "$pkg" >> "$req_file"
-            done
-            
-            cat >> "$req_file" << EOF
-
-# ============================================================================
-# PERFORMANCE OPTIMIZATIONS
-# ============================================================================
-EOF
-            for pkg in "${PERFORMANCE_PYTHON_PACKAGES[@]}"; do
-                echo "$pkg" >> "$req_file"
-            done
-            ;;
-        "development")
-            cat >> "$req_file" << EOF
-
-# ============================================================================
-# DEVELOPMENT AND TESTING
-# ============================================================================
-EOF
-            for pkg in "${DEV_PYTHON_PACKAGES[@]}"; do
-                echo "$pkg" >> "$req_file"
-            done
-            ;;
-    esac
-    
-    cat >> "$req_file" << EOF
-
-# ============================================================================
-# INSTALLATION NOTES
-# ============================================================================
-# To install all requirements:
-# pip install -r $(basename "$req_file") --break-system-packages
-
-# For Arch Linux users (using pacman):
-# sudo pacman -S python-requests python-colorama python-tqdm python-cryptography
-
-# For development installation:
-# pip install -r $(basename "$req_file")[dev]
-
-# ============================================================================
-# TROUBLESHOOTING
-# ============================================================================
-# If installation fails:
-# 1. Update pip: python -m pip install --upgrade pip
-# 2. Install build tools: sudo pacman -S base-devel
-# 3. Install individually: pip install <package-name>
-# 4. Use system packages: sudo pacman -S python-<package-name>
-# 5. Try with --user flag: pip install --user <package-name>
-EOF
-    
-    log_message "SUCCESS" "Dynamic requirements saved to: $req_file"
-    
-    # Also create a simplified version for external use
-    local simple_req="requirements.txt"
-    get_python_packages "$mode" > "$simple_req"
-    log_message "SUCCESS" "Simple requirements file created: $simple_req"
+    # Clear the line and show completion
+    printf "\r${GREEN}${ICON_SUCCESS}${RESET} %s completed\n" "$message"
 }
 
-# Enhanced Python environment setup with built-in requirements
-setup_python_environment() {
-    log_message "PROCESS" "Setting up enhanced Python environment with built-in requirements..."
-    
-    # Install system packages first
-    if ! install_system_requirements; then
-        error_exit "Failed to install system requirements"
-    fi
-    
-    # Re-detect Python version after installation
-    detect_python_version
-    
-    if [[ "$PYTHON_VERSION" == "not_found" ]]; then
-        error_exit "Python 3 is required but not found after installation"
-    fi
-    
-    # Check Python version compatibility
-    local python_major=$(echo "$PYTHON_VERSION" | cut -d. -f1)
-    local python_minor=$(echo "$PYTHON_VERSION" | cut -d. -f2)
-    
-    if [[ $python_major -lt 3 ]] || [[ $python_major -eq 3 && $python_minor -lt 8 ]]; then
-        log_message "WARNING" "Python $PYTHON_VERSION detected. Recommended: Python 3.8+"
-    fi
-    
-    # Create dynamic requirements file for reference
-    create_dynamic_requirements_file "$INSTALLATION_MODE"
-    
-    # Install Python packages based on mode
-    install_python_requirements_dynamic "$INSTALLATION_MODE"
-    
-    # Verify installation
-    verify_python_environment
-    
-    log_message "SUCCESS" "Python environment setup completed"
-}
+# Banner display with system information
+display_banner() {
+    clear
+    cat << 'EOF'
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║  ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗    ███████╗███╗   ██╗██╗  ██╗ ║
+║  ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝    ██╔════╝████╗  ██║██║  ██║ ║
+║  █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝     █████╗  ██╔██╗ ██║███████║ ║
+║  ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗     ██╔══╝  ██║╚██╗██║██╔══██║ ║
+║  ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗    ███████╗██║ ╚████║██║  ██║ ║
+║  ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝ ║
+║                                                                              ║
+║                 ENHANCED ARCH SECURITY TESTING SUITE                        ║
+║                      Version 0.2.0 "Phoenix"                               ║
+║                   Engineered by 0xb0rn3 | @theehiv3                        ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+EOF
 
-# Install Python requirements dynamically without external files
-install_python_requirements_dynamic() {
-    local mode="${1:-full}"
-    
-    log_message "PROCESS" "Installing Python requirements dynamically (mode: $mode)..."
-    
-    # Upgrade pip first
-    upgrade_pip
-    
-    # Get packages for the specified mode
-    local packages
-    readarray -t packages < <(get_python_packages "$mode")
-    
-    log_message "INFO" "Installing ${#packages[@]} Python packages for $mode mode..."
-    
-    # Install packages with enhanced error handling and fallback methods
-    local failed_packages=()
-    local installed_count=0
-    local skipped_count=0
-    
-    for package in "${packages[@]}"; do
-        local package_name=$(echo "$package" | cut -d'>' -f1 | cut -d'=' -f1 | cut -d'[' -f1)
-        local package_spec="$package"
-        
-        log_message "PROCESS" "Installing Python package: $package_name"
-        
-        # Check if already installed
-        if python3 -c "import $package_name" >/dev/null 2>&1; then
-            local installed_version=$(python3 -c "import $package_name; print(getattr($package_name, '__version__', 'unknown'))" 2>/dev/null || echo "unknown")
-            log_message "INFO" "Already installed: $package_name ($installed_version)"
-            skipped_count=$((skipped_count + 1))
-            continue
-        fi
-        
-        # Try multiple installation methods with different approaches
-        local install_success=false
-        local install_method=""
-        
-        # Method 1: pip install with --break-system-packages
-        if ! $install_success; then
-            if python3 -m pip install "$package_spec" --break-system-packages --quiet >/dev/null 2>&1; then
-                install_success=true
-                install_method="pip (break-system-packages)"
-            fi
-        fi
-        
-        # Method 2: pip3 install
-        if ! $install_success; then
-            if pip3 install "$package_spec" --break-system-packages --quiet >/dev/null 2>&1; then
-                install_success=true
-                install_method="pip3"
-            fi
-        fi
-        
-        # Method 3: pip install without version constraints
-        if ! $install_success; then
-            if python3 -m pip install "$package_name" --break-system-packages --quiet >/dev/null 2>&1; then
-                install_success=true
-                install_method="pip (no version)"
-            fi
-        fi
-        
-        # Method 4: Try with --user flag
-        if ! $install_success; then
-            if python3 -m pip install "$package_spec" --user --quiet >/dev/null 2>&1; then
-                install_success=true
-                install_method="pip (user)"
-            fi
-        fi
-        
-        # Method 5: System package manager (pacman)
-        if ! $install_success; then
-            local pacman_name="python-$(echo "$package_name" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
-            if pacman -S --noconfirm "$pacman_name" >/dev/null 2>&1; then
-                install_success=true
-                install_method="pacman"
-            fi
-        fi
-        
-        # Method 6: Alternative pacman names
-        if ! $install_success; then
-            local alt_names=(
-                "python-$package_name"
-                "python3-$package_name"
-                "$package_name"
-            )
-            
-            for alt_name in "${alt_names[@]}"; do
-                if pacman -S --noconfirm "$alt_name" >/dev/null 2>&1; then
-                    install_success=true
-                    install_method="pacman ($alt_name)"
-                    break
-                fi
-            done
-        fi
-        
-        # Report results
-        if $install_success; then
-            log_message "SUCCESS" "✓ Installed: $package_name via $install_method"
-            installed_count=$((installed_count + 1))
-        else
-            log_message "WARNING" "✗ Failed to install: $package_name"
-            failed_packages+=("$package_name")
-        fi
-    done
-    
-    # Installation summary
     echo
-    log_message "SUCCESS" "Python package installation summary:"
-    echo -e "  • Total packages: ${CYAN}${#packages[@]}${RESET}"
-    echo -e "  • Installed: ${GREEN}$installed_count${RESET}"
-    echo -e "  • Already present: ${YELLOW}$skipped_count${RESET}"
-    echo -e "  • Failed: ${RED}${#failed_packages[@]}${RESET}"
-    
-    if [[ ${#failed_packages[@]} -gt 0 ]]; then
-        echo -e "  ${WARNING} Failed packages: ${failed_packages[*]}"
-        log_message "WARNING" "Some Python packages failed to install - continuing with reduced functionality"
-        
-        # Save failed packages for reference
-        printf '%s\n' "${failed_packages[@]}" > "kygox_logs/failed_packages.txt"
-        log_message "INFO" "Failed packages list saved to: kygox_logs/failed_packages.txt"
-        
-        return 1
+    echo -e "${CYAN}${BOLD}System Information:${RESET}"
+    echo -e "  ${WHITE}•${RESET} OS: $(get_system_info)"
+    echo -e "  ${WHITE}•${RESET} Kernel: $(uname -r)"
+    echo -e "  ${WHITE}•${RESET} Architecture: $(uname -m)"
+    echo -e "  ${WHITE}•${RESET} User: $ORIGINAL_USER"
+    echo -e "  ${WHITE}•${RESET} Python: $(get_python_version)"
+    echo
+}
+
+# System information gathering
+get_system_info() {
+    if [[ -f /etc/os-release ]]; then
+        grep '^PRETTY_NAME=' /etc/os-release | cut -d'"' -f2
     else
-        log_message "SUCCESS" "All Python requirements installed successfully!"
-        return 0
+        echo "Unknown Linux Distribution"
     fi
 }
 
-# Upgrade pip with multiple methods
-upgrade_pip() {
-    log_message "PROCESS" "Upgrading pip to latest version..."
-    
-    local upgrade_success=false
-    
-    # Method 1: python -m pip
-    if python3 -m pip install --upgrade pip --break-system-packages >/dev/null 2>&1; then
-        upgrade_success=true
-        log_message "SUCCESS" "pip upgraded via python -m pip"
-    fi
-    
-    # Method 2: pip3 direct
-    if ! $upgrade_success && pip3 install --upgrade pip --break-system-packages >/dev/null 2>&1; then
-        upgrade_success=true
-        log_message "SUCCESS" "pip upgraded via pip3"
-    fi
-    
-    # Method 3: pacman system package
-    if ! $upgrade_success && pacman -S --noconfirm python-pip >/dev/null 2>&1; then
-        upgrade_success=true
-        log_message "SUCCESS" "pip installed/upgraded via pacman"
-    fi
-    
-    if ! $upgrade_success; then
-        log_message "WARNING" "Could not upgrade pip - continuing with existing version"
-    fi
-    
-    # Display pip version
-    local pip_version=$(python3 -m pip --version 2>/dev/null | cut -d' ' -f2 || echo "unknown")
-    log_message "INFO" "pip version: $pip_version"
-}
-
-# Enhanced system specification detection
-detect_system_specs() {
-    log_message "PROCESS" "Detecting comprehensive system specifications..."
-    
-    # CPU cores and model
-    CPU_CORES=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo 2>/dev/null || echo "1")
-    
-    local cpu_model=""
-    if [[ -f /proc/cpuinfo ]]; then
-        cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ *//' || echo "Unknown")
-    fi
-    
-    # RAM in GB with available memory
-    if [[ -f /proc/meminfo ]]; then
-        local ram_kb
-        ram_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-        TOTAL_RAM_GB=$((ram_kb / 1024 / 1024))
-        
-        local available_kb
-        available_kb=$(grep MemAvailable /proc/meminfo | awk '{print $2}' 2>/dev/null || echo "$ram_kb")
-        local available_gb=$((available_kb / 1024 / 1024))
+get_python_version() {
+    if command -v python3 &>/dev/null; then
+        python3 --version | cut -d' ' -f2
     else
-        TOTAL_RAM_GB=1
-        available_gb=1
-    fi
-    
-    # Free disk space in GB
-    FREE_DISK_GB=$(df / | tail -1 | awk '{printf "%.0f", $4/1024/1024}')
-    
-    # System load and uptime
-    local load_avg=""
-    local uptime_hours=""
-    if [[ -f /proc/loadavg ]]; then
-        load_avg=$(cut -d' ' -f1 /proc/loadavg)
-    fi
-    if [[ -f /proc/uptime ]]; then
-        uptime_hours=$(awk '{printf "%.0f", $1/3600}' /proc/uptime)
-    fi
-    
-    # Python version detection
-    detect_python_version
-    
-    # Internet speed test (optional)
-    test_internet_speed
-    
-    # Calculate recommended workers based on enhanced system specs
-    calculate_optimal_workers
-    
-    log_message "SUCCESS" "System specifications detected"
-    log_message "INFO" "CPU: $cpu_model ($CPU_CORES cores)"
-    log_message "INFO" "RAM: ${TOTAL_RAM_GB}GB total, ${available_gb}GB available"
-    log_message "INFO" "Disk: ${FREE_DISK_GB}GB free"
-    log_message "INFO" "Load Average: $load_avg"
-    log_message "INFO" "Uptime: ${uptime_hours} hours"
-    log_message "INFO" "Python: $PYTHON_VERSION"
-    log_message "INFO" "Recommended Workers: $RECOMMENDED_WORKERS"
-}
-
-# Python version detection
-detect_python_version() {
-    if command -v python3 >/dev/null 2>&1; then
-        PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>/dev/null || echo "unknown")
-    elif command -v python >/dev/null 2>&1; then
-        PYTHON_VERSION=$(python -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')" 2>/dev/null || echo "unknown")
-    else
-        PYTHON_VERSION="not_found"
+        echo "Not installed"
     fi
 }
 
-# Internet speed test (basic)
-test_internet_speed() {
-    log_message "PROCESS" "Testing internet connectivity and speed..."
+# =============================================================================
+# SYSTEM VALIDATION AND REQUIREMENTS
+# =============================================================================
+
+# Comprehensive system validation
+validate_system() {
+    log_message "INFO" "Validating system requirements..."
     
-    local test_urls=(
-        "http://www.google.com"
-        "https://archlinux.org"
-        "https://blackarch.org"
-    )
+    # Check if running as root
+    if [[ $EUID -ne 0 ]]; then
+        error_exit "This script must be run with sudo privileges"
+    fi
     
-    INTERNET_SPEED="unknown"
+    # Validate original user
+    if [[ -z "$ORIGINAL_USER" || "$ORIGINAL_USER" == "root" ]]; then
+        error_exit "Cannot determine original user. Please run with 'sudo $0'"
+    fi
     
-    for url in "${test_urls[@]}"; do
-        if curl --connect-timeout 5 --max-time 10 -s -o /dev/null "$url" 2>/dev/null; then
-            # Basic speed test using curl
-            local speed=$(curl -o /dev/null -s -w '%{speed_download}' --max-time 10 "$url" 2>/dev/null || echo "0")
-            if [[ "$speed" != "0" ]] && command -v bc >/dev/null 2>&1; then
-                # Convert bytes/sec to Mbps
-                INTERNET_SPEED=$(echo "scale=1; $speed * 8 / 1000000" | bc -l 2>/dev/null || echo "unknown")
-                break
+    # Check for Arch-based system
+    if ! command -v pacman &>/dev/null; then
+        if command -v apt &>/dev/null; then
+            error_exit "Debian-based system detected. Use KRILIN instead: https://github.com/0xb0rn3/krilin"
+        else
+            error_exit "This tool requires an Arch-based distribution with pacman"
+        fi
+    fi
+    
+    # Check internet connectivity
+    if ! ping -c 1 -W 3 archlinux.org &>/dev/null; then
+        error_exit "Internet connectivity required for package downloads"
+    fi
+    
+    # Check available disk space (minimum 5GB)
+    local available_space
+    available_space=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
+    if [[ $available_space -lt 5 ]]; then
+        log_message "WARNING" "Only ${available_space}GB available. Some installations may fail."
+        if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+            read -p "Continue anyway? [y/N]: " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 0
             fi
         fi
-    done
-    
-    if [[ "$INTERNET_SPEED" != "unknown" ]]; then
-        log_message "SUCCESS" "Internet speed: ${INTERNET_SPEED} Mbps"
-    else
-        log_message "WARNING" "Could not determine internet speed"
     fi
+    
+    log_message "SUCCESS" "System validation completed"
 }
 
-# Calculate optimal workers based on system specs
-calculate_optimal_workers() {
-    # Enhanced algorithm considering multiple factors
-    local base_workers=1
+# Install required dependencies
+install_dependencies() {
+    log_message "INFO" "Installing required dependencies..."
     
-    # CPU-based calculation
-    if [[ $CPU_CORES -ge 12 ]]; then
-        base_workers=6
-    elif [[ $CPU_CORES -ge 8 ]]; then
-        base_workers=4
-    elif [[ $CPU_CORES -ge 4 ]]; then
-        base_workers=3
-    elif [[ $CPU_CORES -ge 2 ]]; then
-        base_workers=2
-    else
-        base_workers=1
-    fi
-    
-    # RAM adjustment
-    if [[ $TOTAL_RAM_GB -lt 2 ]]; then
-        base_workers=$((base_workers / 2))
-    elif [[ $TOTAL_RAM_GB -lt 4 ]]; then
-        base_workers=$((base_workers * 3 / 4))
-    fi
-    
-    # Disk space adjustment
-    if [[ $FREE_DISK_GB -lt 10 ]]; then
-        base_workers=$((base_workers / 2))
-    fi
-    
-    # Ensure minimum of 1 worker
-    RECOMMENDED_WORKERS=$((base_workers > 0 ? base_workers : 1))
-    MAX_WORKERS=$((CPU_CORES > 6 ? 6 : CPU_CORES))
-    
-    # Cap maximum workers
-    if [[ $RECOMMENDED_WORKERS -gt $MAX_WORKERS ]]; then
-        RECOMMENDED_WORKERS=$MAX_WORKERS
-    fi
-}
-
-# Enhanced requirements installation
-install_system_requirements() {
-    log_message "PROCESS" "Installing system requirements..."
-    
-    # Update package database first
-    if ! pacman -Sy --noconfirm >/dev/null 2>&1; then
-        log_message "WARNING" "Could not update package database"
-    fi
+    local required_packages=(
+        "curl"
+        "wget" 
+        "git"
+        "python"
+        "python-pip"
+        "python-requests"
+        "python-beautifulsoup4"
+        "python-lxml"
+        "base-devel"
+        "pacman-contrib"
+    )
     
     local missing_packages=()
     
-    # Check each required package
-    for package in "${REQUIRED_SYSTEM_PACKAGES[@]}"; do
-        if ! pacman -Qi "$package" >/dev/null 2>&1; then
+    # Check for missing packages
+    for package in "${required_packages[@]}"; do
+        if ! pacman -Qi "$package" &>/dev/null; then
             missing_packages+=("$package")
         fi
     done
     
+    # Install missing packages
     if [[ ${#missing_packages[@]} -gt 0 ]]; then
-        log_message "PROCESS" "Installing missing system packages: ${missing_packages[*]}"
+        log_message "INFO" "Installing missing packages: ${missing_packages[*]}"
         
-        if pacman -S --noconfirm "${missing_packages[@]}" >/dev/null 2>&1; then
-            log_message "SUCCESS" "System packages installed successfully"
-        else
-            log_message "ERROR" "Failed to install required system packages"
-            return 1
+        # Update package database first
+        pacman -Sy --noconfirm
+        
+        # Install packages with error handling
+        if ! pacman -S --noconfirm --needed "${missing_packages[@]}"; then
+            error_exit "Failed to install required dependencies"
         fi
+        
+        log_message "SUCCESS" "Dependencies installed successfully"
     else
-        log_message "SUCCESS" "All system requirements already satisfied"
+        log_message "SUCCESS" "All dependencies already satisfied"
     fi
-    
-    return 0
 }
 
-# Verify Python environment
-verify_python_environment() {
-    log_message "PROCESS" "Verifying Python environment..."
+# =============================================================================
+# BLACKARCH REPOSITORY MANAGEMENT
+# =============================================================================
+
+# Setup BlackArch repository with enhanced error handling
+setup_blackarch_repo() {
+    log_message "INFO" "Setting up BlackArch repository..."
     
-    local verification_failed=false
-    
-    # Test core imports - only check essential ones
-    local core_modules=("requests" "colorama" "tqdm" "urllib3")
-    local verified_modules=()
-    local failed_modules=()
-    
-    for module in "${core_modules[@]}"; do
-        if python3 -c "import $module" >/dev/null 2>&1; then
-            local version=$(python3 -c "import $module; print(getattr($module, '__version__', 'unknown'))" 2>/dev/null || echo "unknown")
-            log_message "SUCCESS" "✓ $module ($version)"
-            verified_modules+=("$module")
-        else
-            log_message "WARNING" "✗ $module - not available"
-            failed_modules+=("$module")
-            verification_failed=true
-        fi
-    done
-    
-    # Test optional imports
-    local optional_modules=("rich" "click" "psutil" "cryptography")
-    local optional_verified=()
-    
-    for module in "${optional_modules[@]}"; do
-        if python3 -c "import $module" >/dev/null 2>&1; then
-            local version=$(python3 -c "import $module; print(getattr($module, '__version__', 'unknown'))" 2>/dev/null || echo "unknown")
-            log_message "INFO" "✓ $module ($version) - optional"
-            optional_verified+=("$module")
-        fi
-    done
-    
-    # Save verification results
-    echo "# Python Environment Verification - $(date)" > "kygox_logs/python_verification.txt"
-    echo "# Verified Core Modules:" >> "kygox_logs/python_verification.txt"
-    printf '%s\n' "${verified_modules[@]}" >> "kygox_logs/python_verification.txt"
-    echo "# Failed Core Modules:" >> "kygox_logs/python_verification.txt"
-    printf '%s\n' "${failed_modules[@]}" >> "kygox_logs/python_verification.txt"
-    echo "# Optional Modules Available:" >> "kygox_logs/python_verification.txt"
-    printf '%s\n' "${optional_verified[@]}" >> "kygox_logs/python_verification.txt"
-    
-    if [[ "$verification_failed" == "true" ]]; then
-        log_message "WARNING" "Some Python modules are missing - continuing with reduced functionality"
-        echo -e "${WARNING} Missing modules: ${failed_modules[*]}"
-        return 1
-    else
-        log_message "SUCCESS" "Python environment verification passed"
-        echo -e "${SUCCESS} All core modules available: ${verified_modules[*]}"
+    # Check if already configured
+    if grep -q "\[blackarch\]" /etc/pacman.conf; then
+        log_message "INFO" "BlackArch repository already configured"
         return 0
     fi
+    
+    # Download and execute strap script with error handling
+    local temp_script="/tmp/blackarch-strap.sh"
+    
+    if ! curl -fsSL "$BLACKARCH_REPO_URL" -o "$temp_script" --connect-timeout "$DOWNLOAD_TIMEOUT"; then
+        error_exit "Failed to download BlackArch strap script"
+    fi
+    
+    # Verify script integrity (basic check)
+    if [[ ! -s "$temp_script" ]]; then
+        error_exit "Downloaded strap script is empty or corrupted"
+    fi
+    
+    # Execute strap script
+    if ! bash "$temp_script" &>/dev/null; then
+        error_exit "Failed to execute BlackArch strap script"
+    fi
+    
+    # Clean up
+    rm -f "$temp_script"
+    
+    # Update package database
+    if ! pacman -Sy --noconfirm; then
+        error_exit "Failed to update package database after BlackArch setup"
+    fi
+    
+    log_message "SUCCESS" "BlackArch repository configured successfully"
 }
 
-# Enhanced system information display
-display_system_info() {
-    echo -e "${CONFIG} ${BOLD}Enhanced System Information${RESET}"
+# Dynamic BlackArch package discovery using Python
+create_package_scraper() {
+    cat > "$CACHE_DIR/blackarch_scraper.py" << 'PYTHON_SCRIPT'
+#!/usr/bin/env python3
+"""
+KYGOX BlackArch Package Scraper
+Dynamically discovers available BlackArch packages and categorizes them
+"""
+
+import sys
+import json
+import subprocess
+import re
+from pathlib import Path
+from typing import Dict, List, Set, Tuple
+import time
+
+try:
+    import requests
+    from bs4 import BeautifulSoup
+except ImportError:
+    print("Error: Required Python packages not installed", file=sys.stderr)
+    sys.exit(1)
+
+class BlackArchScraper:
+    def __init__(self):
+        self.base_url = "https://blackarch.org"
+        self.tools_url = f"{self.base_url}/tools.html"
+        self.packages = {}
+        self.categories = {}
+        self.session = requests.Session()
+        self.session.headers.update({
+            'User-Agent': 'KYGOX-PackageScraper/0.2.0'
+        })
     
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    def get_pacman_packages(self) -> Set[str]:
+        """Get available BlackArch packages from pacman database"""
+        try:
+            result = subprocess.run(
+                ['pacman', '-Sql', 'blackarch'],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            return set(result.stdout.strip().split('\n')) if result.stdout.strip() else set()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return set()
+    
+    def scrape_web_tools(self) -> Dict[str, List[str]]:
+        """Scrape BlackArch website for tool categories"""
+        try:
+            response = self.session.get(self.tools_url, timeout=30)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'html.parser')
+            categories = {}
+            
+            # Find tool categories and packages
+            for section in soup.find_all(['div', 'section'], class_=re.compile('category|tools')):
+                category_name = None
+                tools = []
+                
+                # Extract category name
+                header = section.find(['h1', 'h2', 'h3', 'h4'])
+                if header:
+                    category_name = header.get_text().strip()
+                
+                # Extract tool names
+                for link in section.find_all('a', href=re.compile(r'/tools/')):
+                    tool_name = link.get_text().strip()
+                    if tool_name and len(tool_name) > 1:
+                        tools.append(tool_name)
+                
+                if category_name and tools:
+                    categories[category_name] = tools
+            
+            return categories
+            
+        except Exception as e:
+            print(f"Web scraping failed: {e}", file=sys.stderr)
+            return {}
+    
+    def get_package_info(self, package: str) -> Dict:
+        """Get detailed package information"""
+        try:
+            result = subprocess.run(
+                ['pacman', '-Si', package],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if result.returncode == 0:
+                info = {}
+                for line in result.stdout.split('\n'):
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        info[key.strip()] = value.strip()
+                return info
+            return {}
+            
+        except Exception:
+            return {}
+    
+    def categorize_packages(self, packages: Set[str]) -> Dict[str, List[str]]:
+        """Categorize packages by type/purpose"""
+        categories = {
+            'Information Gathering': [],
+            'Vulnerability Analysis': [],
+            'Web Application Analysis': [],
+            'Database Assessment': [],
+            'Password Attacks': [],
+            'Wireless Attacks': [],
+            'Exploitation Tools': [],
+            'Sniffing & Spoofing': [],
+            'Post Exploitation': [],
+            'Forensics': [],
+            'Crypto & Stego': [],
+            'Social Engineering': [],
+            'Miscellaneous': []
+        }
+        
+        # Define keyword patterns for categorization
+        patterns = {
+            'Information Gathering': ['nmap', 'recon', 'enum', 'scan', 'discover', 'finger', 'whois'],
+            'Vulnerability Analysis': ['vuln', 'cve', 'exploit-db', 'nikto', 'openvas', 'lynis'],
+            'Web Application Analysis': ['web', 'http', 'burp', 'zap', 'dir', 'url', 'spider'],
+            'Database Assessment': ['sql', 'db', 'mysql', 'oracle', 'mongo', 'database'],
+            'Password Attacks': ['pass', 'hash', 'crack', 'brute', 'john', 'hydra', 'medusa'],
+            'Wireless Attacks': ['wifi', 'wireless', 'air', 'bluetooth', 'rfid', '802.11'],
+            'Exploitation Tools': ['exploit', 'shell', 'payload', 'metasploit', 'framework'],
+            'Sniffing & Spoofing': ['sniff', 'capture', 'spoof', 'mitm', 'proxy', 'wireshark'],
+            'Post Exploitation': ['post', 'pivot', 'tunnel', 'persistence', 'escalat'],
+            'Forensics': ['forensic', 'recover', 'carve', 'timeline', 'memory', 'disk'],
+            'Crypto & Stego': ['crypto', 'stego', 'cipher', 'encode', 'decode', 'hash'],
+            'Social Engineering': ['social', 'phish', 'se-', 'fake', 'clone']
+        }
+        
+        # Categorize each package
+        for package in packages:
+            categorized = False
+            package_lower = package.lower()
+            
+            for category, keywords in patterns.items():
+                if any(keyword in package_lower for keyword in keywords):
+                    categories[category].append(package)
+                    categorized = True
+                    break
+            
+            if not categorized:
+                categories['Miscellaneous'].append(package)
+        
+        # Remove empty categories and sort packages
+        return {cat: sorted(pkgs) for cat, pkgs in categories.items() if pkgs}
+    
+    def generate_package_database(self) -> Dict:
+        """Generate comprehensive package database"""
+        print("Discovering BlackArch packages...", file=sys.stderr)
+        
+        # Get packages from pacman
+        pacman_packages = self.get_pacman_packages()
+        print(f"Found {len(pacman_packages)} packages in pacman database", file=sys.stderr)
+        
+        # Scrape web for additional info
+        web_categories = self.scrape_web_tools()
+        print(f"Found {len(web_categories)} categories from web", file=sys.stderr)
+        
+        # Categorize packages
+        categorized_packages = self.categorize_packages(pacman_packages)
+        
+        # Build final database
+        database = {
+            'metadata': {
+                'timestamp': int(time.time()),
+                'total_packages': len(pacman_packages),
+                'categories': len(categorized_packages),
+                'scraper_version': '0.2.0'
+            },
+            'packages': {
+                'by_category': categorized_packages,
+                'all_packages': sorted(list(pacman_packages))
+            },
+            'web_categories': web_categories
+        }
+        
+        return database
+
+def main():
+    cache_dir = sys.argv[1] if len(sys.argv) > 1 else '/tmp/kygox_cache'
+    Path(cache_dir).mkdir(exist_ok=True)
+    
+    scraper = BlackArchScraper()
+    database = scraper.generate_package_database()
+    
+    # Save to file
+    output_file = Path(cache_dir) / 'blackarch_packages.json'
+    with open(output_file, 'w') as f:
+        json.dump(database, f, indent=2)
+    
+    print(f"Package database saved to {output_file}", file=sys.stderr)
+    print(json.dumps(database, indent=2))
+
+if __name__ == "__main__":
+    main()
+PYTHON_SCRIPT
+}
+
+# Update package database with real-time scraping
+update_package_database() {
+    log_message "INFO" "Updating BlackArch package database..."
+    
+    mkdir -p "$CACHE_DIR"
+    
+    # Create Python scraper
+    create_package_scraper
+    
+    # Run scraper with progress indication
+    (
+        python3 "$CACHE_DIR/blackarch_scraper.py" "$CACHE_DIR" > "$CACHE_DIR/blackarch_packages.json" 2>"$CACHE_DIR/scraper.log"
+    ) &
+    
+    local scraper_pid=$!
+    show_progress "$scraper_pid" "Scanning BlackArch repositories"
+    
+    # Check if scraper completed successfully
+    if ! wait "$scraper_pid"; then
+        log_message "WARNING" "Package database update failed, using cached data"
+        if [[ ! -f "$CACHE_DIR/blackarch_packages.json" ]]; then
+            create_fallback_database
+        fi
     else
-        echo "=============================================================================="
+        log_message "SUCCESS" "Package database updated successfully"
     fi
     
-    # CPU information with color coding
-    local cpu_color="${GREEN}"
-    if [[ $CPU_CORES -lt 2 ]]; then cpu_color="${RED}"; elif [[ $CPU_CORES -lt 4 ]]; then cpu_color="${YELLOW}"; fi
-    printf "%-25s %s\n" "CPU Cores:" "${cpu_color}$CPU_CORES${RESET}"
+    # Load package data into memory
+    load_package_database
+}
+
+# Create fallback database if scraping fails
+create_fallback_database() {
+    log_message "INFO" "Creating fallback package database..."
     
-    # RAM information with color coding
-    local ram_color="${GREEN}"
-    if [[ $TOTAL_RAM_GB -lt 2 ]]; then ram_color="${RED}"; elif [[ $TOTAL_RAM_GB -lt 4 ]]; then ram_color="${YELLOW}"; fi
-    printf "%-25s %s\n" "Total RAM:" "${ram_color}${TOTAL_RAM_GB}GB${RESET}"
+    cat > "$CACHE_DIR/blackarch_packages.json" << 'EOF'
+{
+  "metadata": {
+    "timestamp": 1672531200,
+    "total_packages": 2800,
+    "categories": 12,
+    "scraper_version": "0.2.0-fallback"
+  },
+  "packages": {
+    "by_category": {
+      "Information Gathering": [
+        "nmap", "masscan", "zmap", "rustscan", "unicornscan",
+        "dnsrecon", "dnsenum", "fierce", "sublist3r", "amass",
+        "theharvester", "recon-ng", "maltego", "shodan", "spiderfoot"
+      ],
+      "Vulnerability Analysis": [
+        "nikto", "dirb", "gobuster", "wfuzz", "ffuf",
+        "sqlmap", "wpscan", "joomscan", "cmsmap",
+        "lynis", "openvas", "nuclei", "skipfish"
+      ],
+      "Web Application Analysis": [
+        "burpsuite", "zaproxy", "w3af", "arachni",
+        "davtest", "cadaver", "padbuster", "webscarab"
+      ],
+      "Password Attacks": [
+        "john", "hashcat", "hydra", "medusa", "ncrack",
+        "crunch", "cewl", "wordlists", "hashid"
+      ],
+      "Wireless Attacks": [
+        "aircrack-ng", "wifite", "reaver", "bully", "pixiewps",
+        "kismet", "horst", "cowpatty", "asleap"
+      ],
+      "Exploitation Tools": [
+        "metasploit", "exploitdb", "searchsploit", "set",
+        "beef", "armitage", "empire", "shellter"
+      ]
+    }
+  }
+}
+EOF
+}
+
+# Load package database into memory for faster access
+load_package_database() {
+    if [[ -f "$CACHE_DIR/blackarch_packages.json" ]]; then
+        # Extract categories and packages for bash arrays
+        python3 -c "
+import json
+import sys
+
+with open('$CACHE_DIR/blackarch_packages.json') as f:
+    data = json.load(f)
+
+categories = data['packages']['by_category']
+for category, packages in categories.items():
+    print(f'CATEGORY_{category.upper().replace(\" \", \"_\").replace(\"-\", \"_\")}=({\" \".join(packages)})')
+" > "$CACHE_DIR/package_vars.sh"
+        
+        # Source the variables
+        source "$CACHE_DIR/package_vars.sh" 2>/dev/null || true
+        
+        log_message "SUCCESS" "Package database loaded into memory"
+    else
+        log_message "ERROR" "Package database not found"
+    fi
+}
+
+# =============================================================================
+# PACKAGE INSTALLATION ENGINE
+# =============================================================================
+
+# Check package availability and status
+check_package_availability() {
+    local package="$1"
+    local status=""
     
-    # Disk space with color coding
-    local disk_color="${GREEN}"
-    if [[ $FREE_DISK_GB -lt 10 ]]; then disk_color="${RED}"; elif [[ $FREE_DISK_GB -lt 20 ]]; then disk_color="${YELLOW}"; fi
-    printf "%-25s %s\n" "Free Disk Space:" "${disk_color}${FREE_DISK_GB}GB${RESET}"
-    
-    # Performance metrics
-    printf "%-25s %s\n" "Python Version:" "${CYAN}$PYTHON_VERSION${RESET}"
-    printf "%-25s %s\n" "Internet Speed:" "${CYAN}${INTERNET_SPEED} Mbps${RESET}"
-    printf "%-25s %s\n" "Recommended Workers:" "${GREEN}$RECOMMENDED_WORKERS${RESET}"
-    printf "%-25s %s\n" "Maximum Workers:" "${YELLOW}$MAX_WORKERS${RESET}"
-    
-    # Python package estimation
-    local total_packages
-    readarray -t package_list < <(get_python_packages "$INSTALLATION_MODE")
-    total_packages=${#package_list[@]}
-    printf "%-25s %s\n" "Python Packages:" "${CYAN}$total_packages packages${RESET}"
-    
-    # System warnings with enhanced visibility
-    local warnings=()
-    if [[ $TOTAL_RAM_GB -lt 4 ]]; then
-        warnings+=("${WARNING} Low RAM detected (<4GB) - Consider reducing worker threads")
+    # Check if already installed
+    if pacman -Qi "$package" &>/dev/null; then
+        status="installed"
+    # Check if available in BlackArch
+    elif pacman -Si "$package" &>/dev/null 2>&1; then
+        status="available"
+    else
+        status="unavailable"
     fi
     
-    if [[ $FREE_DISK_GB -lt 10 ]]; then
-        warnings+=("${ERROR} Low disk space (<10GB) - Installation may fail")
+    echo "$status"
+}
+
+# Enhanced package installer with parallel processing
+install_packages() {
+    local packages=("$@")
+    local total_packages=${#packages[@]}
+    
+    if [[ $total_packages -eq 0 ]]; then
+        log_message "WARNING" "No packages specified for installation"
+        return 0
     fi
     
-    if [[ "$PYTHON_VERSION" == "not_found" ]]; then
-        warnings+=("${ERROR} Python 3 not found - Installation will fail")
-    elif [[ "${PYTHON_VERSION%%.*}" -lt 3 ]]; then
-        warnings+=("${WARNING} Python 2 detected - Python 3.8+ required")
-    fi
+    log_message "INFO" "Installing $total_packages packages..."
     
-    if [[ "$INTERNET_SPEED" == "unknown" ]] || [[ $(echo "$INTERNET_SPEED" | cut -d'.' -f1 2>/dev/null || echo "0") -lt 1 ]]; then
-        warnings+=("${WARNING} Slow or unreliable internet connection detected")
-    fi
+    # Create installation status tracking
+    local installed_count=0
+    local failed_count=0
+    local skipped_count=0
     
-    if [[ ${#warnings[@]} -gt 0 ]]; then
-        echo
-        echo -e "${WARNING} ${BOLD}System Warnings Detected:${RESET}"
-        for warning in "${warnings[@]}"; do
-            echo -e "  $warning"
+    # Process packages in parallel batches
+    local batch_size=$PARALLEL_JOBS
+    local batch_num=1
+    
+    for ((i=0; i<total_packages; i+=batch_size)); do
+        local batch=("${packages[@]:i:batch_size}")
+        local pids=()
+        
+        log_message "INFO" "Processing batch $batch_num (${#batch[@]} packages)..."
+        
+        # Start parallel installations
+        for package in "${batch[@]}"; do
+            {
+                local status
+                status=$(check_package_availability "$package")
+                
+                case "$status" in
+                    "installed")
+                        log_message "INFO" "$package already installed"
+                        echo "SKIPPED:$package" >> "$CACHE_DIR/install_results.tmp"
+                        ;;
+                    "available")
+                        if install_single_package "$package"; then
+                            echo "SUCCESS:$package" >> "$CACHE_DIR/install_results.tmp"
+                        else
+                            echo "FAILED:$package" >> "$CACHE_DIR/install_results.tmp"
+                        fi
+                        ;;
+                    "unavailable")
+                        log_message "WARNING" "$package not available in repositories"
+                        echo "UNAVAILABLE:$package" >> "$CACHE_DIR/install_results.tmp"
+                        ;;
+                esac
+            } &
+            
+            pids+=($!)
         done
-    else
-        echo
-        echo -e "${SUCCESS} ${BOLD}All system requirements met!${RESET}"
+        
+        # Wait for batch completion
+        for pid in "${pids[@]}"; do
+            wait "$pid"
+        done
+        
+        ((batch_num++))
+    done
+    
+    # Process results
+    if [[ -f "$CACHE_DIR/install_results.tmp" ]]; then
+        while IFS=':' read -r status package; do
+            case "$status" in
+                "SUCCESS") ((installed_count++)) ;;
+                "FAILED") ((failed_count++)) ;;
+                "SKIPPED") ((skipped_count++)) ;;
+                "UNAVAILABLE") ((failed_count++)) ;;
+            esac
+        done < "$CACHE_DIR/install_results.tmp"
+        
+        rm -f "$CACHE_DIR/install_results.tmp"
     fi
     
+    # Report results
+    log_message "SUCCESS" "Installation completed:"
+    echo -e "  ${GREEN}${ICON_SUCCESS}${RESET} Installed: $installed_count"
+    echo -e "  ${YELLOW}${ICON_WARNING}${RESET} Skipped: $skipped_count"
+    echo -e "  ${RED}${ICON_ERROR}${RESET} Failed: $failed_count"
+}
+
+# Install single package with error handling
+install_single_package() {
+    local package="$1"
+    local max_retries=3
+    local retry_count=0
+    
+    while [[ $retry_count -lt $max_retries ]]; do
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_message "INFO" "[DRY RUN] Would install: $package"
+            return 0
+        fi
+        
+        log_message "DEBUG" "Installing $package (attempt $((retry_count + 1)))"
+        
+        # Install with timeout and error handling
+        if timeout "$INSTALL_TIMEOUT" pacman -S --noconfirm --needed "$package" &>/dev/null; then
+            log_message "SUCCESS" "Installed: $package"
+            return 0
+        else
+            ((retry_count++))
+            log_message "WARNING" "Installation failed for $package (attempt $retry_count)"
+            
+            if [[ $retry_count -lt $max_retries ]]; then
+                sleep 2
+            fi
+        fi
+    done
+    
+    log_message "ERROR" "Failed to install $package after $max_retries attempts"
+    return 1
+}
+
+# =============================================================================
+# USER INTERFACE AND MENUS
+# =============================================================================
+
+# Enhanced interactive menu system
+show_main_menu() {
+    echo -e "${CYAN}${BOLD}KYGOX Security Toolkit Selection${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
+    echo -e "${GREEN}${BOLD}Package Categories:${RESET}"
+    echo -e "  ${CYAN}1${RESET}) ${ICON_TOOLS} Information Gathering     ${DIM}Network reconnaissance and OSINT${RESET}"
+    echo -e "  ${CYAN}2${RESET}) ${ICON_SHIELD} Vulnerability Analysis   ${DIM}Security assessment tools${RESET}"
+    echo -e "  ${CYAN}3${RESET}) ${ICON_ROCKET} Web Application Analysis ${DIM}Web security testing${RESET}"
+    echo -e "  ${CYAN}4${RESET}) ${ICON_TOOLS} Password Attacks          ${DIM}Password cracking and analysis${RESET}"
+    echo -e "  ${CYAN}5${RESET}) ${ICON_SHIELD} Wireless Attacks          ${DIM}WiFi and wireless security${RESET}"
+    echo -e "  ${CYAN}6${RESET}) ${ICON_ROCKET} Exploitation Tools        ${DIM}Penetration testing frameworks${RESET}"
+    echo
+    echo -e "${YELLOW}${BOLD}Special Options:${RESET}"
+    echo -e "  ${CYAN}7${RESET}) ${ICON_TOOLS} Custom Package Selection  ${DIM}Choose specific tools${RESET}"
+    echo -e "  ${CYAN}8${RESET}) ${ICON_SHIELD} Complete BlackArch Suite ${DIM}Install all available tools${RESET}"
+    echo -e "  ${CYAN}9${RESET}) ${ICON_ROCKET} System Information        ${DIM}View detailed system info${RESET}"
+    echo
+    echo -e "${RED}${BOLD}Management:${RESET}"
+    echo -e "  ${CYAN}u${RESET}) Update package database    ${CYAN}c${RESET}) Cleanup system"
+    echo -e "  ${CYAN}q${RESET}) Quit                       ${CYAN}h${RESET}) Help"
+    echo
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 }
 
-# Enhanced Python version check
-check_python() {
-    log_message "PROCESS" "Checking Python installation and compatibility..."
+# Handle menu selections
+handle_menu_selection() {
+    local choice="$1"
     
-    detect_python_version
-    
-    if [[ "$PYTHON_VERSION" == "not_found" ]]; then
-        log_message "WARNING" "Python 3 not found. Installing..."
-        if command -v pacman >/dev/null 2>&1; then
-            if pacman -S --noconfirm python python-pip python-setuptools >/dev/null 2>&1; then
-                log_message "SUCCESS" "Python 3 installed successfully"
-                detect_python_version
-            else
-                error_exit "Cannot install Python 3. Please install it manually."
-            fi
-        else
-            error_exit "Package manager not found. Please install Python 3 manually."
-        fi
-    fi
-    
-    # Version compatibility check
-    local major=$(echo "$PYTHON_VERSION" | cut -d. -f1)
-    local minor=$(echo "$PYTHON_VERSION" | cut -d. -f2)
-    
-    if [[ $major -lt 3 ]] || [[ $major -eq 3 && $minor -lt 8 ]]; then
-        log_message "WARNING" "Python $PYTHON_VERSION detected. Recommended: Python 3.8+"
-        echo -e "${WARNING} Some features may not work with older Python versions"
-    else
-        log_message "SUCCESS" "Python $PYTHON_VERSION is compatible"
-    fi
-    
-    # Check if pip is available
-    if ! python3 -m pip --version >/dev/null 2>&1; then
-        log_message "WARNING" "pip not available, installing..."
-        if command -v pacman >/dev/null 2>&1; then
-            pacman -S --noconfirm python-pip >/dev/null 2>&1 || \
-            log_message "WARNING" "Could not install pip via pacman"
-        fi
-    fi
-    
-    log_message "SUCCESS" "Python environment check completed"
-}
-
-# Enhanced core script download with integrity verification
-download_core_script() {
-    if [[ ! -f "$CORE_SCRIPT" ]]; then
-        log_message "PROCESS" "Downloading core engine with integrity verification..."
-        
-        local core_url="$RAW_REPO_URL/$CORE_SCRIPT"
-        local temp_file="${CORE_SCRIPT}.tmp"
-        
-        # Try multiple download methods with progress
-        if command -v curl >/dev/null 2>&1; then
-            log_message "DOWNLOAD" "Downloading via curl..."
-            if curl -fsSL --progress-bar "$core_url" -o "$temp_file"; then
-                log_message "SUCCESS" "Downloaded core script successfully"
-            else
-                log_message "ERROR" "Failed to download core script via curl"
-                return 1
-            fi
-        elif command -v wget >/dev/null 2>&1; then
-            log_message "DOWNLOAD" "Downloading via wget..."
-            if wget --progress=bar:force "$core_url" -O "$temp_file" 2>&1; then
-                log_message "SUCCESS" "Downloaded core script successfully"
-            else
-                log_message "ERROR" "Failed to download core script via wget"
-                return 1
-            fi
-        else
-            error_exit "Neither curl nor wget available for download"
-        fi
-        
-        # Basic integrity check
-        #if verify_core_script_integrity "$temp_file"; then
-            #mv "$temp_file" "$CORE_SCRIPT"
-            #chmod +x "$CORE_SCRIPT"
-            #log_message "SUCCESS" "Core engine ready and verified"
-        #else
-            #rm -f "$temp_file"
-            #error_exit "Core script integrity verification failed"
-        #fi
-    else
-        log_message "INFO" "Core engine found, verifying integrity..."
-        #if ! verify_core_script_integrity "$CORE_SCRIPT"; then
-            #log_message "WARNING" "Core script verification failed, re-downloading..."
-            #rm -f "$CORE_SCRIPT"
-            #download_core_script
-        #else
-            #log_message "SUCCESS" "Core engine verified"
-        #fi
-    fi
-}
-
-# Core script integrity verification
-#verify_core_script_integrity() {
-    #local script_file="$1"
-    
-    #if [[ ! -f "$script_file" ]]; then
-        #return 1
-    #fi
-    
-    # Check if it's a Python file
-    #if ! head -n1 "$script_file" | grep -q "python"; then
-        #log_message "ERROR" "Core script is not a Python file"
-        #return 1
-    #fi
-    
-    # Check for required imports and classes
-    #local required_elements=(
-        #"class KygoXCore"
-        #"class ColorManager"
-        #"class Logger"
-        #"import requests"
-        #"import colorama"
-    #)
-    
-    #for element in "${required_elements[@]}"; do
-        #if ! grep -q "$element" "$script_file"; then
-            #log_message "ERROR" "Core script missing required element: $element"
-            #return 1
-        #fi
-    #done
-    
-    # Python syntax check
-    #if ! python3 -m py_compile "$script_file" 2>/dev/null; then
-        #log_message "ERROR" "Core script has syntax errors"
-        #return 1
-    #fi
-    
-    #log_message "SUCCESS" "Core script integrity verified"
-    #return 0
-#}
-
-# Enhanced system compatibility check
-check_compatibility() {
-    log_message "PROCESS" "Performing comprehensive system compatibility check..."
-    
-    local compatibility_issues=0
-    
-    # Check for Arch-based system
-    if [[ ! -f /etc/arch-release ]] && ! command -v pacman >/dev/null 2>&1; then
-        if [[ -f /etc/debian_version ]] || command -v apt >/dev/null 2>&1; then
-            log_message "INFO" "Debian-based system detected"
-            echo -e "${INFO} For Debian/Ubuntu systems, use: ${CYAN}$ALT_REPO${RESET}"
-        elif [[ -f /etc/redhat-release ]] || command -v yum >/dev/null 2>&1; then
-            log_message "INFO" "RedHat-based system detected"
-        fi
-        
-        log_message "ERROR" "KygoX requires Arch Linux or Arch-based distributions"
-        compatibility_issues=$((compatibility_issues + 1))
-    else
-        # Detect specific Arch variant
-        local distro="Arch Linux"
-        if [[ -f /etc/manjaro-release ]]; then
-            distro="Manjaro Linux"
-        elif [[ -f /etc/endeavouros-release ]]; then
-            distro="EndeavourOS"
-        elif [[ -f /etc/garuda-release ]]; then
-            distro="Garuda Linux"
-        elif grep -q "blackarch" /etc/os-release 2>/dev/null; then
-            distro="BlackArch Linux"
-        fi
-        
-        log_message "SUCCESS" "Compatible system detected: $distro"
-    fi
-    
-    # Check internet connectivity
-    if ! ping -c 1 -W 3 archlinux.org >/dev/null 2>&1; then
-        log_message "WARNING" "Internet connectivity issue detected"
-        compatibility_issues=$((compatibility_issues + 1))
-    else
-        log_message "SUCCESS" "Internet connectivity verified"
-    fi
-    
-    # Check available space
-    if [[ $FREE_DISK_GB -lt 5 ]]; then
-        log_message "ERROR" "Insufficient disk space (<5GB available)"
-        compatibility_issues=$((compatibility_issues + 1))
-    elif [[ $FREE_DISK_GB -lt 10 ]]; then
-        log_message "WARNING" "Low disk space detected (<10GB)"
-    fi
-    
-    # Check memory
-    if [[ $TOTAL_RAM_GB -lt 1 ]]; then
-        log_message "ERROR" "Insufficient RAM (<1GB available)"
-        compatibility_issues=$((compatibility_issues + 1))
-    elif [[ $TOTAL_RAM_GB -lt 2 ]]; then
-        log_message "WARNING" "Low RAM detected (<2GB)"
-    fi
-    
-    # Check for conflicting package managers
-    if pgrep -f "pacman|yay|paru|pamac" >/dev/null 2>&1; then
-        log_message "WARNING" "Another package manager is currently running"
-        echo -e "${WARNING} Please wait for other package operations to complete"
-        compatibility_issues=$((compatibility_issues + 1))
-    fi
-    
-    # Summary
-    if [[ $compatibility_issues -eq 0 ]]; then
-        log_message "SUCCESS" "System compatibility check passed"
-        return 0
-    else
-        log_message "WARNING" "Found $compatibility_issues compatibility issues"
-        
-        if [[ $compatibility_issues -gt 2 ]]; then
-            log_message "ERROR" "Too many compatibility issues - installation may fail"
+    case "$choice" in
+        1) install_category "INFORMATION_GATHERING" ;;
+        2) install_category "VULNERABILITY_ANALYSIS" ;;
+        3) install_category "WEB_APPLICATION_ANALYSIS" ;;
+        4) install_category "PASSWORD_ATTACKS" ;;
+        5) install_category "WIRELESS_ATTACKS" ;;
+        6) install_category "EXPLOITATION_TOOLS" ;;
+        7) custom_package_selection ;;
+        8) install_complete_suite ;;
+        9) show_detailed_system_info ;;
+        u|U) update_package_database ;;
+        c|C) cleanup_system ;;
+        h|H) show_help ;;
+        q|Q) exit 0 ;;
+        *) 
+            log_message "ERROR" "Invalid selection: $choice"
             return 1
-        else
-            log_message "WARNING" "Minor compatibility issues detected - proceeding with caution"
+            ;;
+    esac
+}
+
+# Install packages from a specific category
+install_category() {
+    local category="$1"
+    local var_name="CATEGORY_$category"
+    
+    # Use indirect variable expansion to get package list
+    local -n packages_ref="$var_name"
+    local packages=("${packages_ref[@]}")
+    
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        log_message "WARNING" "No packages found for category: $category"
+        return 1
+    fi
+    
+    echo -e "${CYAN}${BOLD}Installing ${category//[_]/ } Tools${RESET}"
+    echo -e "${WHITE}Packages: ${packages[*]}${RESET}"
+    echo
+    
+    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
+        read -p "Proceed with installation? [Y/n]: " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            log_message "INFO" "Installation cancelled"
             return 0
         fi
     fi
+    
+    install_packages "${packages[@]}"
 }
 
-# =============================================================================
-# INTERACTIVE CONFIGURATION
-# =============================================================================
-
-# Enhanced interactive configuration menu
-interactive_config() {
-    if [[ "$INTERACTIVE_MODE" != "true" ]]; then
-        return 0
-    fi
-    
-    echo -e "${CONFIG} ${BOLD}Enhanced Interactive Configuration${RESET}"
-    
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    fi
-    
+# Custom package selection interface
+custom_package_selection() {
+    echo -e "${CYAN}${BOLD}Custom Package Selection${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo
+    echo -e "${YELLOW}Enter package names separated by spaces.${RESET}"
+    echo -e "${DIM}Example: nmap nikto sqlmap burpsuite metasploit${RESET}"
     echo
     
-    # Installation mode selection with enhanced options
-    echo -e "${PROMPT} ${BOLD}Select Installation Mode:${RESET}"
-    echo -e "  ${GREEN}1)${RESET} Full Installation ${DIM}(All packages - Recommended)${RESET}"
-    echo -e "  ${GREEN}2)${RESET} Core Only ${DIM}(Essential security tools only - Fast)${RESET}"
-    echo -e "  ${GREEN}3)${RESET} Security Focused ${DIM}(Security-specific tools only)${RESET}"
-    echo -e "  ${GREEN}4)${RESET} Performance ${DIM}(Core + Performance optimized packages)${RESET}"
-    echo -e "  ${GREEN}5)${RESET} Development ${DIM}(Core + Development/Testing tools)${RESET}"
-    echo -e "  ${GREEN}6)${RESET} Minimal Install ${DIM}(Absolute minimum packages)${RESET}"
-    echo
+    read -p "Packages to install: " -r packages_input
     
-    while true; do
-        read -p "$(echo -e "${PROMPT} Enter choice [1-6] (default: 1): ")" mode_choice
-        mode_choice=${mode_choice:-1}
+    if [[ -n "$packages_input" ]]; then
+        # Convert input to array
+        read -ra selected_packages <<< "$packages_input"
         
-        case $mode_choice in
-            1)
-                INSTALLATION_MODE="full"
-                log_message "SUCCESS" "Selected: Full Installation (All packages)"
-                break
-                ;;
-            2)
-                INSTALLATION_MODE="core-only"
-                log_message "SUCCESS" "Selected: Core Tools Only (Essential toolkit)"
-                break
-                ;;
-            3)
-                INSTALLATION_MODE="security-focused"
-                log_message "SUCCESS" "Selected: Security Focused (Security tools only)"
-                break
-                ;;
-            4)
-                INSTALLATION_MODE="performance"
-                log_message "SUCCESS" "Selected: Performance (Optimized packages)"
-                break
-                ;;
-            5)
-                INSTALLATION_MODE="development"
-                log_message "SUCCESS" "Selected: Development (With dev tools)"
-                break
-                ;;
-            6)
-                INSTALLATION_MODE="minimal"
-                log_message "SUCCESS" "Selected: Minimal Install (Basic toolkit)"
-                break
-                ;;
-            *)
-                echo -e "${ERROR} Invalid choice. Please select 1-6."
-                ;;
-        esac
-    done
-    
-    echo
-    
-    # Show package count for selected mode
-    local packages
-    readarray -t packages < <(get_python_packages "$INSTALLATION_MODE")
-    log_message "INFO" "This mode will install ${#packages[@]} Python packages"
-    
-    # Performance configuration
-    configure_performance_settings
-    
-    # Advanced options
-    configure_advanced_options
-    
-    # Display configuration summary
-    display_configuration_summary
-    
-    # Final confirmation
-    confirm_configuration
-}
-
-# Performance settings configuration
-configure_performance_settings() {
-    echo -e "${PERFORMANCE} ${BOLD}Performance Configuration:${RESET}"
-    echo -e "  System can handle: ${GREEN}1${RESET} to ${YELLOW}$MAX_WORKERS${RESET} worker threads"
-    echo -e "  Recommended: ${GREEN}$RECOMMENDED_WORKERS${RESET} workers (optimal for your system)"
-    echo
-    
-    # Worker threads with intelligent suggestions
-    while true; do
-        read -p "$(echo -e "${PROMPT} Worker threads [1-$MAX_WORKERS] (default: $RECOMMENDED_WORKERS): ")" worker_input
-        worker_input=${worker_input:-$RECOMMENDED_WORKERS}
-        
-        if [[ "$worker_input" =~ ^[0-9]+$ ]] && [[ $worker_input -ge 1 && $worker_input -le $MAX_WORKERS ]]; then
-            WORKER_THREADS=$worker_input
-            
-            # Performance advisory
-            if [[ $worker_input -eq $RECOMMENDED_WORKERS ]]; then
-                log_message "SUCCESS" "Optimal worker threads selected: $WORKER_THREADS"
-            elif [[ $worker_input -gt $RECOMMENDED_WORKERS ]]; then
-                log_message "WARNING" "High worker count may strain system resources"
-            else
-                log_message "INFO" "Conservative worker count selected: $WORKER_THREADS"
-            fi
-            break
-        else
-            echo -e "${ERROR} Invalid input. Please enter a number between 1 and $MAX_WORKERS."
-        fi
-    done
-    
-    echo
-    
-    # Fast mode option
-    echo -e "${PROMPT} ${BOLD}Performance Mode:${RESET}"
-    while true; do
-        read -p "$(echo -e "${PROMPT} Enable fast mode? (skip some checks) [y/N]: ")" fast_choice
-        fast_choice=${fast_choice:-n}
-        
-        case ${fast_choice,,} in
-            y|yes)
-                FAST_MODE=true
-                log_message "SUCCESS" "Fast mode enabled - reduced safety checks"
-                break
-                ;;
-            n|no)
-                FAST_MODE=false
-                log_message "SUCCESS" "Standard mode - full safety checks enabled"
-                break
-                ;;
-            *)
-                echo -e "${ERROR} Please answer y or n."
-                ;;
-        esac
-    done
-    
-    echo
-}
-
-# Advanced options configuration
-configure_advanced_options() {
-    echo -e "${CONFIG} ${BOLD}Advanced Configuration:${RESET}"
-    
-    # Log level configuration with descriptions
-    echo -e "${PROMPT} ${BOLD}Logging Level:${RESET}"
-    echo -e "  ${GREEN}1)${RESET} INFO ${DIM}(Standard output - Recommended)${RESET}"
-    echo -e "  ${GREEN}2)${RESET} DEBUG ${DIM}(Verbose output - For troubleshooting)${RESET}"
-    echo -e "  ${GREEN}3)${RESET} WARNING ${DIM}(Minimal output - Only important messages)${RESET}"
-    echo -e "  ${GREEN}4)${RESET} ERROR ${DIM}(Silent mode - Only errors)${RESET}"
-    echo
-    
-    while true; do
-        read -p "$(echo -e "${PROMPT} Select log level [1-4] (default: 1): ")" log_choice
-        log_choice=${log_choice:-1}
-        
-        case $log_choice in
-            1) LOG_LEVEL="INFO"; break ;;
-            2) LOG_LEVEL="DEBUG"; VERBOSE_OUTPUT=true; break ;;
-            3) LOG_LEVEL="WARNING"; break ;;
-            4) LOG_LEVEL="ERROR"; break ;;
-            *) echo -e "${ERROR} Invalid choice. Please select 1-4." ;;
-        esac
-    done
-    
-    log_message "SUCCESS" "Log level set to: $LOG_LEVEL"
-    
-    echo
-    
-    # Python requirements management
-    echo -e "${SECURITY} ${BOLD}Python Requirements Management:${RESET}"
-    while true; do
-        read -p "$(echo -e "${PROMPT} Auto-install Python requirements? [Y/n]: ")" auto_req
-        auto_req=${auto_req:-y}
-        
-        case ${auto_req,,} in
-            y|yes)
-                AUTO_INSTALL_REQUIREMENTS=true
-                log_message "SUCCESS" "Python requirements will be auto-installed"
-                break
-                ;;
-            n|no)
-                AUTO_INSTALL_REQUIREMENTS=false
-                log_message "WARNING" "Python requirements will need manual installation"
-                break
-                ;;
-            *)
-                echo -e "${ERROR} Please answer y or n."
-                ;;
-        esac
-    done
-    
-    echo
-    
-    # BlackArch keyring setup
-    echo -e "${SECURITY} ${BOLD}Security Configuration:${RESET}"
-    while true; do
-        read -p "$(echo -e "${PROMPT} Skip BlackArch keyring setup? [y/N]: ")" skip_keyring
-        skip_keyring=${skip_keyring:-n}
-        
-        case ${skip_keyring,,} in
-            y|yes)
-                SKIP_KEYRING=true
-                log_message "WARNING" "BlackArch keyring setup will be skipped"
-                echo -e "${WARNING} Some tools may not be available without BlackArch repository"
-                break
-                ;;
-            n|no)
-                SKIP_KEYRING=false
-                log_message "SUCCESS" "BlackArch keyring will be configured"
-                break
-                ;;
-            *)
-                echo -e "${ERROR} Please answer y or n."
-                ;;
-        esac
-    done
-    
-    echo
-    
-    # Cleanup configuration
-    while true; do
-        read -p "$(echo -e "${PROMPT} Perform cleanup after installation? [Y/n]: ")" cleanup_choice
-        cleanup_choice=${cleanup_choice:-y}
-        
-        case ${cleanup_choice,,} in
-            y|yes)
-                CLEANUP_AFTER=true
-                log_message "SUCCESS" "System cleanup will be performed"
-                break
-                ;;
-            n|no)
-                CLEANUP_AFTER=false
-                log_message "INFO" "Cleanup will be skipped"
-                break
-                ;;
-            *)
-                echo -e "${ERROR} Please answer y or n."
-                ;;
-        esac
-    done
-    
-    echo
-}
-
-# Display configuration summary
-display_configuration_summary() {
-    echo -e "${CONFIG} ${BOLD}Configuration Summary:${RESET}"
-    
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    else
-        echo "=============================================================================="
-    fi
-    
-    local mode_display
-    case $INSTALLATION_MODE in
-        "full") mode_display="Full Installation (All packages)" ;;
-        "core-only") mode_display="Core Tools Only" ;;
-        "security-focused") mode_display="Security Focused Tools" ;;
-        "performance") mode_display="Performance Optimized" ;;
-        "development") mode_display="Development Mode" ;;
-        "minimal") mode_display="Minimal Installation" ;;
-        *) mode_display="Unknown" ;;
-    esac
-    
-    printf "%-30s %s\n" "Installation Mode:" "${CYAN}$mode_display${RESET}"
-    printf "%-30s %s\n" "Worker Threads:" "${CYAN}$WORKER_THREADS${RESET}"
-    printf "%-30s %s\n" "Log Level:" "${CYAN}$LOG_LEVEL${RESET}"
-    printf "%-30s %s\n" "Fast Mode:" "${CYAN}$FAST_MODE${RESET}"
-    printf "%-30s %s\n" "Auto-Install Requirements:" "${CYAN}$AUTO_INSTALL_REQUIREMENTS${RESET}"
-    printf "%-30s %s\n" "Skip Keyring:" "${CYAN}$SKIP_KEYRING${RESET}"
-    printf "%-30s %s\n" "Cleanup After:" "${CYAN}$CLEANUP_AFTER${RESET}"
-    printf "%-30s %s\n" "Colored Output:" "${CYAN}$ENABLE_COLORS${RESET}"
-    printf "%-30s %s\n" "Verbose Output:" "${CYAN}$VERBOSE_OUTPUT${RESET}"
-    
-    # Get package count for selected mode
-    local packages
-    readarray -t packages < <(get_python_packages "$INSTALLATION_MODE")
-    printf "%-30s %s\n" "Python Packages to Install:" "${YELLOW}${#packages[@]}${RESET}"
-    
-    # Estimated installation time
-    local estimated_time
-    case $INSTALLATION_MODE in
-        "full") estimated_time="20-50 minutes" ;;
-        "core-only") estimated_time="10-25 minutes" ;;
-        "security-focused") estimated_time="15-35 minutes" ;;
-        "performance") estimated_time="8-20 minutes" ;;
-        "development") estimated_time="12-30 minutes" ;;
-        "minimal") estimated_time="5-15 minutes" ;;
-        *) estimated_time="Variable" ;;
-    esac
-    
-    printf "%-30s %s\n" "Estimated Time:" "${YELLOW}$estimated_time${RESET}"
-    
-    echo
-}
-
-# Final configuration confirmation
-confirm_configuration() {
-    while true; do
-        read -p "$(echo -e "${PROMPT} Proceed with this configuration? [Y/n]: ")" confirm
-        confirm=${confirm:-y}
-        
-        case ${confirm,,} in
-            y|yes)
-                log_message "SUCCESS" "Configuration confirmed. Proceeding with installation..."
-                break
-                ;;
-            n|no)
-                log_message "INFO" "Reconfiguring settings..."
-                interactive_config
-                return
-                ;;
-            *)
-                echo -e "${ERROR} Please answer y or n."
-                ;;
-        esac
-    done
-    
-    echo
-}
-
-# Enhanced quick setup mode
-quick_setup() {
-    echo -e "${PROCESS} ${BOLD}Quick Setup Mode (Auto-Optimized)${RESET}"
-    
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    fi
-    
-    # Auto-optimize settings based on system specs
-    WORKER_THREADS=$RECOMMENDED_WORKERS
-    INSTALLATION_MODE="full"
-    LOG_LEVEL="INFO"
-    SKIP_KEYRING=false
-    CLEANUP_AFTER=true
-    FAST_MODE=false
-    AUTO_INSTALL_REQUIREMENTS=true
-    
-    # Adjust settings for low-end systems
-    if [[ $TOTAL_RAM_GB -lt 4 ]]; then
-        WORKER_THREADS=1
-        FAST_MODE=true
-        log_message "INFO" "Low RAM detected - optimized for conservative installation"
-    fi
-    
-    if [[ $FREE_DISK_GB -lt 15 ]]; then
-        INSTALLATION_MODE="core-only"
-        log_message "INFO" "Limited disk space - installing core tools only"
-    fi
-    
-    # Adjust based on CPU cores
-    if [[ $CPU_CORES -lt 2 ]]; then
-        INSTALLATION_MODE="minimal"
-        WORKER_THREADS=1
-        log_message "INFO" "Single-core system detected - minimal installation selected"
-    fi
-    
-    log_message "SUCCESS" "Auto-optimized configuration applied:"
-    echo -e "  • Installation Mode: ${CYAN}$(echo $INSTALLATION_MODE | tr '-' ' ' | tr '[:lower:]' '[:upper:]')${RESET}"
-    echo -e "  • Worker Threads: ${CYAN}$WORKER_THREADS${RESET}"
-    echo -e "  • Fast Mode: ${CYAN}$FAST_MODE${RESET}"
-    echo -e "  • Auto-Install Requirements: ${CYAN}$AUTO_INSTALL_REQUIREMENTS${RESET}"
-    echo -e "  • Performance Optimized: ${GREEN}Yes${RESET}"
-    
-    # Show package count
-    local packages
-    readarray -t packages < <(get_python_packages "$INSTALLATION_MODE")
-    echo -e "  • Python Packages: ${YELLOW}${#packages[@]}${RESET}"
-    
-    echo
-    sleep 2
-}
-
-# Build enhanced command line arguments for core script
-build_core_args() {
-    local args=()
-    
-    # Installation mode
-    case $INSTALLATION_MODE in
-        "core-only")
-            args+=("--core-only")
-            ;;
-        "security-focused")
-            args+=("--security-focused")
-            ;;
-        "performance")
-            args+=("--performance")
-            ;;
-        "development")
-            args+=("--development")
-            ;;
-        "minimal")
-            args+=("--minimal")
-            ;;
-    esac
-    
-    # Worker threads
-    args+=("--max-workers" "$WORKER_THREADS")
-    
-    # Log level
-    args+=("--log-level" "$LOG_LEVEL")
-    
-    # Color output
-    if [[ "$ENABLE_COLORS" == "false" ]]; then
-        args+=("--no-color")
-    fi
-    
-    # Skip keyring setup flag
-    if [[ "$SKIP_KEYRING" == "true" ]]; then
-        args+=("--skip-keyring")
-    fi
-    
-    # Fast mode
-    if [[ "$FAST_MODE" == "true" ]]; then
-        args+=("--fast")
-    fi
-    
-    # Verbose output
-    if [[ "$VERBOSE_OUTPUT" == "true" ]]; then
-        args+=("--verbose")
-    fi
-    
-    printf '%s\n' "${args[@]}"
-}
-
-# =============================================================================
-# ARGUMENT PARSING AND COMMAND HANDLING
-# =============================================================================
-
-# Enhanced usage information
-show_usage() {
-    echo -e "${BOLD}KygoX v$VERSION - Enhanced Arch Linux Security Toolkit${RESET}"
-    
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    else
-        echo "=============================================================================="
-    fi
-    
-    echo
-    echo -e "${BOLD}USAGE:${RESET} sudo $0 [OPTIONS]"
-    echo
-    echo -e "${BOLD}MAIN OPTIONS:${RESET}"
-    echo -e "${GREEN}-h, --help${RESET}              Show this comprehensive help message"
-    echo -e "${GREEN}-v, --version${RESET}           Show detailed version information"
-    echo -e "${GREEN}-q, --quick${RESET}             Quick setup with auto-optimized settings"
-    echo -e "${GREEN}-i, --interactive${RESET}       Interactive configuration menu (default)"
-    echo -e "${GREEN}--no-interactive${RESET}        Skip interactive configuration"
-    echo -e "${GREEN}--no-colors${RESET}             Disable colored output"
-    echo -e "${GREEN}--verbose${RESET}               Enable verbose output and logging"
-    
-    echo
-    echo -e "${BOLD}INSTALLATION MODES:${RESET}"
-    echo -e "${GREEN}--full${RESET}                  Full installation (all packages)"
-    echo -e "${GREEN}--core-only${RESET}             Install core security tools only"
-    echo -e "${GREEN}--security-focused${RESET}      Install security-specific tools only"
-    echo -e "${GREEN}--performance${RESET}           Performance optimized packages"
-    echo -e "${GREEN}--development${RESET}           Development and testing tools"
-    echo -e "${GREEN}--minimal${RESET}               Minimal installation for basic testing"
-    
-    echo
-    echo -e "${BOLD}PYTHON REQUIREMENTS:${RESET}"
-    echo -e "${GREEN}--auto-requirements${RESET}     Auto-install Python requirements (default)"
-    echo -e "${GREEN}--no-auto-requirements${RESET}  Skip automatic Python requirements"
-    echo -e "${GREEN}--create-requirements${RESET}   Create requirements.txt file and exit"
-    echo -e "${GREEN}--show-requirements${RESET}     Show required Python packages and exit"
-    
-    echo
-    echo -e "${BOLD}PERFORMANCE OPTIONS:${RESET}"
-    echo -e "${GREEN}--workers N${RESET}             Set number of worker threads (1-6)"
-    echo -e "${GREEN}--fast${RESET}                  Enable fast mode (reduced safety checks)"
-    echo -e "${GREEN}--log-level LEVEL${RESET}       Set logging level (DEBUG/INFO/WARNING/ERROR)"
-    
-    echo
-    echo -e "${BOLD}SYSTEM OPERATIONS:${RESET}"
-    echo -e "${GREEN}--setup${RESET}                 Setup environment and requirements only"
-    echo -e "${GREEN}--check${RESET}                 Comprehensive system compatibility check"
-    echo -e "${GREEN}--cleanup${RESET}               Cleanup temporary files and cache"
-    echo -e "${GREEN}--verify${RESET}                Verify installation integrity"
-    
-    echo
-    echo -e "${BOLD}UPDATE & MAINTENANCE:${RESET}"
-    echo -e "${GREEN}-u, --update${RESET}            Check for updates and update if available"
-    echo -e "${GREEN}--force-update${RESET}          Force update even if versions match"
-    echo -e "${GREEN}--self-update${RESET}           Update only the runner script"
-    echo -e "${GREEN}--check-integrity${RESET}       Verify engine integrity and checksums"
-    
-    echo
-    echo -e "${BOLD}PYTHON PACKAGE CATEGORIES BY MODE:${RESET}"
-    echo -e "  ${CYAN}Full Mode:${RESET}        Core + UI + System + Security + Performance"
-    echo -e "  ${CYAN}Core Only:${RESET}        Core + UI + System packages"
-    echo -e "  ${CYAN}Security Focused:${RESET} Core + UI + Security packages"
-    echo -e "  ${CYAN}Performance:${RESET}      Core + UI + Performance packages"
-    echo -e "  ${CYAN}Development:${RESET}      Core + UI + System + Development packages"
-    echo -e "  ${CYAN}Minimal:${RESET}          Core packages only"
-    
-    echo
-    echo -e "${BOLD}BUILT-IN PYTHON PACKAGES INCLUDE:${RESET}"
-    echo -e "  🔧 ${BOLD}Core:${RESET}           requests, urllib3, colorama, tqdm, cryptography"
-    echo -e "  🎨 ${BOLD}UI:${RESET}             rich, click, prompt-toolkit, tabulate, pyfiglet"
-    echo -e "  ⚙️ ${BOLD}System:${RESET}         psutil, python-dotenv, alive-progress, ujson"
-    echo -e "  🔒 ${BOLD}Security:${RESET}       python-nmap, beautifulsoup4, scapy, paramiko"
-    echo -e "  ⚡ ${BOLD}Performance:${RESET}    orjson, joblib, pympler"
-    echo -e "  🧪 ${BOLD}Development:${RESET}    pytest, black, flake8, mypy, bandit"
-    
-    echo
-    echo -e "${BOLD}USAGE EXAMPLES:${RESET}"
-    echo -e "  sudo $0                          # Interactive mode with full configuration"
-    echo -e "  sudo $0 -q                      # Quick auto-optimized installation"
-    echo -e "  sudo $0 --core-only --workers 4 # Core tools with 4 worker threads"
-    echo -e "  sudo $0 --setup --verbose       # Setup environment with verbose output"
-    echo -e "  sudo $0 --show-requirements     # Show Python packages for current mode"
-    echo -e "  sudo $0 --security-focused -q   # Quick security-focused installation"
-    echo -e "  sudo $0 --create-requirements   # Create requirements.txt file"
-    
-    echo
-    echo -e "${BOLD}SYSTEM REQUIREMENTS:${RESET}"
-    echo -e "  • Arch Linux or Arch-based distribution (Manjaro, EndeavourOS, etc.)"
-    echo -e "  • Python 3.8+ with pip"
-    echo -e "  • 2GB+ RAM (4GB+ recommended)"
-    echo -e "  • 10GB+ free disk space (20GB+ recommended)"
-    echo -e "  • Internet connection"
-    echo -e "  • Root privileges (sudo)"
-    
-    echo
-    echo -e "${BOLD}SUPPORT & INFORMATION:${RESET}"
-    echo -e "  📖 Documentation: ${BLUE}$REPO_URL/wiki${RESET}"
-    echo -e "  🐛 Bug Reports: ${BLUE}$REPO_URL/issues${RESET}"
-    echo -e "  💬 Discussions: ${BLUE}$REPO_URL/discussions${RESET}"
-    echo -e "  📧 Email: ${CYAN}q4n0@proton.me${RESET}"
-    echo -e "  📱 Social: ${CYAN}IG: theehiv3 | X: 0xbv1${RESET}"
-    
-    echo
-    echo -e "${DIM}License: Do whatever the hell you want, but don't blame me when it breaks${RESET}"
-    echo
-}
-
-# Show version information with system details
-show_version() {
-    echo -e "${BOLD}KygoX Enhanced Security Toolkit${RESET}"
-    
-    if [[ "$ENABLE_COLORS" == "true" ]]; then
-        echo -e "${DARK}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    fi
-    
-    echo -e "${INFO} Version: ${CYAN}$VERSION${RESET} (${PURPLE}$VERSION_NAME${RESET})"
-    echo -e "${INFO} Author: ${GREEN}0xbv1 | 0xb0rn3${RESET}"
-    echo -e "${INFO} Repository: ${BLUE}$REPO_URL${RESET}"
-    echo -e "${INFO} License: ${YELLOW}WTFPL${RESET}"
-    
-    echo
-    echo -e "${BOLD}System Environment:${RESET}"
-    echo -e "${INFO} Shell: ${CYAN}${SHELL:-unknown}${RESET}"
-    echo -e "${INFO} Terminal: ${CYAN}${TERM:-unknown}${RESET}"
-    echo -e "${INFO} User: ${CYAN}$(whoami)${RESET}"
-    echo -e "${INFO} Working Directory: ${CYAN}$(pwd)${RESET}"
-    
-    # Detect system information if available
-    if command -v uname >/dev/null 2>&1; then
-        echo -e "${INFO} System: ${CYAN}$(uname -s) $(uname -m)${RESET}"
-        echo -e "${INFO} Kernel: ${CYAN}$(uname -r)${RESET}"
-    fi
-    
-    # Distribution information
-    if [[ -f /etc/os-release ]]; then
-        local distro_name=$(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2 2>/dev/null || echo 'Unknown')
-        echo -e "${INFO} Distribution: ${CYAN}$distro_name${RESET}"
-    fi
-    
-    # Python version if available
-    if command -v python3 >/dev/null 2>&1; then
-        local py_version=$(python3 --version 2>/dev/null | cut -d' ' -f2 || echo 'Unknown')
-        echo -e "${INFO} Python: ${CYAN}$py_version${RESET}"
-    else
-        echo -e "${INFO} Python: ${RED}Not found${RESET}"
-    fi
-    
-    # Package manager
-    if command -v pacman >/dev/null 2>&1; then
-        local pacman_version=$(pacman --version | head -1 | awk '{print $3}' 2>/dev/null || echo 'Unknown')
-        echo -e "${INFO} Pacman: ${CYAN}$pacman_version${RESET}"
-    else
-        echo -e "${INFO} Pacman: ${RED}Not found${RESET}"
-    fi
-    
-    echo
-    echo -e "${BOLD}Built-in Python Requirements:${RESET}"
-    
-    # Count packages by category
-    echo -e "${INFO} Core packages: ${CYAN}${#CORE_PYTHON_PACKAGES[@]}${RESET}"
-    echo -e "${INFO} UI packages: ${CYAN}${#UI_PYTHON_PACKAGES[@]}${RESET}"
-    echo -e "${INFO} System packages: ${CYAN}${#SYSTEM_PYTHON_PACKAGES[@]}${RESET}"
-    echo -e "${INFO} Security packages: ${CYAN}${#SECURITY_PYTHON_PACKAGES[@]}${RESET}"
-    echo -e "${INFO} Performance packages: ${CYAN}${#PERFORMANCE_PYTHON_PACKAGES[@]}${RESET}"
-    echo -e "${INFO} Development packages: ${CYAN}${#DEV_PYTHON_PACKAGES[@]}${RESET}"
-    
-    local total_packages
-    readarray -t all_packages < <(get_python_packages "full")
-    total_packages=${#all_packages[@]}
-    echo -e "${INFO} Total available packages: ${GREEN}$total_packages${RESET}"
-    
-    echo
-    echo -e "${BOLD}Component Status:${RESET}"
-    
-    # Check core script
-    if [[ -f "$CORE_SCRIPT" ]]; then
-        echo -e "${SUCCESS} Core Engine: Available"
-    else
-        echo -e "${ERROR} Core Engine: Missing"
-    fi
-    
-    # Check Python environment
-    local python_env_status="Unknown"
-    if python3 -c "import requests, colorama, tqdm" >/dev/null 2>&1; then
-        python_env_status="${GREEN}Ready${RESET}"
-    else
-        python_env_status="${YELLOW}Incomplete${RESET}"
-    fi
-    echo -e "${INFO} Python Environment: $python_env_status"
-    
-    echo
-}
-
-# Show Python requirements for a specific mode
-show_requirements() {
-    local mode="${1:-full}"
-    
-    echo -e "${BOLD}Python Requirements for ${CYAN}$mode${RESET} ${BOLD}mode:${RESET}"
-    echo
-    
-    local packages
-    readarray -t packages < <(get_python_packages "$mode")
-    
-    echo -e "${INFO} Total packages: ${GREEN}${#packages[@]}${RESET}"
-    echo
-    
-    # Group packages by category
-    echo -e "${BOLD}Package List:${RESET}"
-    
-    local category_shown=false
-    
-    # Show core packages
-    echo -e "${CYAN}Core Packages:${RESET}"
-    for pkg in "${CORE_PYTHON_PACKAGES[@]}"; do
-        if [[ " ${packages[*]} " =~ " ${pkg} " ]]; then
-            echo "  - $pkg"
-        fi
-    done
-    
-    # Show UI packages if included
-    local ui_included=false
-    for pkg in "${UI_PYTHON_PACKAGES[@]}"; do
-        if [[ " ${packages[*]} " =~ " ${pkg} " ]]; then
-            ui_included=true
-            break
-        fi
-    done
-    
-    if [[ "$ui_included" == "true" ]]; then
-        echo
-        echo -e "${CYAN}UI Enhancement Packages:${RESET}"
-        for pkg in "${UI_PYTHON_PACKAGES[@]}"; do
-            if [[ " ${packages[*]} " =~ " ${pkg} " ]]; then
-                echo "  - $pkg"
-            fi
+        echo -e "\n${CYAN}Selected packages:${RESET}"
+        for package in "${selected_packages[@]}"; do
+            local status
+            status=$(check_package_availability "$package")
+            case "$status" in
+                "installed") echo -e "  ${GREEN}${ICON_SUCCESS}${RESET} $package (already installed)" ;;
+                "available") echo -e "  ${CYAN}${ICON_INFO}${RESET} $package (available)" ;;
+                "unavailable") echo -e "  ${RED}${ICON_ERROR}${RESET} $package (not found)" ;;
+            esac
         done
+        
+        echo
+        read -p "Proceed with installation? [Y/n]: " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            install_packages "${selected_packages[@]}"
+        fi
+    else
+        log_message "WARNING" "No packages specified"
     fi
-    
-    # Show other categories similarly...
-    case "$mode" in
-        "full"|"security-focused")
-            echo
-            echo -e "${CYAN}Security Packages:${RESET}"
-            for pkg in "${SECURITY_PYTHON_PACKAGES[@]}"; do
-                if [[ " ${packages[*]} " =~ " ${pkg} " ]]; then
-                    echo "  - $pkg"
-                fi
-            done
-            ;;
-    esac
-    
-    case "$mode" in
-        "full"|"performance")
-            echo
-            echo -e "${CYAN}Performance Packages:${RESET}"
-            for pkg in "${PERFORMANCE_PYTHON_PACKAGES[@]}"; do
-                if [[ " ${packages[*]} " =~ " ${pkg} " ]]; then
-                    echo "  - $pkg"
-                fi
-            done
-            ;;
-    esac
-    
-    case "$mode" in
-        "development")
-            echo
-            echo -e "${CYAN}Development Packages:${RESET}"
-            for pkg in "${DEV_PYTHON_PACKAGES[@]}"; do
-                if [[ " ${packages[*]} " =~ " ${pkg} " ]]; then
-                    echo "  - $pkg"
-                fi
-            done
-            ;;
-    esac
-    
+}
+
+# Install complete BlackArch suite with warnings
+install_complete_suite() {
+    echo -e "${RED}${BOLD}WARNING: Complete BlackArch Suite Installation${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
-    echo -e "${INFO} Use ${CYAN}--create-requirements${RESET} to generate a requirements.txt file"
+    echo -e "${YELLOW}This will install ALL available BlackArch packages:${RESET}"
+    echo -e "  ${RED}•${RESET} 2000+ security tools and utilities"
+    echo -e "  ${RED}•${RESET} Requires 15+ GB of disk space"
+    echo -e "  ${RED}•${RESET} Installation may take several hours"
+    echo -e "  ${RED}•${RESET} May cause system conflicts"
+    echo
+    echo -e "${RED}${BOLD}This is NOT recommended for production systems!${RESET}"
+    echo
+    
+    read -p "Type 'INSTALL ALL TOOLS' to proceed: " -r confirmation
+    
+    if [[ "$confirmation" == "INSTALL ALL TOOLS" ]]; then
+        log_message "INFO" "Installing complete BlackArch suite..."
+        
+        # Get all available packages
+        local all_packages
+        all_packages=$(pacman -Slq blackarch)
+        
+        if [[ -n "$all_packages" ]]; then
+            # Convert to array
+            readarray -t package_array <<< "$all_packages"
+            install_packages "${package_array[@]}"
+        else
+            log_message "ERROR" "Could not retrieve BlackArch package list"
+        fi
+    else
+        log_message "INFO" "Complete suite installation cancelled"
+    fi
+}
+
+# =============================================================================
+# SYSTEM INFORMATION AND UTILITIES
+# =============================================================================
+
+# Show detailed system information
+show_detailed_system_info() {
+    echo -e "${CYAN}${BOLD}Detailed System Information${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo
+    
+    # Hardware Information
+    echo -e "${YELLOW}${BOLD}Hardware:${RESET}"
+    echo -e "  CPU: $(cat /proc/cpuinfo | grep 'model name' | head -1 | cut -d':' -f2 | xargs)"
+    echo -e "  Cores: $(nproc)"
+    echo -e "  Memory: $(free -h | grep '^Mem:' | awk '{print $2 " total, " $3 " used, " $7 " available"}')"
+    echo -e "  Storage: $(df -h / | tail -1 | awk '{print $2 " total, " $3 " used, " $4 " available (" $5 " used)"}')"
+    echo
+    
+    # System Information
+    echo -e "${YELLOW}${BOLD}System:${RESET}"
+    echo -e "  Distribution: $(get_system_info)"
+    echo -e "  Kernel: $(uname -r)"
+    echo -e "  Architecture: $(uname -m)"
+    echo -e "  Uptime: $(uptime -p)"
+    echo -e "  Load Average: $(uptime | awk -F'load average:' '{print $2}')"
+    echo
+    
+    # Package Information
+    echo -e "${YELLOW}${BOLD}Package Management:${RESET}"
+    echo -e "  Total Packages: $(pacman -Q | wc -l)"
+    if pacman -Sl blackarch &>/dev/null; then
+        echo -e "  BlackArch Available: $(pacman -Sl blackarch | wc -l)"
+        echo -e "  BlackArch Installed: $(pacman -Q | grep -c blackarch || echo "0")"
+    else
+        echo -e "  BlackArch: Not configured"
+    fi
+    echo
+    
+    # Network Information
+    echo -e "${YELLOW}${BOLD}Network:${RESET}"
+    echo -e "  Hostname: $(hostname)"
+    echo -e "  IP Address: $(ip route get 1.1.1.1 | grep -oP 'src \K\S+' 2>/dev/null || echo "Not available")"
+    echo -e "  DNS Servers: $(grep '^nameserver' /etc/resolv.conf | awk '{print $2}' | tr '\n' ' ')"
+    echo
+    
+    # KYGOX Information
+    echo -e "${YELLOW}${BOLD}KYGOX Status:${RESET}"
+    echo -e "  Version: $SCRIPT_VERSION ($SCRIPT_CODENAME)"
+    echo -e "  Cache Directory: $CACHE_DIR"
+    echo -e "  Log Directory: $LOG_DIR"
+    if [[ -f "$CACHE_DIR/blackarch_packages.json" ]]; then
+        local db_timestamp
+        db_timestamp=$(python3 -c "import json; print(json.load(open('$CACHE_DIR/blackarch_packages.json'))['metadata']['timestamp'])" 2>/dev/null || echo "0")
+        echo -e "  Package DB: $(date -d "@$db_timestamp" 2>/dev/null || echo "Unknown")"
+    else
+        echo -e "  Package DB: Not available"
+    fi
     echo
 }
 
-# Enhanced argument parsing
+# System cleanup utilities
+cleanup_system() {
+    echo -e "${CYAN}${BOLD}System Cleanup${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo
+    
+    log_message "INFO" "Starting system cleanup..."
+    
+    # Clean package cache
+    log_message "INFO" "Cleaning package cache..."
+    pacman -Scc --noconfirm
+    
+    # Remove orphaned packages
+    local orphans
+    orphans=$(pacman -Qtdq 2>/dev/null || true)
+    if [[ -n "$orphans" ]]; then
+        log_message "INFO" "Removing orphaned packages..."
+        pacman -Rns --noconfirm $orphans
+    else
+        log_message "INFO" "No orphaned packages found"
+    fi
+    
+    # Clean KYGOX cache
+    if [[ -d "$CACHE_DIR" ]]; then
+        log_message "INFO" "Cleaning KYGOX cache..."
+        find "$CACHE_DIR" -type f -name "*.tmp" -delete 2>/dev/null || true
+        find "$CACHE_DIR" -type f -mtime +7 -delete 2>/dev/null || true
+    fi
+    
+    # Clean old logs
+    if [[ -d "$LOG_DIR" ]]; then
+        log_message "INFO" "Cleaning old logs..."
+        find "$LOG_DIR" -type f -name "*.log" -mtime +30 -delete 2>/dev/null || true
+    fi
+    
+    log_message "SUCCESS" "System cleanup completed"
+}
+
+# =============================================================================
+# HELP AND DOCUMENTATION
+# =============================================================================
+
+show_help() {
+    cat << 'HELP_TEXT'
+
+KYGOX Enhanced Security Toolkit v0.2.0 "Phoenix"
+==================================================
+
+DESCRIPTION:
+    KYGOX is an advanced security testing suite for Arch Linux systems that 
+    provides seamless integration with BlackArch repositories, intelligent 
+    package management, and comprehensive penetration testing tools.
+
+USAGE:
+    sudo ./kygox [OPTIONS]
+
+OPTIONS:
+    -h, --help              Show this help message
+    -v, --verbose           Enable verbose output
+    -n, --dry-run          Show what would be installed without installing
+    -f, --force            Force installation of packages
+    -j, --jobs N           Set number of parallel installation jobs
+    -q, --quiet            Disable interactive prompts
+    --no-cleanup           Skip automatic cleanup after installation
+    --update-db            Update package database and exit
+
+EXAMPLES:
+    sudo ./kygox                    # Interactive mode
+    sudo ./kygox -v                 # Verbose interactive mode
+    sudo ./kygox --dry-run          # Preview installations
+    sudo ./kygox -j 4 -q            # 4 parallel jobs, no prompts
+
+CATEGORIES:
+    1. Information Gathering    - Network reconnaissance and OSINT tools
+    2. Vulnerability Analysis   - Security assessment and scanning tools  
+    3. Web Application Analysis - Web security testing frameworks
+    4. Password Attacks         - Password cracking and analysis tools
+    5. Wireless Attacks         - WiFi and wireless security tools
+    6. Exploitation Tools       - Penetration testing frameworks
+
+FEATURES:
+    • Real-time BlackArch repository scraping
+    • Intelligent package availability checking
+    • Parallel installation processing
+    • Comprehensive error handling and recovery
+    • Detailed system information and monitoring
+    • Advanced cleanup and maintenance utilities
+
+REQUIREMENTS:
+    • Arch Linux or Arch-based distribution
+    • Root privileges (sudo)
+    • Internet connection
+    • 5GB+ free disk space
+
+SUPPORT:
+    • Repository: https://github.com/0xb0rn3/kygox
+    • Issues: https://github.com/0xb0rn3/kygox/issues
+    • Author: 0xb0rn3 (IG: theehiv3, X: 0xbv1)
+
+HELP_TEXT
+}
+
+# =============================================================================
+# COMMAND LINE ARGUMENT PARSING
+# =============================================================================
+
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
-                display_banner
-                show_usage
+                show_help
                 exit 0
                 ;;
-            -v|--version)
-                show_version
-                exit 0
-                ;;
-            -q|--quick)
-                INTERACTIVE_MODE=false
+            -v|--verbose)
+                VERBOSE_MODE=true
                 shift
                 ;;
-            -i|--interactive)
-                INTERACTIVE_MODE=true
+            -n|--dry-run)
+                DRY_RUN=true
                 shift
                 ;;
-            --no-interactive)
-                INTERACTIVE_MODE=false
+            -f|--force)
+                FORCE_INSTALL=true
                 shift
                 ;;
-            --no-colors)
-                ENABLE_COLORS=false
-                shift
-                ;;
-            --verbose)
-                VERBOSE_OUTPUT=true
-                LOG_LEVEL="DEBUG"
-                shift
-                ;;
-            --full)
-                INSTALLATION_MODE="full"
-                INTERACTIVE_MODE=false
-                shift
-                ;;
-            --core-only)
-                INSTALLATION_MODE="core-only"
-                INTERACTIVE_MODE=false
-                shift
-                ;;
-            --security-focused)
-                INSTALLATION_MODE="security-focused"
-                INTERACTIVE_MODE=false
-                shift
-                ;;
-            --performance)
-                INSTALLATION_MODE="performance"
-                INTERACTIVE_MODE=false
-                shift
-                ;;
-            --development)
-                INSTALLATION_MODE="development"
-                INTERACTIVE_MODE=false
-                shift
-                ;;
-            --minimal)
-                INSTALLATION_MODE="minimal"
-                INTERACTIVE_MODE=false
-                shift
-                ;;
-            --auto-requirements)
-                AUTO_INSTALL_REQUIREMENTS=true
-                shift
-                ;;
-            --no-auto-requirements)
-                AUTO_INSTALL_REQUIREMENTS=false
-                shift
-                ;;
-            --show-requirements)
-                local mode="${2:-$INSTALLATION_MODE}"
-                if [[ "$2" =~ ^(full|core-only|security-focused|performance|development|minimal)$ ]]; then
-                    shift
-                fi
-                show_requirements "$mode"
-                exit 0
-                ;;
-            --create-requirements)
-                local mode="${2:-$INSTALLATION_MODE}"
-                if [[ "$2" =~ ^(full|core-only|security-focused|performance|development|minimal)$ ]]; then
-                    shift
-                fi
-                mkdir -p "kygox_logs"
-                create_dynamic_requirements_file "$mode"
-                echo -e "${SUCCESS} Requirements files created for mode: $mode"
-                exit 0
-                ;;
-            --workers)
+            -j|--jobs)
                 if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
-                    WORKER_THREADS="$2"
-                    INTERACTIVE_MODE=false
+                    PARALLEL_JOBS="$2"
                     shift 2
                 else
-                    error_exit "Invalid worker count. Please specify a number between 1 and 6."
+                    error_exit "Invalid jobs value: $2"
                 fi
                 ;;
-            --fast)
-                FAST_MODE=true
+            -q|--quiet)
+                INTERACTIVE_MODE=false
                 shift
                 ;;
-            --log-level)
-                if [[ -n "$2" ]] && [[ "$2" =~ ^(DEBUG|INFO|WARNING|ERROR)$ ]]; then
-                    LOG_LEVEL="$2"
-                    shift 2
-                else
-                    error_exit "Invalid log level. Use: DEBUG, INFO, WARNING, or ERROR"
-                fi
+            --no-cleanup)
+                CLEANUP_AFTER=false
+                shift
                 ;;
-            --setup)
-                display_banner
-                check_root
-                detect_system_specs
-                display_system_info
-                check_compatibility
-                check_python
-                setup_python_environment
-                download_core_script
-                #verify_core_script_integrity "$CORE_SCRIPT"
-                log_message "SUCCESS" "Environment setup completed successfully"
+            --update-db)
+                setup_blackarch_repo
+                update_package_database
                 exit 0
-                ;;
-            --check)
-                display_banner
-                check_root
-                detect_system_specs
-                display_system_info
-                check_compatibility
-                check_python
-                if verify_python_environment >/dev/null 2>&1; then
-                    log_message "SUCCESS" "Python environment is ready"
-                else
-                    log_message "WARNING" "Python environment needs setup"
-                fi
-                log_message "SUCCESS" "System compatibility check completed"
-                exit 0
-                ;;
-            --cleanup)
-                display_banner
-                check_root
-                perform_cleanup
-                exit 0
-                ;;
-            --verify)
-                display_banner
-                check_root
-                verify_installation
-                exit 0
-                ;;
-            -u|--update)
-                display_banner
-                check_root
-                check_for_updates
-                exit 0
-                ;;
-            --force-update)
-                display_banner
-                check_root
-                check_for_updates "true"
-                exit 0
-                ;;
-            --self-update)
-                display_banner
-                check_root
-                self_update
-                exit 0
-                ;;
-            --check-integrity)
-                display_banner
-                check_engine_integrity
-                exit $?
                 ;;
             *)
-                echo -e "${ERROR} Unknown option: $1"
-                echo -e "${INFO} Use '$0 --help' for comprehensive usage information"
-                exit 1
+                error_exit "Unknown option: $1"
                 ;;
         esac
     done
 }
 
 # =============================================================================
-# CLEANUP AND MAINTENANCE FUNCTIONS
+# CLEANUP AND ERROR HANDLING
 # =============================================================================
 
-# Enhanced cleanup function
-perform_cleanup() {
-    log_message "PROCESS" "Performing comprehensive system cleanup..."
+cleanup_on_exit() {
+    local exit_code="${1:-0}"
     
-    local cleaned_items=0
+    log_message "INFO" "Performing cleanup operations..."
     
-    # Cleanup temporary files
-    local temp_dirs=("kygox_logs" ".kygox_cache" "kygox_backup_*")
+    # Kill any background processes
+    jobs -p 2>/dev/null | xargs -r kill 2>/dev/null || true
     
-    for pattern in "${temp_dirs[@]}"; do
-        for dir in $pattern; do
-            if [[ -d "$dir" ]]; then
-                local temp_files=$(find "$dir" -name "*.tmp" -o -name "*.part" -o -name "*.download" 2>/dev/null | wc -l)
-                if [[ $temp_files -gt 0 ]]; then
-                    find "$dir" -name "*.tmp" -delete 2>/dev/null || true
-                    find "$dir" -name "*.part" -delete 2>/dev/null || true
-                    find "$dir" -name "*.download" -delete 2>/dev/null || true
-                    cleaned_items=$((cleaned_items + temp_files))
-                    log_message "SUCCESS" "Cleaned $temp_files temporary files from $dir"
-                fi
-            fi
-        done
-    done
+    # Clean temporary files
+    rm -f "$CACHE_DIR"/*.tmp 2>/dev/null || true
     
-    # Clean pacman cache
-    if command -v pacman >/dev/null 2>&1; then
-        log_message "PROCESS" "Cleaning pacman cache..."
-        if pacman -Scc --noconfirm >/dev/null 2>&1; then
-            log_message "SUCCESS" "Pacman cache cleaned"
-            cleaned_items=$((cleaned_items + 1))
-        fi
+    # System cleanup if enabled
+    if [[ "$CLEANUP_AFTER" == "true" && "$exit_code" -eq 0 ]]; then
+        log_message "INFO" "Performing automatic cleanup..."
+        pacman -Scc --noconfirm &>/dev/null || true
     fi
     
-    # Remove old log files (older than 30 days)
-    if [[ -d "kygox_logs" ]]; then
-        local old_logs=$(find kygox_logs -name "*.log" -mtime +30 2>/dev/null | wc -l)
-        if [[ $old_logs -gt 0 ]]; then
-            find kygox_logs -name "*.log" -mtime +30 -delete 2>/dev/null || true
-            log_message "SUCCESS" "Removed $old_logs old log files"
-            cleaned_items=$((cleaned_items + old_logs))
-        fi
-    fi
-    
-    # Remove Python cache
-    local pycache_dirs=$(find . -type d -name "__pycache__" 2>/dev/null | wc -l)
-    if [[ $pycache_dirs -gt 0 ]]; then
-        find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-        log_message "SUCCESS" "Removed $pycache_dirs Python cache directories"
-        cleaned_items=$((cleaned_items + pycache_dirs))
-    fi
-    
-    if [[ $cleaned_items -gt 0 ]]; then
-        log_message "SUCCESS" "Cleanup completed - $cleaned_items items cleaned"
-    else
-        log_message "INFO" "System is already clean - no cleanup needed"
-    fi
+    log_message "INFO" "KYGOX session ended"
+    exit "$exit_code"
 }
 
-# Installation verification
-verify_installation() {
-    log_message "PROCESS" "Verifying KygoX installation..."
-    
-    local verification_passed=true
-    
-    # Check core components
-    if [[ -f "$CORE_SCRIPT" ]]; then
-        log_message "SUCCESS" "✓ Core engine present"
-        if verify_core_script_integrity "$CORE_SCRIPT"; then
-            log_message "SUCCESS" "✓ Core engine integrity verified"
-        else
-            log_message "ERROR" "✗ Core engine integrity failed"
-            verification_passed=false
-        fi
-    else
-        log_message "ERROR" "✗ Core engine missing"
-        verification_passed=false
-    fi
-    
-    # Check Python environment
-    if verify_python_environment >/dev/null 2>&1; then
-        log_message "SUCCESS" "✓ Python environment ready"
-    else
-        log_message "ERROR" "✗ Python environment incomplete"
-        verification_passed=false
-    fi
-    
-    # Check system compatibility
-    if check_compatibility >/dev/null 2>&1; then
-        log_message "SUCCESS" "✓ System compatibility verified"
-    else
-        log_message "WARNING" "⚠ System compatibility issues detected"
-    fi
-    
-    if [[ "$verification_passed" == "true" ]]; then
-        log_message "SUCCESS" "Installation verification passed"
-        return 0
-    else
-        log_message "ERROR" "Installation verification failed"
-        return 1
-    fi
-}
-
-# =============================================================================
-# UPDATE FUNCTIONS (Placeholder - implement as needed)
-# =============================================================================
-
-# Placeholder update functions
-check_for_updates() {
-    log_message "INFO" "Update functionality not implemented in this example"
-    log_message "INFO" "Check $REPO_URL for updates"
-}
-
-self_update() {
-    log_message "INFO" "Self-update functionality not implemented in this example"
-    log_message "INFO" "Download latest version from $REPO_URL"
-}
-
-check_engine_integrity() {
-    log_message "PROCESS" "Checking engine integrity..."
-    if verify_core_script_integrity "$CORE_SCRIPT"; then
-        log_message "SUCCESS" "Engine integrity check passed"
-        return 0
-    else
-        log_message "ERROR" "Engine integrity check failed"
-        return 1
-    fi
-}
+# Signal handlers
+trap 'cleanup_on_exit 130' INT TERM
+trap 'cleanup_on_exit $?' EXIT
 
 # =============================================================================
 # MAIN EXECUTION FUNCTION
 # =============================================================================
 
-# Enhanced main execution function
 main() {
-    # Set error handling
-    set -eE
-    trap 'log_message "ERROR" "Script failed at line $LINENO"' ERR
-    
-    # Parse command line arguments first
+    # Parse command line arguments
     parse_arguments "$@"
     
-    # Disable colors if requested
-    if [[ "$ENABLE_COLORS" == "false" ]]; then
-        SUCCESS="[SUCCESS]"; ERROR="[ERROR]"; INFO="[INFO]"
-        WARNING="[WARNING]"; PROCESS="[PROCESS]"; CONFIG="[CONFIG]"
-        PROMPT="[PROMPT]"; UPDATE="[UPDATE]"; DOWNLOAD="[DOWNLOAD]"
-        INSTALL="[INSTALL]"; NETWORK="[NETWORK]"; PERFORMANCE="[PERFORMANCE]"
-        SECURITY="[SECURITY]"; CYAN=""; GREEN=""; RED=""; YELLOW=""
-        BLUE=""; PURPLE=""; WHITE=""; BOLD=""; RESET=""; DIM=""
-    fi
-    
-    # Main execution flow
+    # Display banner
     display_banner
-    check_root
-    detect_system_specs
-    display_system_info
-    check_compatibility
-    check_python
     
-    # Setup Python environment only if auto-install is enabled
-    if [[ "$AUTO_INSTALL_REQUIREMENTS" == "true" ]]; then
-        setup_python_environment
-    else
-        log_message "WARNING" "Skipping automatic Python requirements installation"
-        log_message "INFO" "Use --auto-requirements to enable automatic installation"
+    # System validation and setup
+    validate_system
+    install_dependencies
+    setup_blackarch_repo
+    update_package_database
+    
+    # Show initial status
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${YELLOW}${BOLD}DRY RUN MODE - No packages will be installed${RESET}"
+        echo
     fi
     
-    download_core_script
-    
-    # Configuration phase
+    # Main interactive loop
     if [[ "$INTERACTIVE_MODE" == "true" ]]; then
-        interactive_config
-    else
-        quick_setup
-    fi
-    
-    # Show final system information
-    echo -e "${PERFORMANCE} ${BOLD}System Optimization Summary:${RESET}"
-    echo -e "  • CPU Cores: ${CYAN}$CPU_CORES${RESET}"
-    echo -e "  • RAM: ${CYAN}${TOTAL_RAM_GB}GB${RESET}"
-    echo -e "  • Worker Threads: ${CYAN}$WORKER_THREADS${RESET}"
-    echo -e "  • Installation Mode: ${CYAN}$(echo $INSTALLATION_MODE | tr '-' ' ' | tr '[:lower:]' '[:upper:]')${RESET}"
-    echo -e "  • Fast Mode: ${CYAN}$FAST_MODE${RESET}"
-    echo -e "  • Python: ${CYAN}$PYTHON_VERSION${RESET}"
-    echo -e "  • Auto-Install Requirements: ${CYAN}$AUTO_INSTALL_REQUIREMENTS${RESET}"
-    
-    # Show Python packages count
-    local packages
-    readarray -t packages < <(get_python_packages "$INSTALLATION_MODE")
-    echo -e "  • Python Packages: ${YELLOW}${#packages[@]}${RESET}"
-    
-    if [[ "$INTERNET_SPEED" != "unknown" ]]; then
-        echo -e "  • Internet Speed: ${CYAN}${INTERNET_SPEED} Mbps${RESET}"
-    fi
-    
-    echo
-    
-    # Build arguments for core script
-    local core_args
-    readarray -t core_args < <(build_core_args)
-    
-    # Final confirmation
-    log_message "PROCESS" "Ready to launch KygoX Security Toolkit"
-    
-    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
-        echo -e "${INFO} Press ${BOLD}CTRL+C${RESET} at any time to cancel the installation"
-        echo -e "${INFO} Installation logs will be saved to: ${CYAN}kygox_logs/${RESET}"
-        
-        # Estimate time based on mode and system specs
-        local estimated_time
-        case $INSTALLATION_MODE in
-            "full") 
-                if [[ $WORKER_THREADS -ge 4 ]]; then
-                    estimated_time="15-30 minutes"
-                else
-                    estimated_time="20-45 minutes"
-                fi
-                ;;
-            "core-only") estimated_time="8-20 minutes" ;;
-            "security-focused") estimated_time="10-25 minutes" ;;
-            "performance") estimated_time="6-15 minutes" ;;
-            "development") estimated_time="10-25 minutes" ;;
-            "minimal") estimated_time="3-10 minutes" ;;
-            *) estimated_time="Variable" ;;
-        esac
-        
-        echo -e "${INFO} Estimated time: ${YELLOW}$estimated_time${RESET} (depending on system and network)"
-        echo
-        
-        read -p "$(echo -e "${PROMPT} Press Enter to continue or Ctrl+C to cancel...")" -r
-        echo
-    fi
-    
-    # Execute core Python script
-    log_message "PROCESS" "Launching core engine with optimized settings..."
-    log_message "INFO" "Command: python3 $CORE_SCRIPT ${core_args[*]}"
-    
-    echo
-    
-    # Execute with comprehensive error handling
-    if python3 "$CORE_SCRIPT" "${core_args[@]}"; then
-        echo
-        log_message "SUCCESS" "KygoX installation completed successfully!"
-        
-        # Post-installation summary
-        echo -e "${CONFIG} ${BOLD}Installation Summary:${RESET}"
-        
-        if [[ -f "kygox_logs/installation_report.txt" ]]; then
-            echo -e "${SUCCESS} Installation report: ${CYAN}kygox_logs/installation_report.txt${RESET}"
-        fi
-        
-        if [[ -f "kygox_logs/installed_tools.txt" ]]; then
-            local tool_count=$(wc -l < "kygox_logs/installed_tools.txt" 2>/dev/null || echo "0")
-            echo -e "${SUCCESS} Installed tools: ${GREEN}$tool_count${RESET}"
-            echo -e "${INFO} Tools list: ${CYAN}kygox_logs/installed_tools.txt${RESET}"
-        fi
-        
-        # Show Python packages summary
-        if [[ -f "kygox_logs/python_verification.txt" ]]; then
-            echo -e "${SUCCESS} Python environment: ${CYAN}kygox_logs/python_verification.txt${RESET}"
-        fi
-        
-        echo -e "${INFO} All logs: ${CYAN}kygox_logs/${RESET}"
-        
-        # Post-installation cleanup
-        if [[ "$CLEANUP_AFTER" == "true" ]]; then
-            log_message "PROCESS" "Performing post-installation cleanup..."
-            # Light cleanup that won't interfere with core script cleanup
-            find . -name "*.tmp" -delete 2>/dev/null || true
-            find . -name "*.part" -delete 2>/dev/null || true
-            log_message "SUCCESS" "Post-installation cleanup completed"
-        fi
-        
-        echo
-        echo -e "${CONFIG} ${BOLD}Quick Start Guide:${RESET}"
-        echo -e "${INFO} • View installed tools: ${CYAN}pacman -Qs blackarch${RESET}"
-        echo -e "${INFO} • Update system: ${CYAN}sudo pacman -Syu${RESET}"
-        echo -e "${INFO} • Check tool status: ${CYAN}sudo $0 --verify${RESET}"
-        echo -e "${INFO} • Get help: ${CYAN}$0 --help${RESET}"
-        echo -e "${INFO} • Show Python packages: ${CYAN}$0 --show-requirements${RESET}"
-        echo -e "${INFO} • Repository: ${BLUE}$REPO_URL${RESET}"
-        
-        echo
-        echo -e "${SUCCESS} ${BOLD}Your Arch Linux system is now equipped with a comprehensive security toolkit!${RESET}"
-        echo -e "${PERFORMANCE} ${BOLD}Happy Penetration Testing! 🎯${RESET}"
-        echo
-        
-    else
-        local exit_code=$?
-        echo
-        log_message "ERROR" "KygoX installation failed with exit code $exit_code"
-        
-        # Enhanced error reporting
-        echo -e "${CONFIG} ${BOLD}Troubleshooting Information:${RESET}"
-        echo -e "${INFO} • Check detailed logs: ${CYAN}kygox_logs/${RESET}"
-        echo -e "${INFO} • Verify system compatibility: ${CYAN}sudo $0 --check${RESET}"
-        echo -e "${INFO} • Try with reduced workers: ${CYAN}sudo $0 --workers 1${RESET}"
-        echo -e "${INFO} • Install core tools only: ${CYAN}sudo $0 --core-only${RESET}"
-        echo -e "${INFO} • Setup environment only: ${CYAN}sudo $0 --setup${RESET}"
-        echo -e "${INFO} • Enable verbose mode: ${CYAN}sudo $0 --verbose${RESET}"
-        echo -e "${INFO} • Check Python requirements: ${CYAN}sudo $0 --show-requirements${RESET}"
-        echo -e "${INFO} • Report issues: ${BLUE}$REPO_URL/issues${RESET}"
-        
-        echo
-        echo -e "${CONFIG} ${BOLD}Common Solutions:${RESET}"
-        echo -e "${INFO} 1. Update your system: ${CYAN}sudo pacman -Syu${RESET}"
-        echo -e "${INFO} 2. Free up disk space: ${CYAN}df -h${RESET}"
-        echo -e "${INFO} 3. Check internet connection: ${CYAN}ping -c 3 archlinux.org${RESET}"
-        echo -e "${INFO} 4. Restart the installation: ${CYAN}sudo $0 --cleanup && sudo $0${RESET}"
-        echo -e "${INFO} 5. Manual Python setup: ${CYAN}sudo $0 --setup --verbose${RESET}"
-        echo -e "${INFO} 6. Try minimal mode: ${CYAN}sudo $0 --minimal${RESET}"
-        
-        # Show failed Python packages if any
-        if [[ -f "kygox_logs/failed_packages.txt" ]]; then
+        while true; do
+            show_main_menu
+            read -p "Select option: " -r choice
             echo
-            echo -e "${WARNING} ${BOLD}Failed Python packages:${RESET}"
-            while IFS= read -r pkg; do
-                echo -e "${WARNING} • $pkg"
-            done < "kygox_logs/failed_packages.txt"
-            echo -e "${INFO} Try installing manually: ${CYAN}pip install <package-name> --break-system-packages${RESET}"
-        fi
-        
-        echo
-        log_message "INFO" "For support, visit: $REPO_URL"
-        exit $exit_code
+            
+            if ! handle_menu_selection "$choice"; then
+                echo -e "${RED}Invalid selection. Please try again.${RESET}"
+                sleep 1
+            fi
+            
+            echo
+        done
+    else
+        log_message "INFO" "Non-interactive mode - use menu options as command line arguments"
+        show_main_menu
     fi
 }
-
-# Enhanced cleanup function for script interruption
-cleanup_on_interrupt() {
-    echo
-    log_message "WARNING" "Installation interrupted by user"
-    log_message "INFO" "Performing emergency cleanup..."
-    
-    # Kill any background processes
-    jobs -p | xargs -r kill 2>/dev/null || true
-    
-    # Remove temporary files
-    find . -name "*.tmp" -delete 2>/dev/null || true
-    find . -name "*.part" -delete 2>/dev/null || true
-    find . -name "kygox_update_temp_*" -type d -exec rm -rf {} + 2>/dev/null || true
-    
-    # Remove incomplete downloads
-    [[ -f "${CORE_SCRIPT}.tmp" ]] && rm -f "${CORE_SCRIPT}.tmp"
-    
-    log_message "INFO" "Emergency cleanup completed"
-    log_message "INFO" "Logs preserved in: kygox_logs/"
-    log_message "INFO" "You can resume installation by running the script again"
-    
-    exit 130
-}
-
-# Enhanced error handling with detailed diagnostics
-handle_error() {
-    local line_number="$1"
-    local error_code="$2"
-    local command="$3"
-    
-    log_message "ERROR" "Script failed at line $line_number with exit code $error_code"
-    log_message "ERROR" "Failed command: $command"
-    
-    # Provide context-specific error information
-    case $line_number in
-        *detect_system_specs*)
-            log_message "INFO" "System specification detection failed - check /proc filesystem"
-            ;;
-        *check_python*)
-            log_message "INFO" "Python check failed - ensure Python 3.8+ is installed"
-            ;;
-        *setup_python_environment*)
-            log_message "INFO" "Python environment setup failed - check pip and package installations"
-            ;;
-        *download_core_script*)
-            log_message "INFO" "Core script download failed - check internet connectivity"
-            ;;
-        *)
-            log_message "INFO" "Unexpected error occurred - check system resources and permissions"
-            ;;
-    esac
-    
-    log_message "INFO" "Run with --verbose flag for detailed debugging information"
-    log_message "INFO" "Check logs in kygox_logs/ for more details"
-    log_message "INFO" "Use --show-requirements to see Python package requirements"
-}
-
-# Set up comprehensive error handling
-set -eE
-trap 'handle_error ${LINENO} $? "$BASH_COMMAND"' ERR
-trap cleanup_on_interrupt INT TERM
-
-# Create directory structure on startup
-mkdir -p "kygox_logs"
 
 # Execute main function with all arguments
 main "$@"
