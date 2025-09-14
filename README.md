@@ -1,475 +1,277 @@
-# KygoX v0.1.9-alpha "Venom"
+# KYGOX Enhanced v0.2.0 "Phoenix"
 
 <div align="center">
 
 ```
-██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
-██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
-███████╔╝ ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
-██╔══██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
-██║  ██║   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
-╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗    ███████╗███╗   ██╗██╗  ██╗
+██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝    ██╔════╝████╗  ██║██║  ██║
+█████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝     █████╗  ██╔██╗ ██║███████║
+██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗     ██╔══╝  ██║╚██╗██║██╔══██║
+██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗    ███████╗██║ ╚████║██║  ██║
+╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝
 ```
 
-**Professional Arch Linux Penetration Testing Toolkit**  
-*Self-Healing • Signature Verified • Production Ready*
+**Next-Generation Arch Linux Security Arsenal**  
+*Professional • Intelligent • Reliable*
 
-[![Version](https://img.shields.io/badge/version-0.1.9--alpha-blue.svg)](https://github.com/0xb0rn3/kygox)
-[![License](https://img.shields.io/badge/license-DWYWDBMWIIB-red.svg)](#license)
-[![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://python.org)
-[![Arch](https://img.shields.io/badge/distro-arch--based-1793d1.svg)](https://archlinux.org)
+[![Version](https://img.shields.io/badge/version-0.2.0--phoenix-orange.svg)](https://github.com/0xb0rn3/kygox)
+[![License](https://img.shields.io/badge/license-WTFPL-red.svg)](#license)
+[![Architecture](https://img.shields.io/badge/architecture-hybrid--bash--python-blue.svg)](https://github.com/0xb0rn3/kygox)
+[![Platform](https://img.shields.io/badge/platform-arch--linux-1793d1.svg)](https://archlinux.org)
 
 </div>
 
 ---
 
-## 🎯 Overview
+## Revolutionary Security Toolkit Management
 
-KygoX is a professional-grade penetration testing toolkit installer designed specifically for Arch Linux and Arch-based distributions. Built with Python 3, it provides a comprehensive, self-healing installation system for security tools with advanced features like signature verification, parallel installation, and database-driven package management.
+KYGOX Enhanced represents a fundamental advancement in security tool deployment for Arch Linux systems. This complete architectural rewrite introduces intelligent package discovery, sophisticated error recovery, and enterprise-grade reliability that transforms how security professionals manage penetration testing environments.
 
-### ✨ Key Features
+### Core Innovation: Dynamic BlackArch Integration
 
-- 🔧 **Self-Healing Architecture** - Automatic error recovery and retry mechanisms
-- 🔒 **Security First** - BlackArch keyring integration with cryptographic verification
-- 📦 **150+ Security Tools** - Curated collection of modern penetration testing tools
-- ⚡ **Parallel Installation** - Multi-threaded package installation with progress tracking
-- 🗄️ **Database-Driven** - SQLite-based package management and installation history
-- 🎨 **Rich Interface** - Interactive menus with colorized output and progress bars
-- 🔄 **Auto-Updates** - Built-in version checking and automatic updates
-- 📊 **Comprehensive Logging** - Detailed logs with multiple output formats
+Unlike traditional installers that rely on static package lists, KYGOX Enhanced implements real-time repository analysis. The system combines direct pacman database queries with intelligent web scraping to build comprehensive, current tool catalogs. This approach ensures you always have access to the latest security tools without manual updates.
+
+### Hybrid Architecture Excellence
+
+KYGOX Enhanced employs a strategically designed hybrid bash-Python architecture. Bash handles system-level operations where shell integration provides natural advantages, while Python manages complex data processing tasks including algorithmic package categorization and repository analysis. This design achieves both reliable system integration and sophisticated functionality.
 
 ---
 
-## 🚀 Quick Start
+## Professional Features
 
-### Prerequisites
+### Intelligent Package Management
+- **Real-time Discovery**: Dynamic BlackArch repository scanning and analysis
+- **Smart Categorization**: Algorithmic tool classification using pattern recognition
+- **Availability Checking**: Pre-installation validation prevents failed operations
+- **Parallel Processing**: Multi-threaded installations with progress tracking
+- **Error Recovery**: Sophisticated retry mechanisms with exponential backoff
 
+### Enterprise-Grade Reliability
+- **Comprehensive Logging**: Detailed operation tracking with multiple verbosity levels
+- **System Safety**: Automatic cleanup and rollback capabilities
+- **Resource Management**: Intelligent disk space and network monitoring
+- **Graceful Degradation**: Continues operation when partial functionality is available
+
+### Advanced User Experience
+- **Interactive Menus**: Intuitive category-based tool selection
+- **Progress Monitoring**: Real-time installation status with completion estimates
+- **Flexible Operation**: Supports both interactive and automated deployment
+- **Custom Selection**: Expert mode for precise tool combinations
+
+---
+
+## Quick Deployment
+
+### System Requirements
 - Arch Linux or Arch-based distribution (Manjaro, EndeavourOS, Garuda, etc.)
-- Root privileges (sudo access)
-- Internet connection
-- Python 3.8+ (auto-installed if missing)
+- Root privileges via sudo
+- Internet connectivity for repository access
+- Minimum 5GB available disk space (20GB+ recommended for complete installation)
 
-### Installation
+### Installation Process
 
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/0xb0rn3/kygox.git
 cd kygox
 
-# Make the runner executable
-chmod +x run
-
-# Run with interactive mode (recommended for first use)
-sudo ./run
+# Execute with administrative privileges
+sudo ./kygox
 ```
 
-### Quick Install Options
+The system automatically handles dependency installation, repository configuration, and package database updates during initial execution.
+
+### Command Line Options
 
 ```bash
-# Install core security toolkit (recommended)
-sudo ./run && python3 .core.py --install core
+# Interactive mode with verbose output
+sudo ./kygox --verbose
 
-# Install complete security arsenal
-sudo ./run && python3 .core.py --install full
+# Preview operations without making changes
+sudo ./kygox --dry-run
 
-# Setup BlackArch repository and install all tools
-sudo ./run && python3 .core.py --blackarch
+# Optimize for high-performance systems
+sudo ./kygox --jobs 6
+
+# Non-interactive automated deployment
+sudo ./kygox --quiet
 ```
 
 ---
 
-## 📖 Usage
+## Security Tool Categories
 
-### Interactive Mode
+### Information Gathering
+Network reconnaissance and intelligence collection tools including advanced port scanners, DNS enumeration utilities, and OSINT frameworks. Essential for understanding target environments and identifying potential attack vectors.
 
-Launch the interactive menu system:
+### Vulnerability Analysis
+Comprehensive security assessment tools for identifying weaknesses in systems and applications. Includes specialized scanners for web applications, network services, and configuration analysis frameworks.
+
+### Web Application Security
+Specialized tools for testing web-based systems including automated scanners, manual testing proxies, and payload injection frameworks. Supports testing of modern web applications and API endpoints.
+
+### Exploitation Frameworks
+Advanced penetration testing platforms for controlled security testing. Includes payload generators, post-exploitation utilities, and comprehensive frameworks for simulating real-world attacks.
+
+### Wireless Security
+Tools for testing wireless network infrastructure including WiFi security assessment utilities, Bluetooth analysis tools, and software-defined radio applications.
+
+### Password Security
+Authentication testing tools including password cracking utilities, dictionary generators, and hash analysis frameworks for assessing password security implementations.
+
+---
+
+## Advanced Usage
+
+### Custom Tool Selection
+Expert users can specify precise tool combinations for specialized testing scenarios:
 
 ```bash
-sudo ./run
-sudo ./run -q                    # Quick setup with recommended settings
-sudo ./run --workers 4          # Set specific worker count
-sudo ./run --core-only           # Core tools only
-sudo ./run --trending-only       # Trending 2025 tools only
-sudo ./run --log-level DEBUG     # Set logging level
-sudo ./run --no-interactive      # Skip interactive mode
-sudo ./run -h or ./run -h        # Toolkit usage help
+# Launch KYGOX and select option 7 for custom selection
+sudo ./kygox
+
+# Example input: nmap nikto sqlmap burpsuite metasploit aircrack-ng
 ```
 
-The interactive mode provides:
-- Guided toolkit selection
-- Package search and discovery
-- System information display
-- Update management
-- Real-time installation progress
-
-### Command Line Interface
-
-Once the environment is setup, use the Python core directly:
+### Parallel Processing Optimization
+Adjust concurrent installation jobs based on system capabilities:
 
 ```bash
-# Install specific toolkits
-python3 .core.py --install core      # Essential security tools
-python3 .core.py --install web       # Web application security
-python3 .core.py --install network   # Network penetration testing
-python3 .core.py --install wireless  # WiFi security tools
-python3 .core.py --install forensics # Digital forensics
-python3 .core.py --install mobile    # Mobile security testing
+# High-performance systems
+sudo ./kygox --jobs 8
 
-# Package management
-python3 .core.py --search nmap       # Search for packages
-python3 .core.py --list              # List available toolkits
-python3 .core.py --from-file tools.txt  # Install from custom file
-
-# System operations
-python3 .core.py --update            # Check for updates
-python3 .core.py --refresh           # Refresh package database
-python3 .core.py --info              # Show system information
+# Resource-constrained environments
+sudo ./kygox --jobs 2
 ```
 
-### Advanced Options
+### Automated Deployment
+For environments requiring unattended installation:
 
 ```bash
-# Installation behavior
-python3 .core.py --install core --no-verify    # Skip signature verification
-python3 .core.py --install full --parallel 5   # Use 5 parallel workers
-python3 .core.py --install web --quiet         # Minimal output
-python3 .core.py --install network --force     # Continue on errors
+# Update package database only
+sudo ./kygox --update-db
 
-# BlackArch integration
-python3 .core.py --blackarch                   # Full BlackArch setup
+# Force installation of specific categories
+sudo ./kygox --quiet --force
 ```
 
 ---
 
-## 🛠️ Security Toolkits
+## Technical Architecture
 
-### Core Toolkit (50 packages)
-Essential penetration testing tools for most security assessments.
+### Package Discovery Engine
+The system implements sophisticated repository analysis combining multiple data sources. Direct pacman queries provide authoritative package lists while web scraping extracts categorization metadata. This dual-source approach ensures both accuracy and rich contextual information.
 
-**Categories Include:**
-- Network scanning (nmap, masscan, rustscan)
-- Web application testing (burpsuite, owasp-zap, sqlmap)
-- Password attacks (john, hashcat, hydra)
-- Wireless security (aircrack-ng, wifite, kismet)
-- Digital forensics (volatility3, autopsy, binwalk)
+### Installation Management
+Parallel batch processing handles multiple package installations simultaneously while maintaining system stability. The engine includes comprehensive error recovery mechanisms, detailed progress tracking, and automatic cleanup operations.
 
-### Full Arsenal (150+ packages)
-Complete security toolkit with modern 2025 tools.
-
-**Additional Categories:**
-- Advanced OSINT tools
-- Container & cloud security
-- AI/ML security testing
-- Blockchain security analysis
-- Modern C2 frameworks
-- DevSecOps integration tools
-
-### Specialized Toolkits
-
-| Toolkit | Description | Package Count |
-|---------|-------------|---------------|
-| **Web** | Web application penetration testing | ~20 packages |
-| **Network** | Network security and analysis | ~15 packages |
-| **Wireless** | WiFi and wireless security testing | ~12 packages |
-| **Forensics** | Digital forensics and incident response | ~18 packages |
-| **Mobile** | Android and iOS security testing | ~14 packages |
-| **BlackArch** | Complete BlackArch repository access | 2000+ packages |
+### Safety Mechanisms
+Multiple protection layers ensure system integrity during operations. Repository modifications use official BlackArch configuration methods, installations employ standard pacman safety checks, and comprehensive logging supports audit requirements.
 
 ---
 
-## 🏗️ Architecture
+## Troubleshooting Guide
 
-### File Structure
-
-```
-kygox/
-├── run                    # Bash runner and environment setup
-├── .core.py              # Hidden Python engine (main application)
-├── toolkit.txt           # Default toolkit configuration
-├── kygox_logs/           # Installation logs and history
-│   ├── installation.log  # Main installation log
-│   ├── successful_packages.log
-│   ├── failed_packages.log
-│   └── backups/          # Configuration backups
-└── .kygox_cache/         # Cache and database files
-    ├── packages.db       # SQLite package database
-    └── downloads/        # Downloaded files
-```
-
-### Core Components
-
-- **SystemInfo** - Distribution detection and compatibility checking
-- **PackageDatabase** - SQLite-based package management with history tracking
-- **KeyringManager** - BlackArch keyring setup and signature verification
-- **PackageManager** - Parallel installation with comprehensive error handling
-- **ToolkitManager** - Multiple security toolkit configurations and management
-- **UpdateManager** - Automatic script updates and version management
-- **ColorManager** - Rich terminal output with progress visualization
-
-### Security Features
-
-- **Signature Verification** - Cryptographic package validation using BlackArch keyring
-- **Repository Integrity** - Automatic verification of package sources and mirrors
-- **Secure Downloads** - HTTPS-only downloads with certificate validation
-- **Permission Management** - Proper privilege escalation and user context preservation
-- **Audit Trail** - Complete installation history with forensic-level logging
-
----
-
-## 🔧 Configuration
-
-### Custom Package Lists
-
-Create custom toolkit files:
-
+### Network Connectivity Issues
 ```bash
-# Create custom toolkit
-cat > my_tools.txt << EOF
-# Custom Security Tools
-nmap
-burpsuite
-metasploit
-wireshark-qt
-ghidra
-EOF
+# Test repository accessibility
+ping -c 3 blackarch.org
 
-# Install custom toolkit
-python3 .core.py --from-file my_tools.txt
-```
-
-### Environment Variables
-
-```bash
-export KYGOX_PARALLEL_JOBS=5        # Parallel installation workers
-export KYGOX_VERIFY_SIGNATURES=true # Enable signature verification
-export KYGOX_LOG_LEVEL=INFO         # Logging verbosity
-```
-
-### Database Queries
-
-Access installation history:
-
-```bash
-sqlite3 .kygox_cache/packages.db "SELECT * FROM installation_history ORDER BY timestamp DESC LIMIT 10;"
-```
-
----
-
-## 📊 System Requirements
-
-### Minimum Requirements
-- **OS**: Arch Linux or Arch-based distribution
-- **RAM**: 2GB (4GB+ recommended)
-- **Storage**: 5GB free space (10GB+ for full arsenal)
-- **Network**: Stable internet connection
-- **Privileges**: Root access (sudo)
-
-### Recommended Specifications
-- **OS**: Latest Arch Linux with updated packages
-- **RAM**: 8GB for optimal parallel installation
-- **Storage**: 20GB+ for complete toolkit with cache
-- **CPU**: Multi-core processor for parallel operations
-- **Network**: High-speed connection for faster downloads
-
-### Supported Distributions
-
-| Distribution | Status | Notes |
-|-------------|--------|-------|
-| Arch Linux | ✅ Full Support | Primary target platform |
-| Manjaro | ✅ Full Support | Tested and verified |
-| EndeavourOS | ✅ Full Support | Community tested |
-| Garuda Linux | ✅ Full Support | Gaming-focused Arch |
-| ArcoLinux | ✅ Full Support | Educational Arch variant |
-| Artix Linux | ✅ Partial Support | systemd-free Arch |
-| BlackArch | ✅ Full Support | Security-focused Arch |
-| Debian/Ubuntu | ❌ Use Alternative | See [krilin](https://github.com/0xb0rn3/krilin) |
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**Package Installation Fails**
-```bash
-# Refresh package databases
-python3 .core.py --refresh
-
-# Try with signature verification disabled
-python3 .core.py --install core --no-verify
-
-# Check logs for specific errors
-tail -f kygox_logs/installation.log
-```
-
-**Permission Errors**
-```bash
-# Ensure running as root
-sudo python3 .core.py --install core
-
-# Check original user detection
-echo $SUDO_USER
-```
-
-**Network Issues**
-```bash
-# Test connectivity
-ping -c 3 archlinux.org
-
-# Update mirrorlist
-sudo pacman-mirrors --fasttrack
-
-# Check DNS resolution
+# Verify DNS resolution
 nslookup blackarch.org
+
+# Check proxy configuration if applicable
 ```
 
-**BlackArch Keyring Issues**
+### Package Installation Failures
 ```bash
-# Manually setup keyring
-sudo pacman -S blackarch-keyring
+# Update package databases
+sudo pacman -Sy
 
-# Import BlackArch keys
-sudo pacman-key --populate blackarch
+# Check available disk space
+df -h /
+
+# Review detailed logs
+cat ~/.kygox/kygox.log
 ```
 
-### Debug Mode
-
-Enable verbose logging:
-
+### Repository Configuration Problems
 ```bash
-python3 .core.py --install core --verbose
-```
+# Manually configure BlackArch repository
+curl -O https://blackarch.org/strap.sh
+sudo bash strap.sh
 
-### Log Analysis
-
-Check installation logs:
-
-```bash
-# Main installation log
-less kygox_logs/installation.log
-
-# Failed packages only
-cat kygox_logs/failed_packages.log
-
-# Installation statistics
-grep "SUCCESS\|ERROR" kygox_logs/installation.log | sort | uniq -c
+# Verify repository access
+sudo pacman -Sl blackarch | head -10
 ```
 
 ---
 
-## 🔄 Updates
+## Development and Contribution
 
-### Automatic Updates
+### Code Architecture
+The modular design facilitates contributions through clear separation of functional components. System operations, user interface, and data processing maintain distinct boundaries that support testing and modification.
 
-KygoX includes built-in update management:
+### Contributing Guidelines
+- Follow established error handling and logging patterns
+- Include appropriate documentation for new features
+- Test functionality on clean Arch installations
+- Submit detailed pull requests with clear descriptions
 
-```bash
-# Check for updates
-python3 .core.py --update
-
-# Enable auto-update (interactive prompt)
-python3 .core.py --interactive
-```
-
-### Manual Updates
-
-```bash
-# Pull latest changes
-git pull origin main
-
-# Re-run setup if needed
-sudo ./run --setup
-```
-
-### Version History
-
-- **v0.1.9-alpha "Venom"** - Complete Python rewrite with database integration
-- **v0.1.8-beta** - Added BlackArch repository support
-- **v0.1.7-beta** - Parallel installation and progress tracking
-- **v0.1.6-alpha** - Initial Python conversion from bash
+### Enhancement Opportunities
+- Package categorization algorithm improvements
+- Additional repository integration
+- Enhanced monitoring and analytics capabilities
+- Containerized deployment support
 
 ---
 
-## 🤝 Contributing
+## Professional Support
 
-### Development Setup
+### Issue Resolution
+Users experiencing difficulties can access comprehensive logging information in the KYGOX log directory. These logs provide detailed operation history, error conditions, and system state information supporting troubleshooting efforts.
 
-```bash
-# Fork and clone
-git clone https://github.com/yourusername/kygox.git
-cd kygox
+### Community Resources
+- **Repository**: [https://github.com/0xb0rn3/kygox](https://github.com/0xb0rn3/kygox)
+- **Issue Tracking**: GitHub Issues for bug reports and feature requests
+- **Discussions**: Community engagement through GitHub Discussions
 
-# Install development dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-python3 -m pytest tests/
-
-# Code formatting
-black .core.py
-flake8 .core.py
-```
-
-### Adding New Tools
-
-1. **Update tool lists** in `KygoXConfig.CORE_TOOLS` or `KygoXConfig.TRENDING_2025`
-2. **Test installation** on clean Arch system
-3. **Add categorization** in `PackageManager._categorize_package()`
-4. **Update documentation** in README.md
-5. **Submit pull request** with detailed description
-
-### Reporting Issues
-
-When reporting bugs, please include:
-
-- System information (`python3 .core.py --info`)
-- Error logs (`kygox_logs/installation.log`)
-- Steps to reproduce
-- Expected vs actual behavior
+### Development Team
+- **Lead Developer**: 0xb0rn3 (0xbv1)
+- **Contact**: q4n0@proton.me
+- **Social**: [@theehiv3](https://instagram.com/theehiv3) | [@0xbv1](https://x.com/0xbv1)
 
 ---
 
-## 📄 License
+## Legal and Licensing
 
-**"Do Whatever You Want, But Don't Blame Me When It Breaks" (DWYWDBMWIIB)**
+### License Terms
+This software is provided under the "Do What The F*ck You Want To Public License" (WTFPL). Users are free to use, modify, and distribute this software for any purpose without restriction.
 
-This software is provided as-is, without any warranty or guarantee. You are free to use, modify, and distribute this software for any purpose, including commercial use. However, the authors are not responsible for any damage, data loss, or other issues that may arise from using this software.
+### Usage Responsibility
+Users are responsible for ensuring compliance with applicable laws and regulations when deploying security testing tools. This software is intended for authorized security testing and educational purposes only.
 
-By using this software, you acknowledge that you understand the risks involved and accept full responsibility for any consequences.
+### Disclaimer
+The authors provide this software without warranty of any kind. Users assume full responsibility for any consequences resulting from software usage.
 
 ---
 
-## 👥 Credits
+## Related Projects
 
-### Author
-- **0xbv1** (0xb0rn3) - Lead Developer and Security Researcher
-
-### Contact
-- **Instagram**: [@theehiv3](https://instagram.com/theehiv3)
-- **X/Twitter**: [@0xbv1](https://x.com/0xbv1)
-- **Threads**: [@theehiv3](https://threads.net/@theehiv3)
-- **Email**: q4n0@proton.me
+For users of other Linux distributions:
+- **[KRILIN](https://github.com/0xb0rn3/krilin)** - Debian/Ubuntu security toolkit installer
 
 ### Acknowledgments
-- Arch Linux community for the solid foundation
-- BlackArch team for the comprehensive security repository
-- Python community for the excellent libraries
-- Security researchers and tool developers worldwide
-
----
-
-## 🔗 Related Projects
-
-- **[krilin](https://github.com/0xb0rn3/krilin)** - Debian/Ubuntu version of KygoX
-- **[BlackArch](https://blackarch.org)** - Arch-based penetration testing distribution
-- **[Arch Linux](https://archlinux.org)** - The base distribution
+- Arch Linux community for providing the foundational platform
+- BlackArch project for maintaining comprehensive security tool repositories  
+- Security research community for continuous tool development and testing
 
 ---
 
 <div align="center">
 
-**⭐ Star this repository if you find it useful!**
+**Transform Your Arch System Into a Professional Security Testing Platform**
 
-*Built with ❤️ for the cybersecurity community*
+*KYGOX Enhanced - Where Intelligence Meets Security*
 
 </div>
