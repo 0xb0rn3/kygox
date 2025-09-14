@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 #
-# KYGOX - Enhanced Arch Linux Security Testing Suite
-# Version 0.2.0 - Complete Rewrite
+# kygoX - Arch Linux Security Testing Suite
+# Version 0.2.0 Phoenix
 # Author: 0xb0rn3 | Contact: IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
 #
-# This version focuses on:
-# - Real-time BlackArch repository scraping
-# - Intelligent package availability checking
-# - Hybrid bash-Python architecture for optimal performance
-# - Reliable tool management and installation
+# Advanced security toolkit installer with dynamic repository analysis
 #
 
 set -euo pipefail
 
 # =============================================================================
-# CONFIGURATION AND GLOBALS
+# CONFIGURATION
 # =============================================================================
 
 readonly SCRIPT_VERSION="0.2.0"
@@ -27,15 +23,10 @@ readonly ORIGINAL_USER="${SUDO_USER:-$(whoami)}"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly LOG_DIR="$HOME/.kygox"
 readonly CACHE_DIR="/tmp/kygox_cache"
-readonly BLACKARCH_MIRROR="https://blackarch.org"
-readonly BLACKARCH_REPO_URL="https://blackarch.org/strap.sh"
+readonly SECURITY_REPO_URL="https://blackarch.org/strap.sh"
+readonly SECURITY_REPO_NAME="pentesting"  # Obfuscated name
 
-# Performance Settings
-readonly MAX_PARALLEL_JOBS=4
-readonly DOWNLOAD_TIMEOUT=30
-readonly INSTALL_TIMEOUT=300
-
-# Colors and UI Elements
+# Colors and UI
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[1;33m'
@@ -47,35 +38,30 @@ readonly BOLD='\033[1m'
 readonly DIM='\033[2m'
 readonly RESET='\033[0m'
 
-# Status Icons
-readonly ICON_SUCCESS="✓"
-readonly ICON_ERROR="✗"
-readonly ICON_WARNING="⚠"
-readonly ICON_INFO="ℹ"
-readonly ICON_LOADING="⟳"
-readonly ICON_ROCKET="🚀"
-readonly ICON_SHIELD="🛡"
-readonly ICON_TOOLS="🔧"
-
-# Global State Variables
-declare -g INTERACTIVE_MODE=true
+# Global State
 declare -g VERBOSE_MODE=false
 declare -g DRY_RUN=false
 declare -g FORCE_INSTALL=false
-declare -g CLEANUP_AFTER=true
-declare -g PARALLEL_JOBS=2
+declare -g AUTO_FIX=true
+declare -g TOTAL_AVAILABLE_TOOLS=0
 
-# Package Management
-declare -gA AVAILABLE_PACKAGES
-declare -gA INSTALLED_PACKAGES
-declare -gA FAILED_PACKAGES
-declare -ga INSTALL_QUEUE
+# Package Categories with keywords for dynamic detection
+declare -A CATEGORIES=(
+    ["1"]="information-gathering:Information Gathering:nmap scan recon enum discover finger whois dns"
+    ["2"]="vulnerability-analysis:Vulnerability Analysis:vuln cve exploit nikto openvas lynis audit"
+    ["3"]="web-applications:Web Application Analysis:web http burp zap dir url spider crawl"
+    ["4"]="password-attacks:Password Attacks:pass hash crack brute john hydra medusa wordlist"
+    ["5"]="wireless-attacks:Wireless Attacks:wifi wireless air bluetooth rfid 802.11"
+    ["6"]="exploitation:Exploitation Tools:exploit shell payload metasploit framework beef"
+    ["7"]="forensics:Digital Forensics:forensic recover carve timeline memory disk volatility"
+    ["8"]="sniffing-spoofing:Sniffing & Spoofing:sniff capture spoof mitm proxy wireshark"
+)
 
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
-# Logging functions with timestamps and levels
+# Logging with timestamps
 log_message() {
     local level="$1"
     local message="$2"
@@ -84,10 +70,10 @@ log_message() {
     local icon=""
     
     case "$level" in
-        "SUCCESS") color="$GREEN"; icon="$ICON_SUCCESS" ;;
-        "ERROR")   color="$RED";   icon="$ICON_ERROR" ;;
-        "WARNING") color="$YELLOW"; icon="$ICON_WARNING" ;;
-        "INFO")    color="$CYAN";  icon="$ICON_INFO" ;;
+        "SUCCESS") color="$GREEN"; icon="✓" ;;
+        "ERROR")   color="$RED";   icon="✗" ;;
+        "WARNING") color="$YELLOW"; icon="⚠" ;;
+        "INFO")    color="$CYAN";  icon="ℹ" ;;
         "DEBUG")   color="$DIM";   icon="•" ;;
         *)         color="$WHITE"; icon="•" ;;
     esac
@@ -104,63 +90,52 @@ log_message() {
     echo -e "${color}${icon}${RESET} ${message}"
 }
 
-# Enhanced error handling with context
+# Error handling
 error_exit() {
     local exit_code="${2:-1}"
     log_message "ERROR" "$1"
     echo -e "${RED}${BOLD}Fatal Error:${RESET} $1" >&2
-    echo -e "${YELLOW}Check logs at: ${LOG_DIR}/kygox.log${RESET}" >&2
     cleanup_on_exit "$exit_code"
 }
 
-# Progress indicator for long operations
-show_progress() {
-    local pid=$1
-    local message="$2"
-    local chars="⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-    local i=0
-    
-    while kill -0 "$pid" 2>/dev/null; do
-        printf "\r${CYAN}%s${RESET} %s..." "${chars:$i:1}" "$message"
-        i=$(((i + 1) % ${#chars}))
-        sleep 0.1
-    done
-    
-    # Clear the line and show completion
-    printf "\r${GREEN}${ICON_SUCCESS}${RESET} %s completed\n" "$message"
-}
-
-# Banner display with system information
+# Banner display with tool count
 display_banner() {
     clear
     cat << 'EOF'
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
-║  ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗    ███████╗███╗   ██╗██╗  ██╗ ║
-║  ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝    ██╔════╝████╗  ██║██║  ██║ ║
-║  █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝     █████╗  ██╔██╗ ██║███████║ ║
-║  ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗     ██╔══╝  ██║╚██╗██║██╔══██║ ║
-║  ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗    ███████╗██║ ╚████║██║  ██║ ║
-║  ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝    ╚══════╝╚═╝  ╚═══╝╚═╝  ╚═╝ ║
+║  ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                               ║
+║  ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                               ║
+║  █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                                ║
+║  ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                                ║
+║  ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                               ║
+║  ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝                               ║
 ║                                                                              ║
-║                 ENHANCED ARCH SECURITY TESTING SUITE                        ║
-║                      Version 0.2.0 "Phoenix"                               ║
-║                   Engineered by 0xb0rn3 | @theehiv3                        ║
+║             kygoX - Arch Linux Security Testing Suite                       ║
+║                      Version 0.2.0 Phoenix                                  ║
+║                   By 0xb0rn3 | IG: theehiv3 | X: 0xbv1                     ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 EOF
 
     echo
-    echo -e "${CYAN}${BOLD}System Information:${RESET}"
+    echo -e "${CYAN}${BOLD}System Dashboard:${RESET}"
     echo -e "  ${WHITE}•${RESET} OS: $(get_system_info)"
     echo -e "  ${WHITE}•${RESET} Kernel: $(uname -r)"
-    echo -e "  ${WHITE}•${RESET} Architecture: $(uname -m)"
     echo -e "  ${WHITE}•${RESET} User: $ORIGINAL_USER"
     echo -e "  ${WHITE}•${RESET} Python: $(get_python_version)"
+    
+    # Get and display tool count
+    local tool_count=$(get_total_security_tools)
+    if [[ $tool_count -gt 0 ]]; then
+        echo -e "  ${WHITE}•${RESET} Available Security Tools: ${GREEN}${BOLD}$tool_count${RESET}"
+    else
+        echo -e "  ${WHITE}•${RESET} Available Security Tools: ${YELLOW}Scanning...${RESET}"
+    fi
     echo
 }
 
-# System information gathering
+# System info functions
 get_system_info() {
     if [[ -f /etc/os-release ]]; then
         grep '^PRETTY_NAME=' /etc/os-release | cut -d'"' -f2
@@ -178,14 +153,203 @@ get_python_version() {
 }
 
 # =============================================================================
-# SYSTEM VALIDATION AND REQUIREMENTS
+# DYNAMIC TOOL ANALYSIS SYSTEM
 # =============================================================================
 
-# Comprehensive system validation
+# Get total available security tools
+get_total_security_tools() {
+    if [[ $TOTAL_AVAILABLE_TOOLS -eq 0 ]]; then
+        log_message "DEBUG" "Calculating total available security tools..."
+        
+        # Count packages from security repository
+        if pacman -Sl $SECURITY_REPO_NAME &>/dev/null; then
+            TOTAL_AVAILABLE_TOOLS=$(pacman -Sl $SECURITY_REPO_NAME 2>/dev/null | wc -l)
+        else
+            TOTAL_AVAILABLE_TOOLS=0
+        fi
+        
+        log_message "DEBUG" "Found $TOTAL_AVAILABLE_TOOLS total security tools"
+    fi
+    
+    echo $TOTAL_AVAILABLE_TOOLS
+}
+
+# Create Python tool analyzer
+create_tool_analyzer() {
+    cat > "$CACHE_DIR/tool_analyzer.py" << 'PYTHON_SCRIPT'
+#!/usr/bin/env python3
+"""
+kygoX Tool Analyzer
+Analyzes available security tools and categorizes them dynamically
+"""
+
+import sys
+import subprocess
+import re
+from collections import defaultdict
+
+class ToolAnalyzer:
+    def __init__(self, repo_name="pentesting"):
+        self.repo_name = repo_name
+        self.categories = {}
+        
+    def get_available_packages(self):
+        """Get all available packages from security repository"""
+        try:
+            result = subprocess.run(
+                ['pacman', '-Sl', self.repo_name],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            packages = []
+            for line in result.stdout.strip().split('\n'):
+                if line.strip():
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        packages.append(parts[1])
+            return packages
+        except subprocess.CalledProcessError:
+            return []
+    
+    def categorize_tools(self, packages, keywords_map):
+        """Categorize tools based on keyword patterns"""
+        categorized = defaultdict(list)
+        
+        for package in packages:
+            package_lower = package.lower()
+            categorized_flag = False
+            
+            for category, keywords_str in keywords_map.items():
+                keywords = keywords_str.split()
+                
+                # Check if package name contains any category keywords
+                if any(keyword in package_lower for keyword in keywords):
+                    categorized[category].append(package)
+                    categorized_flag = True
+                    break
+            
+            # If not categorized, put in miscellaneous
+            if not categorized_flag:
+                categorized['miscellaneous'].append(package)
+        
+        return dict(categorized)
+    
+    def analyze_category(self, category_keywords):
+        """Analyze tools available for a specific category"""
+        packages = self.get_available_packages()
+        if not packages:
+            return []
+        
+        keywords = category_keywords.split()
+        matching_packages = []
+        
+        for package in packages:
+            package_lower = package.lower()
+            if any(keyword in package_lower for keyword in keywords):
+                matching_packages.append(package)
+        
+        return matching_packages
+    
+    def get_package_info(self, package):
+        """Get detailed information about a package"""
+        try:
+            result = subprocess.run(
+                ['pacman', '-Si', package],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            
+            if result.returncode == 0:
+                info = {}
+                for line in result.stdout.split('\n'):
+                    if ':' in line:
+                        key, value = line.split(':', 1)
+                        info[key.strip()] = value.strip()
+                return info
+            return {}
+        except:
+            return {}
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: tool_analyzer.py <action> [args]", file=sys.stderr)
+        sys.exit(1)
+    
+    action = sys.argv[1]
+    analyzer = ToolAnalyzer()
+    
+    if action == "count_total":
+        packages = analyzer.get_available_packages()
+        print(len(packages))
+    
+    elif action == "analyze_category":
+        if len(sys.argv) < 3:
+            print("Usage: tool_analyzer.py analyze_category <keywords>", file=sys.stderr)
+            sys.exit(1)
+        
+        keywords = sys.argv[2]
+        matching_packages = analyzer.analyze_category(keywords)
+        
+        print(f"CATEGORY_COUNT:{len(matching_packages)}")
+        for package in matching_packages[:20]:  # Show first 20
+            print(f"PACKAGE:{package}")
+        
+        if len(matching_packages) > 20:
+            print(f"MORE:{len(matching_packages) - 20}")
+    
+    elif action == "get_info":
+        if len(sys.argv) < 3:
+            print("Usage: tool_analyzer.py get_info <package>", file=sys.stderr)
+            sys.exit(1)
+        
+        package = sys.argv[2]
+        info = analyzer.get_package_info(package)
+        
+        if info:
+            print(f"NAME:{info.get('Name', 'Unknown')}")
+            print(f"VERSION:{info.get('Version', 'Unknown')}")
+            print(f"DESCRIPTION:{info.get('Description', 'No description available')}")
+            print(f"SIZE:{info.get('Download Size', 'Unknown')}")
+        else:
+            print("INFO_NOT_AVAILABLE")
+
+if __name__ == "__main__":
+    main()
+PYTHON_SCRIPT
+
+    chmod +x "$CACHE_DIR/tool_analyzer.py"
+}
+
+# Analyze category tools dynamically
+analyze_category_tools() {
+    local category_key="$1"
+    
+    if [[ ! "${CATEGORIES[$category_key]:-}" ]]; then
+        echo "0"
+        return
+    fi
+    
+    local cat_info="${CATEGORIES[$category_key]}"
+    local keywords=$(echo "$cat_info" | cut -d':' -f3)
+    
+    # Use Python analyzer to get category tools
+    if [[ -f "$CACHE_DIR/tool_analyzer.py" ]]; then
+        python3 "$CACHE_DIR/tool_analyzer.py" analyze_category "$keywords" 2>/dev/null || echo "0"
+    else
+        echo "0"
+    fi
+}
+
+# =============================================================================
+# SYSTEM VALIDATION
+# =============================================================================
+
 validate_system() {
     log_message "INFO" "Validating system requirements..."
     
-    # Check if running as root
+    # Check root privileges
     if [[ $EUID -ne 0 ]]; then
         error_exit "This script must be run with sudo privileges"
     fi
@@ -209,444 +373,350 @@ validate_system() {
         error_exit "Internet connectivity required for package downloads"
     fi
     
-    # Check available disk space (minimum 5GB)
+    # Check disk space (minimum 5GB)
     local available_space
     available_space=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
     if [[ $available_space -lt 5 ]]; then
         log_message "WARNING" "Only ${available_space}GB available. Some installations may fail."
-        if [[ "$INTERACTIVE_MODE" == "true" ]]; then
-            read -p "Continue anyway? [y/N]: " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                exit 0
-            fi
-        fi
     fi
     
     log_message "SUCCESS" "System validation completed"
 }
 
-# Install required dependencies
+# Install dependencies
 install_dependencies() {
     log_message "INFO" "Installing required dependencies..."
     
-    local required_packages=(
-        "curl"
-        "wget" 
-        "git"
-        "python"
-        "python-pip"
-        "python-requests"
-        "python-beautifulsoup4"
-        "python-lxml"
-        "base-devel"
-        "pacman-contrib"
-    )
-    
+    local required_packages=("curl" "wget" "python" "python-pip" "base-devel")
     local missing_packages=()
     
-    # Check for missing packages
     for package in "${required_packages[@]}"; do
         if ! pacman -Qi "$package" &>/dev/null; then
             missing_packages+=("$package")
         fi
     done
     
-    # Install missing packages
     if [[ ${#missing_packages[@]} -gt 0 ]]; then
         log_message "INFO" "Installing missing packages: ${missing_packages[*]}"
-        
-        # Update package database first
         pacman -Sy --noconfirm
-        
-        # Install packages with error handling
         if ! pacman -S --noconfirm --needed "${missing_packages[@]}"; then
             error_exit "Failed to install required dependencies"
         fi
-        
-        log_message "SUCCESS" "Dependencies installed successfully"
-    else
-        log_message "SUCCESS" "All dependencies already satisfied"
     fi
+    
+    log_message "SUCCESS" "Dependencies installed successfully"
 }
 
 # =============================================================================
-# BLACKARCH REPOSITORY MANAGEMENT
+# SECURITY REPOSITORY MANAGEMENT (Obfuscated)
 # =============================================================================
 
-# Setup BlackArch repository with enhanced error handling
-setup_blackarch_repo() {
-    log_message "INFO" "Setting up BlackArch repository..."
+setup_security_repo() {
+    log_message "INFO" "Setting up security tools repository..."
     
     # Check if already configured
-    if grep -q "\[blackarch\]" /etc/pacman.conf; then
-        log_message "INFO" "BlackArch repository already configured"
+    if grep -q "\[$SECURITY_REPO_NAME\]" /etc/pacman.conf; then
+        log_message "INFO" "Security repository already configured"
         return 0
     fi
     
-    # Download and execute strap script with error handling
-    local temp_script="/tmp/blackarch-strap.sh"
+    # Download and execute setup script
+    local temp_script="/tmp/security-strap.sh"
     
-    if ! curl -fsSL "$BLACKARCH_REPO_URL" -o "$temp_script" --connect-timeout "$DOWNLOAD_TIMEOUT"; then
-        error_exit "Failed to download BlackArch strap script"
+    if ! curl -fsSL "$SECURITY_REPO_URL" -o "$temp_script" --connect-timeout 30; then
+        error_exit "Failed to download security repository setup script"
     fi
     
-    # Verify script integrity (basic check)
-    if [[ ! -s "$temp_script" ]]; then
-        error_exit "Downloaded strap script is empty or corrupted"
-    fi
-    
-    # Execute strap script
+    # Execute with error handling
     if ! bash "$temp_script" &>/dev/null; then
-        error_exit "Failed to execute BlackArch strap script"
+        rm -f "$temp_script"
+        error_exit "Failed to execute security repository setup script"
     fi
     
-    # Clean up
+    # Obfuscate repository name in pacman.conf
+    if grep -q "\[blackarch\]" /etc/pacman.conf; then
+        sed -i "s/\[blackarch\]/[$SECURITY_REPO_NAME]/g" /etc/pacman.conf
+        sed -i "s/blackarch/$SECURITY_REPO_NAME/g" /etc/pacman.conf
+    fi
+    
     rm -f "$temp_script"
     
     # Update package database
     if ! pacman -Sy --noconfirm; then
-        error_exit "Failed to update package database after BlackArch setup"
+        error_exit "Failed to update package database after security repository setup"
     fi
     
-    log_message "SUCCESS" "BlackArch repository configured successfully"
+    log_message "SUCCESS" "Security repository configured successfully"
 }
 
-# Dynamic BlackArch package discovery using Python
-create_package_scraper() {
-    cat > "$CACHE_DIR/blackarch_scraper.py" << 'PYTHON_SCRIPT'
+# Check package availability
+check_package_availability() {
+    local package="$1"
+    
+    # Check if already installed
+    if pacman -Qi "$package" &>/dev/null; then
+        echo "installed"
+        return 0
+    fi
+    
+    # Check if available in any repository
+    if pacman -Si "$package" &>/dev/null 2>&1; then
+        echo "available"
+        return 0
+    fi
+    
+    echo "unavailable"
+    return 1
+}
+
+# =============================================================================
+# ERROR HANDLING SYSTEM
+# =============================================================================
+
+create_error_handler() {
+    cat > "$CACHE_DIR/error_handler.py" << 'PYTHON_SCRIPT'
 #!/usr/bin/env python3
 """
-KYGOX BlackArch Package Scraper
-Dynamically discovers available BlackArch packages and categorizes them
+kygoX Error Handler and System Monitor
+Monitors installation processes and handles errors intelligently
 """
 
 import sys
-import json
 import subprocess
-import re
-from pathlib import Path
-from typing import Dict, List, Set, Tuple
 import time
+import signal
+import os
+from pathlib import Path
 
-try:
-    import requests
-    from bs4 import BeautifulSoup
-except ImportError:
-    print("Error: Required Python packages not installed", file=sys.stderr)
-    sys.exit(1)
-
-class BlackArchScraper:
-    def __init__(self):
-        self.base_url = "https://blackarch.org"
-        self.tools_url = f"{self.base_url}/tools.html"
-        self.packages = {}
-        self.categories = {}
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'KYGOX-PackageScraper/0.2.0'
-        })
+class InstallationMonitor:
+    def __init__(self, log_file):
+        self.log_file = Path(log_file)
+        self.errors = []
+        self.warnings = []
+        self.running = True
+        
+    def monitor_installation(self, package_name, timeout=300):
+        """Monitor package installation and detect errors"""
+        start_time = time.time()
+        
+        while self.running and (time.time() - start_time) < timeout:
+            if self.log_file.exists():
+                try:
+                    with open(self.log_file, 'r') as f:
+                        lines = f.readlines()
+                        
+                    # Check last few lines for errors
+                    recent_lines = lines[-10:] if len(lines) > 10 else lines
+                    
+                    for line in recent_lines:
+                        line = line.strip().lower()
+                        
+                        # Critical errors that should stop installation
+                        if any(error in line for error in [
+                            'error: failed to commit transaction',
+                            'error: target not found',
+                            'error: failed retrieving file',
+                            'conflicting files',
+                            'could not resolve host',
+                            'connection timed out',
+                            'failed to synchronize',
+                            'unable to lock database'
+                        ]):
+                            self.errors.append(line)
+                            return False
+                        
+                        # Success indicators
+                        if any(success in line for success in [
+                            f'successfully installed {package_name}',
+                            'installation completed',
+                            'success',
+                            'nothing to do'
+                        ]):
+                            return True
+                            
+                except IOError:
+                    pass
+            
+            time.sleep(1)
+        
+        return None  # Timeout or process still running
     
-    def get_pacman_packages(self) -> Set[str]:
-        """Get available BlackArch packages from pacman database"""
+    def suggest_fixes(self):
+        """Suggest fixes based on detected errors"""
+        fixes = []
+        
+        for error in self.errors:
+            if 'target not found' in error:
+                fixes.append("Update package database with: pacman -Sy")
+            elif 'failed retrieving file' in error:
+                fixes.append("Check internet connection and retry")
+            elif 'conflicting files' in error:
+                fixes.append("Force installation or resolve conflicts manually")
+            elif 'could not resolve host' in error:
+                fixes.append("Check DNS settings and internet connectivity")
+            elif 'unable to lock database' in error:
+                fixes.append("Wait for other package operations to complete")
+        
+        return fixes
+    
+    def auto_fix_common_issues(self):
+        """Attempt to automatically fix common issues"""
+        fixes_applied = []
+        
+        # Kill any hanging pacman processes
         try:
-            result = subprocess.run(
-                ['pacman', '-Sql', 'blackarch'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            return set(result.stdout.strip().split('\n')) if result.stdout.strip() else set()
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return set()
-    
-    def scrape_web_tools(self) -> Dict[str, List[str]]:
-        """Scrape BlackArch website for tool categories"""
+            subprocess.run(['pkill', '-f', 'pacman'], check=False, capture_output=True)
+            fixes_applied.append("Killed hanging pacman processes")
+        except:
+            pass
+        
+        # Remove lock files
+        lock_files = ['/var/lib/pacman/db.lck']
+        for lock_file in lock_files:
+            if os.path.exists(lock_file):
+                try:
+                    os.remove(lock_file)
+                    fixes_applied.append(f"Removed lock file: {lock_file}")
+                except:
+                    pass
+        
+        # Update package database
         try:
-            response = self.session.get(self.tools_url, timeout=30)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.content, 'html.parser')
-            categories = {}
-            
-            # Find tool categories and packages
-            for section in soup.find_all(['div', 'section'], class_=re.compile('category|tools')):
-                category_name = None
-                tools = []
-                
-                # Extract category name
-                header = section.find(['h1', 'h2', 'h3', 'h4'])
-                if header:
-                    category_name = header.get_text().strip()
-                
-                # Extract tool names
-                for link in section.find_all('a', href=re.compile(r'/tools/')):
-                    tool_name = link.get_text().strip()
-                    if tool_name and len(tool_name) > 1:
-                        tools.append(tool_name)
-                
-                if category_name and tools:
-                    categories[category_name] = tools
-            
-            return categories
-            
-        except Exception as e:
-            print(f"Web scraping failed: {e}", file=sys.stderr)
-            return {}
-    
-    def get_package_info(self, package: str) -> Dict:
-        """Get detailed package information"""
+            subprocess.run(['pacman', '-Sy'], check=True, capture_output=True)
+            fixes_applied.append("Updated package database")
+        except subprocess.CalledProcessError:
+            pass
+        
+        # Clear package cache if needed
         try:
-            result = subprocess.run(
-                ['pacman', '-Si', package],
-                capture_output=True,
-                text=True,
-                check=False
-            )
-            
-            if result.returncode == 0:
-                info = {}
-                for line in result.stdout.split('\n'):
-                    if ':' in line:
-                        key, value = line.split(':', 1)
-                        info[key.strip()] = value.strip()
-                return info
-            return {}
-            
-        except Exception:
-            return {}
-    
-    def categorize_packages(self, packages: Set[str]) -> Dict[str, List[str]]:
-        """Categorize packages by type/purpose"""
-        categories = {
-            'Information Gathering': [],
-            'Vulnerability Analysis': [],
-            'Web Application Analysis': [],
-            'Database Assessment': [],
-            'Password Attacks': [],
-            'Wireless Attacks': [],
-            'Exploitation Tools': [],
-            'Sniffing & Spoofing': [],
-            'Post Exploitation': [],
-            'Forensics': [],
-            'Crypto & Stego': [],
-            'Social Engineering': [],
-            'Miscellaneous': []
-        }
+            subprocess.run(['pacman', '-Scc', '--noconfirm'], check=True, capture_output=True)
+            fixes_applied.append("Cleared package cache")
+        except subprocess.CalledProcessError:
+            pass
         
-        # Define keyword patterns for categorization
-        patterns = {
-            'Information Gathering': ['nmap', 'recon', 'enum', 'scan', 'discover', 'finger', 'whois'],
-            'Vulnerability Analysis': ['vuln', 'cve', 'exploit-db', 'nikto', 'openvas', 'lynis'],
-            'Web Application Analysis': ['web', 'http', 'burp', 'zap', 'dir', 'url', 'spider'],
-            'Database Assessment': ['sql', 'db', 'mysql', 'oracle', 'mongo', 'database'],
-            'Password Attacks': ['pass', 'hash', 'crack', 'brute', 'john', 'hydra', 'medusa'],
-            'Wireless Attacks': ['wifi', 'wireless', 'air', 'bluetooth', 'rfid', '802.11'],
-            'Exploitation Tools': ['exploit', 'shell', 'payload', 'metasploit', 'framework'],
-            'Sniffing & Spoofing': ['sniff', 'capture', 'spoof', 'mitm', 'proxy', 'wireshark'],
-            'Post Exploitation': ['post', 'pivot', 'tunnel', 'persistence', 'escalat'],
-            'Forensics': ['forensic', 'recover', 'carve', 'timeline', 'memory', 'disk'],
-            'Crypto & Stego': ['crypto', 'stego', 'cipher', 'encode', 'decode', 'hash'],
-            'Social Engineering': ['social', 'phish', 'se-', 'fake', 'clone']
-        }
-        
-        # Categorize each package
-        for package in packages:
-            categorized = False
-            package_lower = package.lower()
-            
-            for category, keywords in patterns.items():
-                if any(keyword in package_lower for keyword in keywords):
-                    categories[category].append(package)
-                    categorized = True
-                    break
-            
-            if not categorized:
-                categories['Miscellaneous'].append(package)
-        
-        # Remove empty categories and sort packages
-        return {cat: sorted(pkgs) for cat, pkgs in categories.items() if pkgs}
-    
-    def generate_package_database(self) -> Dict:
-        """Generate comprehensive package database"""
-        print("Discovering BlackArch packages...", file=sys.stderr)
-        
-        # Get packages from pacman
-        pacman_packages = self.get_pacman_packages()
-        print(f"Found {len(pacman_packages)} packages in pacman database", file=sys.stderr)
-        
-        # Scrape web for additional info
-        web_categories = self.scrape_web_tools()
-        print(f"Found {len(web_categories)} categories from web", file=sys.stderr)
-        
-        # Categorize packages
-        categorized_packages = self.categorize_packages(pacman_packages)
-        
-        # Build final database
-        database = {
-            'metadata': {
-                'timestamp': int(time.time()),
-                'total_packages': len(pacman_packages),
-                'categories': len(categorized_packages),
-                'scraper_version': '0.2.0'
-            },
-            'packages': {
-                'by_category': categorized_packages,
-                'all_packages': sorted(list(pacman_packages))
-            },
-            'web_categories': web_categories
-        }
-        
-        return database
+        return fixes_applied
 
 def main():
-    cache_dir = sys.argv[1] if len(sys.argv) > 1 else '/tmp/kygox_cache'
-    Path(cache_dir).mkdir(exist_ok=True)
+    if len(sys.argv) < 3:
+        print("Usage: error_handler.py <package_name> <log_file>", file=sys.stderr)
+        sys.exit(1)
     
-    scraper = BlackArchScraper()
-    database = scraper.generate_package_database()
+    package_name = sys.argv[1]
+    log_file = sys.argv[2]
     
-    # Save to file
-    output_file = Path(cache_dir) / 'blackarch_packages.json'
-    with open(output_file, 'w') as f:
-        json.dump(database, f, indent=2)
+    monitor = InstallationMonitor(log_file)
     
-    print(f"Package database saved to {output_file}", file=sys.stderr)
-    print(json.dumps(database, indent=2))
+    # Monitor installation
+    result = monitor.monitor_installation(package_name)
+    
+    if result is True:
+        print("SUCCESS")
+    elif result is False:
+        print("ERROR")
+        fixes = monitor.suggest_fixes()
+        if fixes:
+            print("SUGGESTED_FIXES:", ";".join(fixes))
+        
+        # Attempt auto-fix
+        auto_fixes = monitor.auto_fix_common_issues()
+        if auto_fixes:
+            print("AUTO_FIXES_APPLIED:", ";".join(auto_fixes))
+    else:
+        print("TIMEOUT")
+    
+    sys.exit(0 if result is True else 1)
 
 if __name__ == "__main__":
     main()
 PYTHON_SCRIPT
-}
 
-# Update package database with real-time scraping
-update_package_database() {
-    log_message "INFO" "Updating BlackArch package database..."
-    
-    mkdir -p "$CACHE_DIR"
-    
-    # Create Python scraper
-    create_package_scraper
-    
-    # Run scraper with progress indication
-    (
-        python3 "$CACHE_DIR/blackarch_scraper.py" "$CACHE_DIR" > "$CACHE_DIR/blackarch_packages.json" 2>"$CACHE_DIR/scraper.log"
-    ) &
-    
-    local scraper_pid=$!
-    show_progress "$scraper_pid" "Scanning BlackArch repositories"
-    
-    # Check if scraper completed successfully
-    if ! wait "$scraper_pid"; then
-        log_message "WARNING" "Package database update failed, using cached data"
-        if [[ ! -f "$CACHE_DIR/blackarch_packages.json" ]]; then
-            create_fallback_database
-        fi
-    else
-        log_message "SUCCESS" "Package database updated successfully"
-    fi
-    
-    # Load package data into memory
-    load_package_database
-}
-
-# Create fallback database if scraping fails
-create_fallback_database() {
-    log_message "INFO" "Creating fallback package database..."
-    
-    cat > "$CACHE_DIR/blackarch_packages.json" << 'EOF'
-{
-  "metadata": {
-    "timestamp": 1672531200,
-    "total_packages": 2800,
-    "categories": 12,
-    "scraper_version": "0.2.0-fallback"
-  },
-  "packages": {
-    "by_category": {
-      "Information Gathering": [
-        "nmap", "masscan", "zmap", "rustscan", "unicornscan",
-        "dnsrecon", "dnsenum", "fierce", "sublist3r", "amass",
-        "theharvester", "recon-ng", "maltego", "shodan", "spiderfoot"
-      ],
-      "Vulnerability Analysis": [
-        "nikto", "dirb", "gobuster", "wfuzz", "ffuf",
-        "sqlmap", "wpscan", "joomscan", "cmsmap",
-        "lynis", "openvas", "nuclei", "skipfish"
-      ],
-      "Web Application Analysis": [
-        "burpsuite", "zaproxy", "w3af", "arachni",
-        "davtest", "cadaver", "padbuster", "webscarab"
-      ],
-      "Password Attacks": [
-        "john", "hashcat", "hydra", "medusa", "ncrack",
-        "crunch", "cewl", "wordlists", "hashid"
-      ],
-      "Wireless Attacks": [
-        "aircrack-ng", "wifite", "reaver", "bully", "pixiewps",
-        "kismet", "horst", "cowpatty", "asleap"
-      ],
-      "Exploitation Tools": [
-        "metasploit", "exploitdb", "searchsploit", "set",
-        "beef", "armitage", "empire", "shellter"
-      ]
-    }
-  }
-}
-EOF
-}
-
-# Load package database into memory for faster access
-load_package_database() {
-    if [[ -f "$CACHE_DIR/blackarch_packages.json" ]]; then
-        # Extract categories and packages for bash arrays
-        python3 -c "
-import json
-import sys
-
-with open('$CACHE_DIR/blackarch_packages.json') as f:
-    data = json.load(f)
-
-categories = data['packages']['by_category']
-for category, packages in categories.items():
-    print(f'CATEGORY_{category.upper().replace(\" \", \"_\").replace(\"-\", \"_\")}=({\" \".join(packages)})')
-" > "$CACHE_DIR/package_vars.sh"
-        
-        # Source the variables
-        source "$CACHE_DIR/package_vars.sh" 2>/dev/null || true
-        
-        log_message "SUCCESS" "Package database loaded into memory"
-    else
-        log_message "ERROR" "Package database not found"
-    fi
+    chmod +x "$CACHE_DIR/error_handler.py"
 }
 
 # =============================================================================
 # PACKAGE INSTALLATION ENGINE
 # =============================================================================
 
-# Check package availability and status
-check_package_availability() {
+install_single_package() {
     local package="$1"
-    local status=""
+    local max_retries=3
+    local retry_count=0
     
-    # Check if already installed
-    if pacman -Qi "$package" &>/dev/null; then
-        status="installed"
-    # Check if available in BlackArch
-    elif pacman -Si "$package" &>/dev/null 2>&1; then
-        status="available"
-    else
-        status="unavailable"
-    fi
+    log_message "INFO" "Installing package: $package"
     
-    echo "$status"
+    while [[ $retry_count -lt $max_retries ]]; do
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_message "INFO" "[DRY RUN] Would install: $package"
+            return 0
+        fi
+        
+        # Create temporary log for this installation
+        local temp_log="/tmp/install_${package}_$$.log"
+        
+        # Start installation in background and monitor
+        (
+            pacman -S --noconfirm --needed "$package" 2>&1 | tee "$temp_log"
+            echo "PACMAN_EXIT_CODE:$?" >> "$temp_log"
+        ) &
+        
+        local install_pid=$!
+        
+        # Monitor with Python error handler
+        if [[ -f "$CACHE_DIR/error_handler.py" ]]; then
+            python3 "$CACHE_DIR/error_handler.py" "$package" "$temp_log" &
+            local monitor_pid=$!
+        fi
+        
+        # Wait for installation to complete
+        wait "$install_pid"
+        local exit_code=$?
+        
+        # Kill monitor if still running
+        if [[ -n "${monitor_pid:-}" ]]; then
+            kill "$monitor_pid" 2>/dev/null || true
+        fi
+        
+        # Check installation result
+        if [[ $exit_code -eq 0 ]]; then
+            log_message "SUCCESS" "Installed: $package"
+            rm -f "$temp_log"
+            return 0
+        else
+            ((retry_count++))
+            log_message "WARNING" "Installation failed for $package (attempt $retry_count)"
+            
+            # Auto-fix if enabled
+            if [[ "$AUTO_FIX" == "true" && $retry_count -lt $max_retries ]]; then
+                log_message "INFO" "Attempting auto-fix..."
+                
+                # Remove lock files
+                rm -f /var/lib/pacman/db.lck 2>/dev/null || true
+                
+                # Update package database
+                pacman -Sy --noconfirm &>/dev/null || true
+                
+                # Clear package cache if needed
+                if [[ $retry_count -gt 1 ]]; then
+                    pacman -Scc --noconfirm &>/dev/null || true
+                fi
+                
+                sleep 2
+            fi
+        fi
+        
+        rm -f "$temp_log"
+    done
+    
+    log_message "ERROR" "Failed to install $package after $max_retries attempts"
+    return 1
 }
 
-# Enhanced package installer with parallel processing
 install_packages() {
     local packages=("$@")
     local total_packages=${#packages[@]}
+    local installed_count=0
+    local failed_count=0
+    local skipped_count=0
     
     if [[ $total_packages -eq 0 ]]; then
         log_message "WARNING" "No packages specified for installation"
@@ -655,195 +725,202 @@ install_packages() {
     
     log_message "INFO" "Installing $total_packages packages..."
     
-    # Create installation status tracking
-    local installed_count=0
-    local failed_count=0
-    local skipped_count=0
-    
-    # Process packages in parallel batches
-    local batch_size=$PARALLEL_JOBS
-    local batch_num=1
-    
-    for ((i=0; i<total_packages; i+=batch_size)); do
-        local batch=("${packages[@]:i:batch_size}")
-        local pids=()
+    # Process packages sequentially for better error handling
+    for package in "${packages[@]}"; do
+        local status
+        status=$(check_package_availability "$package")
         
-        log_message "INFO" "Processing batch $batch_num (${#batch[@]} packages)..."
-        
-        # Start parallel installations
-        for package in "${batch[@]}"; do
-            {
-                local status
-                status=$(check_package_availability "$package")
-                
-                case "$status" in
-                    "installed")
-                        log_message "INFO" "$package already installed"
-                        echo "SKIPPED:$package" >> "$CACHE_DIR/install_results.tmp"
-                        ;;
-                    "available")
-                        if install_single_package "$package"; then
-                            echo "SUCCESS:$package" >> "$CACHE_DIR/install_results.tmp"
-                        else
-                            echo "FAILED:$package" >> "$CACHE_DIR/install_results.tmp"
-                        fi
-                        ;;
-                    "unavailable")
-                        log_message "WARNING" "$package not available in repositories"
-                        echo "UNAVAILABLE:$package" >> "$CACHE_DIR/install_results.tmp"
-                        ;;
-                esac
-            } &
-            
-            pids+=($!)
-        done
-        
-        # Wait for batch completion
-        for pid in "${pids[@]}"; do
-            wait "$pid"
-        done
-        
-        ((batch_num++))
+        case "$status" in
+            "installed")
+                log_message "INFO" "$package already installed"
+                ((skipped_count++))
+                ;;
+            "available")
+                if install_single_package "$package"; then
+                    ((installed_count++))
+                else
+                    ((failed_count++))
+                fi
+                ;;
+            "unavailable")
+                log_message "WARNING" "$package not available in repositories"
+                ((failed_count++))
+                ;;
+        esac
     done
-    
-    # Process results
-    if [[ -f "$CACHE_DIR/install_results.tmp" ]]; then
-        while IFS=':' read -r status package; do
-            case "$status" in
-                "SUCCESS") ((installed_count++)) ;;
-                "FAILED") ((failed_count++)) ;;
-                "SKIPPED") ((skipped_count++)) ;;
-                "UNAVAILABLE") ((failed_count++)) ;;
-            esac
-        done < "$CACHE_DIR/install_results.tmp"
-        
-        rm -f "$CACHE_DIR/install_results.tmp"
-    fi
     
     # Report results
+    echo
     log_message "SUCCESS" "Installation completed:"
-    echo -e "  ${GREEN}${ICON_SUCCESS}${RESET} Installed: $installed_count"
-    echo -e "  ${YELLOW}${ICON_WARNING}${RESET} Skipped: $skipped_count"
-    echo -e "  ${RED}${ICON_ERROR}${RESET} Failed: $failed_count"
+    echo -e "  ${GREEN}✓${RESET} Installed: $installed_count"
+    echo -e "  ${YELLOW}⚠${RESET} Skipped: $skipped_count"
+    echo -e "  ${RED}✗${RESET} Failed: $failed_count"
 }
 
-# Install single package with error handling
-install_single_package() {
-    local package="$1"
-    local max_retries=3
-    local retry_count=0
+# =============================================================================
+# USER INTERFACE WITH DYNAMIC ANALYSIS
+# =============================================================================
+
+show_main_menu() {
+    echo -e "${CYAN}${BOLD}kygoX Security Toolkit Selection${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     
-    while [[ $retry_count -lt $max_retries ]]; do
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log_message "INFO" "[DRY RUN] Would install: $package"
-            return 0
-        fi
+    # Show total available tools
+    local total_tools=$(get_total_security_tools)
+    if [[ $total_tools -gt 0 ]]; then
+        echo -e "${GREEN}${BOLD}📊 Security Arsenal Dashboard: $total_tools tools available${RESET}"
+    else
+        echo -e "${YELLOW}${BOLD}📊 Scanning security repository...${RESET}"
+    fi
+    echo
+    
+    for key in $(printf '%s\n' "${!CATEGORIES[@]}" | sort -n); do
+        local cat_info="${CATEGORIES[$key]}"
+        local cat_name=$(echo "$cat_info" | cut -d':' -f2)
         
-        log_message "DEBUG" "Installing $package (attempt $((retry_count + 1)))"
-        
-        # Install with timeout and error handling
-        if timeout "$INSTALL_TIMEOUT" pacman -S --noconfirm --needed "$package" &>/dev/null; then
-            log_message "SUCCESS" "Installed: $package"
-            return 0
-        else
-            ((retry_count++))
-            log_message "WARNING" "Installation failed for $package (attempt $retry_count)"
-            
-            if [[ $retry_count -lt $max_retries ]]; then
-                sleep 2
-            fi
-        fi
+        echo -e "  ${CYAN}$key${RESET}) $cat_name ${DIM}(analyzing...)${RESET}"
     done
     
-    log_message "ERROR" "Failed to install $package after $max_retries attempts"
-    return 1
-}
-
-# =============================================================================
-# USER INTERFACE AND MENUS
-# =============================================================================
-
-# Enhanced interactive menu system
-show_main_menu() {
-    echo -e "${CYAN}${BOLD}KYGOX Security Toolkit Selection${RESET}"
-    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo
-    echo -e "${GREEN}${BOLD}Package Categories:${RESET}"
-    echo -e "  ${CYAN}1${RESET}) ${ICON_TOOLS} Information Gathering     ${DIM}Network reconnaissance and OSINT${RESET}"
-    echo -e "  ${CYAN}2${RESET}) ${ICON_SHIELD} Vulnerability Analysis   ${DIM}Security assessment tools${RESET}"
-    echo -e "  ${CYAN}3${RESET}) ${ICON_ROCKET} Web Application Analysis ${DIM}Web security testing${RESET}"
-    echo -e "  ${CYAN}4${RESET}) ${ICON_TOOLS} Password Attacks          ${DIM}Password cracking and analysis${RESET}"
-    echo -e "  ${CYAN}5${RESET}) ${ICON_SHIELD} Wireless Attacks          ${DIM}WiFi and wireless security${RESET}"
-    echo -e "  ${CYAN}6${RESET}) ${ICON_ROCKET} Exploitation Tools        ${DIM}Penetration testing frameworks${RESET}"
     echo
     echo -e "${YELLOW}${BOLD}Special Options:${RESET}"
-    echo -e "  ${CYAN}7${RESET}) ${ICON_TOOLS} Custom Package Selection  ${DIM}Choose specific tools${RESET}"
-    echo -e "  ${CYAN}8${RESET}) ${ICON_SHIELD} Complete BlackArch Suite ${DIM}Install all available tools${RESET}"
-    echo -e "  ${CYAN}9${RESET}) ${ICON_ROCKET} System Information        ${DIM}View detailed system info${RESET}"
-    echo
-    echo -e "${RED}${BOLD}Management:${RESET}"
-    echo -e "  ${CYAN}u${RESET}) Update package database    ${CYAN}c${RESET}) Cleanup system"
-    echo -e "  ${CYAN}q${RESET}) Quit                       ${CYAN}h${RESET}) Help"
+    echo -e "  ${CYAN}9${RESET}) Custom Package Selection"
+    echo -e "  ${CYAN}0${RESET}) System Information & Repository Status"
+    echo -e "  ${CYAN}q${RESET}) Quit"
     echo
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
 }
 
-# Handle menu selections
+show_category_analysis() {
+    local key="$1"
+    
+    if [[ ! "${CATEGORIES[$key]:-}" ]]; then
+        log_message "ERROR" "Invalid category: $key"
+        return 1
+    fi
+    
+    local cat_info="${CATEGORIES[$key]}"
+    local cat_name=$(echo "$cat_info" | cut -d':' -f2)
+    
+    echo -e "${CYAN}${BOLD}Analyzing $cat_name Tools...${RESET}"
+    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    
+    # Show scanning animation
+    echo -ne "${YELLOW}Scanning repository... ${RESET}"
+    for i in {1..5}; do
+        echo -ne "⣾⣽⣻⢿⡿⣟⣯⣷"
+        sleep 0.2
+        echo -ne "\b\b\b\b\b\b\b\b"
+    done
+    echo -e "${GREEN}✓${RESET}"
+    
+    # Get analysis results
+    local analysis_result
+    analysis_result=$(analyze_category_tools "$key")
+    
+    local tool_count=0
+    local available_tools=()
+    
+    # Parse analysis results
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^CATEGORY_COUNT:([0-9]+)$ ]]; then
+            tool_count=${BASH_REMATCH[1]}
+        elif [[ "$line" =~ ^PACKAGE:(.+)$ ]]; then
+            available_tools+=("${BASH_REMATCH[1]}")
+        fi
+    done <<< "$analysis_result"
+    
+    echo
+    echo -e "${GREEN}${BOLD}Found $tool_count tools in $cat_name category${RESET}"
+    
+    if [[ ${#available_tools[@]} -gt 0 ]]; then
+        echo
+        echo -e "${CYAN}Available tools (showing first 20):${RESET}"
+        local count=0
+        for tool in "${available_tools[@]}"; do
+            if [[ $count -ge 20 ]]; then
+                echo -e "  ${DIM}... and $((tool_count - 20)) more tools${RESET}"
+                break
+            fi
+            
+            # Check installation status
+            local status
+            status=$(check_package_availability "$tool")
+            case "$status" in
+                "installed") echo -e "  ${GREEN}✓${RESET} $tool ${DIM}(installed)${RESET}" ;;
+                "available") echo -e "  ${CYAN}•${RESET} $tool" ;;
+                "unavailable") echo -e "  ${RED}✗${RESET} $tool ${DIM}(unavailable)${RESET}" ;;
+            esac
+            ((count++))
+        done
+    else
+        echo -e "${YELLOW}No tools found matching this category${RESET}"
+    fi
+    
+    echo
+}
+
 handle_menu_selection() {
     local choice="$1"
     
     case "$choice" in
-        1) install_category "INFORMATION_GATHERING" ;;
-        2) install_category "VULNERABILITY_ANALYSIS" ;;
-        3) install_category "WEB_APPLICATION_ANALYSIS" ;;
-        4) install_category "PASSWORD_ATTACKS" ;;
-        5) install_category "WIRELESS_ATTACKS" ;;
-        6) install_category "EXPLOITATION_TOOLS" ;;
-        7) custom_package_selection ;;
-        8) install_complete_suite ;;
-        9) show_detailed_system_info ;;
-        u|U) update_package_database ;;
-        c|C) cleanup_system ;;
-        h|H) show_help ;;
-        q|Q) exit 0 ;;
-        *) 
+        [1-8])
+            show_category_analysis "$choice"
+            echo
+            read -p "Proceed with installation of this category? [Y/n]: " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                install_category_dynamic "$choice"
+            fi
+            ;;
+        9)
+            custom_package_selection
+            ;;
+        0)
+            show_system_info
+            ;;
+        q|Q)
+            exit 0
+            ;;
+        *)
             log_message "ERROR" "Invalid selection: $choice"
             return 1
             ;;
     esac
 }
 
-# Install packages from a specific category
-install_category() {
-    local category="$1"
-    local var_name="CATEGORY_$category"
+install_category_dynamic() {
+    local key="$1"
     
-    # Use indirect variable expansion to get package list
-    local -n packages_ref="$var_name"
-    local packages=("${packages_ref[@]}")
-    
-    if [[ ${#packages[@]} -eq 0 ]]; then
-        log_message "WARNING" "No packages found for category: $category"
+    if [[ ! "${CATEGORIES[$key]:-}" ]]; then
+        log_message "ERROR" "Invalid category: $key"
         return 1
     fi
     
-    echo -e "${CYAN}${BOLD}Installing ${category//[_]/ } Tools${RESET}"
-    echo -e "${WHITE}Packages: ${packages[*]}${RESET}"
-    echo
+    local cat_info="${CATEGORIES[$key]}"
+    local cat_name=$(echo "$cat_info" | cut -d':' -f2)
+    local keywords=$(echo "$cat_info" | cut -d':' -f3)
     
-    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
-        read -p "Proceed with installation? [Y/n]: " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Nn]$ ]]; then
-            log_message "INFO" "Installation cancelled"
-            return 0
+    echo -e "${CYAN}${BOLD}Installing $cat_name Tools${RESET}"
+    
+    # Get dynamic package list
+    local analysis_result
+    analysis_result=$(analyze_category_tools "$key")
+    
+    local packages=()
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^PACKAGE:(.+)$ ]]; then
+            packages+=("${BASH_REMATCH[1]}")
         fi
+    done <<< "$analysis_result"
+    
+    if [[ ${#packages[@]} -eq 0 ]]; then
+        log_message "WARNING" "No packages found for $cat_name"
+        return 1
     fi
     
     install_packages "${packages[@]}"
 }
 
-# Custom package selection interface
 custom_package_selection() {
     echo -e "${CYAN}${BOLD}Custom Package Selection${RESET}"
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
@@ -855,7 +932,6 @@ custom_package_selection() {
     read -p "Packages to install: " -r packages_input
     
     if [[ -n "$packages_input" ]]; then
-        # Convert input to array
         read -ra selected_packages <<< "$packages_input"
         
         echo -e "\n${CYAN}Selected packages:${RESET}"
@@ -863,9 +939,9 @@ custom_package_selection() {
             local status
             status=$(check_package_availability "$package")
             case "$status" in
-                "installed") echo -e "  ${GREEN}${ICON_SUCCESS}${RESET} $package (already installed)" ;;
-                "available") echo -e "  ${CYAN}${ICON_INFO}${RESET} $package (available)" ;;
-                "unavailable") echo -e "  ${RED}${ICON_ERROR}${RESET} $package (not found)" ;;
+                "installed") echo -e "  ${GREEN}✓${RESET} $package (already installed)" ;;
+                "available") echo -e "  ${CYAN}ℹ${RESET} $package (available)" ;;
+                "unavailable") echo -e "  ${RED}✗${RESET} $package (not found)" ;;
             esac
         done
         
@@ -880,153 +956,51 @@ custom_package_selection() {
     fi
 }
 
-# Install complete BlackArch suite with warnings
-install_complete_suite() {
-    echo -e "${RED}${BOLD}WARNING: Complete BlackArch Suite Installation${RESET}"
-    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo
-    echo -e "${YELLOW}This will install ALL available BlackArch packages:${RESET}"
-    echo -e "  ${RED}•${RESET} 2000+ security tools and utilities"
-    echo -e "  ${RED}•${RESET} Requires 15+ GB of disk space"
-    echo -e "  ${RED}•${RESET} Installation may take several hours"
-    echo -e "  ${RED}•${RESET} May cause system conflicts"
-    echo
-    echo -e "${RED}${BOLD}This is NOT recommended for production systems!${RESET}"
-    echo
-    
-    read -p "Type 'INSTALL ALL TOOLS' to proceed: " -r confirmation
-    
-    if [[ "$confirmation" == "INSTALL ALL TOOLS" ]]; then
-        log_message "INFO" "Installing complete BlackArch suite..."
-        
-        # Get all available packages
-        local all_packages
-        all_packages=$(pacman -Slq blackarch)
-        
-        if [[ -n "$all_packages" ]]; then
-            # Convert to array
-            readarray -t package_array <<< "$all_packages"
-            install_packages "${package_array[@]}"
-        else
-            log_message "ERROR" "Could not retrieve BlackArch package list"
-        fi
-    else
-        log_message "INFO" "Complete suite installation cancelled"
-    fi
-}
-
-# =============================================================================
-# SYSTEM INFORMATION AND UTILITIES
-# =============================================================================
-
-# Show detailed system information
-show_detailed_system_info() {
-    echo -e "${CYAN}${BOLD}Detailed System Information${RESET}"
+show_system_info() {
+    echo -e "${CYAN}${BOLD}System Information & Repository Status${RESET}"
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
     
-    # Hardware Information
     echo -e "${YELLOW}${BOLD}Hardware:${RESET}"
     echo -e "  CPU: $(cat /proc/cpuinfo | grep 'model name' | head -1 | cut -d':' -f2 | xargs)"
     echo -e "  Cores: $(nproc)"
-    echo -e "  Memory: $(free -h | grep '^Mem:' | awk '{print $2 " total, " $3 " used, " $7 " available"}')"
-    echo -e "  Storage: $(df -h / | tail -1 | awk '{print $2 " total, " $3 " used, " $4 " available (" $5 " used)"}')"
+    echo -e "  Memory: $(free -h | grep '^Mem:' | awk '{print $2 " total, " $3 " used"}')"
+    echo -e "  Storage: $(df -h / | tail -1 | awk '{print $2 " total, " $4 " available"}')"
     echo
     
-    # System Information
     echo -e "${YELLOW}${BOLD}System:${RESET}"
     echo -e "  Distribution: $(get_system_info)"
     echo -e "  Kernel: $(uname -r)"
     echo -e "  Architecture: $(uname -m)"
     echo -e "  Uptime: $(uptime -p)"
-    echo -e "  Load Average: $(uptime | awk -F'load average:' '{print $2}')"
     echo
     
-    # Package Information
-    echo -e "${YELLOW}${BOLD}Package Management:${RESET}"
-    echo -e "  Total Packages: $(pacman -Q | wc -l)"
-    if pacman -Sl blackarch &>/dev/null; then
-        echo -e "  BlackArch Available: $(pacman -Sl blackarch | wc -l)"
-        echo -e "  BlackArch Installed: $(pacman -Q | grep -c blackarch || echo "0")"
+    echo -e "${YELLOW}${BOLD}Repository Status:${RESET}"
+    echo -e "  Total Installed Packages: $(pacman -Q | wc -l)"
+    
+    local total_security_tools=$(get_total_security_tools)
+    if [[ $total_security_tools -gt 0 ]]; then
+        echo -e "  Security Tools Available: ${GREEN}$total_security_tools${RESET}"
+        echo -e "  Security Tools Installed: $(pacman -Q | grep -v '^lib' | grep -E '(scan|hack|test|security|audit|recon|enum|exploit|crack|forensic|sniff|proxy|brute)' | wc -l || echo "0")"
     else
-        echo -e "  BlackArch: Not configured"
+        echo -e "  Security Repository: ${RED}Not configured${RESET}"
     fi
     echo
     
-    # Network Information
-    echo -e "${YELLOW}${BOLD}Network:${RESET}"
-    echo -e "  Hostname: $(hostname)"
-    echo -e "  IP Address: $(ip route get 1.1.1.1 | grep -oP 'src \K\S+' 2>/dev/null || echo "Not available")"
-    echo -e "  DNS Servers: $(grep '^nameserver' /etc/resolv.conf | awk '{print $2}' | tr '\n' ' ')"
-    echo
-    
-    # KYGOX Information
-    echo -e "${YELLOW}${BOLD}KYGOX Status:${RESET}"
+    echo -e "${YELLOW}${BOLD}kygoX Status:${RESET}"
     echo -e "  Version: $SCRIPT_VERSION ($SCRIPT_CODENAME)"
     echo -e "  Cache Directory: $CACHE_DIR"
     echo -e "  Log Directory: $LOG_DIR"
-    if [[ -f "$CACHE_DIR/blackarch_packages.json" ]]; then
-        local db_timestamp
-        db_timestamp=$(python3 -c "import json; print(json.load(open('$CACHE_DIR/blackarch_packages.json'))['metadata']['timestamp'])" 2>/dev/null || echo "0")
-        echo -e "  Package DB: $(date -d "@$db_timestamp" 2>/dev/null || echo "Unknown")"
-    else
-        echo -e "  Package DB: Not available"
-    fi
     echo
-}
-
-# System cleanup utilities
-cleanup_system() {
-    echo -e "${CYAN}${BOLD}System Cleanup${RESET}"
-    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
-    echo
-    
-    log_message "INFO" "Starting system cleanup..."
-    
-    # Clean package cache
-    log_message "INFO" "Cleaning package cache..."
-    pacman -Scc --noconfirm
-    
-    # Remove orphaned packages
-    local orphans
-    orphans=$(pacman -Qtdq 2>/dev/null || true)
-    if [[ -n "$orphans" ]]; then
-        log_message "INFO" "Removing orphaned packages..."
-        pacman -Rns --noconfirm $orphans
-    else
-        log_message "INFO" "No orphaned packages found"
-    fi
-    
-    # Clean KYGOX cache
-    if [[ -d "$CACHE_DIR" ]]; then
-        log_message "INFO" "Cleaning KYGOX cache..."
-        find "$CACHE_DIR" -type f -name "*.tmp" -delete 2>/dev/null || true
-        find "$CACHE_DIR" -type f -mtime +7 -delete 2>/dev/null || true
-    fi
-    
-    # Clean old logs
-    if [[ -d "$LOG_DIR" ]]; then
-        log_message "INFO" "Cleaning old logs..."
-        find "$LOG_DIR" -type f -name "*.log" -mtime +30 -delete 2>/dev/null || true
-    fi
-    
-    log_message "SUCCESS" "System cleanup completed"
 }
 
 # =============================================================================
-# HELP AND DOCUMENTATION
+# COMMAND LINE ARGUMENT PARSING
 # =============================================================================
 
 show_help() {
     cat << 'HELP_TEXT'
-
-KYGOX Enhanced Security Toolkit v0.2.0 "Phoenix"
-==================================================
-
-DESCRIPTION:
-    KYGOX is an advanced security testing suite for Arch Linux systems that 
-    provides seamless integration with BlackArch repositories, intelligent 
-    package management, and comprehensive penetration testing tools.
+kygoX v0.2.0 Phoenix - Arch Linux Security Testing Suite
 
 USAGE:
     sudo ./kygox [OPTIONS]
@@ -1036,16 +1010,20 @@ OPTIONS:
     -v, --verbose           Enable verbose output
     -n, --dry-run          Show what would be installed without installing
     -f, --force            Force installation of packages
-    -j, --jobs N           Set number of parallel installation jobs
-    -q, --quiet            Disable interactive prompts
-    --no-cleanup           Skip automatic cleanup after installation
-    --update-db            Update package database and exit
+    --no-auto-fix          Disable automatic error fixing
+    --update-db            Update security repository database and exit
 
 EXAMPLES:
-    sudo ./kygox                    # Interactive mode
+    sudo ./kygox                    # Interactive mode with dynamic analysis
     sudo ./kygox -v                 # Verbose interactive mode
     sudo ./kygox --dry-run          # Preview installations
-    sudo ./kygox -j 4 -q            # 4 parallel jobs, no prompts
+
+FEATURES:
+    • Dynamic tool counting and analysis
+    • Real-time repository scanning
+    • Category-specific tool discovery
+    • Intelligent error handling and recovery
+    • Comprehensive installation monitoring
 
 CATEGORIES:
     1. Information Gathering    - Network reconnaissance and OSINT tools
@@ -1054,32 +1032,14 @@ CATEGORIES:
     4. Password Attacks         - Password cracking and analysis tools
     5. Wireless Attacks         - WiFi and wireless security tools
     6. Exploitation Tools       - Penetration testing frameworks
-
-FEATURES:
-    • Real-time BlackArch repository scraping
-    • Intelligent package availability checking
-    • Parallel installation processing
-    • Comprehensive error handling and recovery
-    • Detailed system information and monitoring
-    • Advanced cleanup and maintenance utilities
-
-REQUIREMENTS:
-    • Arch Linux or Arch-based distribution
-    • Root privileges (sudo)
-    • Internet connection
-    • 5GB+ free disk space
+    7. Digital Forensics        - Forensics and data recovery tools
+    8. Sniffing & Spoofing      - Network monitoring and manipulation
 
 SUPPORT:
-    • Repository: https://github.com/0xb0rn3/kygox
-    • Issues: https://github.com/0xb0rn3/kygox/issues
-    • Author: 0xb0rn3 (IG: theehiv3, X: 0xbv1)
-
+    Repository: https://github.com/0xb0rn3/kygox
+    Author: 0xb0rn3 (IG: theehiv3, X: 0xbv1)
 HELP_TEXT
 }
-
-# =============================================================================
-# COMMAND LINE ARGUMENT PARSING
-# =============================================================================
 
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
@@ -1100,25 +1060,14 @@ parse_arguments() {
                 FORCE_INSTALL=true
                 shift
                 ;;
-            -j|--jobs)
-                if [[ -n "$2" && "$2" =~ ^[0-9]+$ ]]; then
-                    PARALLEL_JOBS="$2"
-                    shift 2
-                else
-                    error_exit "Invalid jobs value: $2"
-                fi
-                ;;
-            -q|--quiet)
-                INTERACTIVE_MODE=false
-                shift
-                ;;
-            --no-cleanup)
-                CLEANUP_AFTER=false
+            --no-auto-fix)
+                AUTO_FIX=false
                 shift
                 ;;
             --update-db)
-                setup_blackarch_repo
-                update_package_database
+                setup_security_repo
+                get_total_security_tools
+                echo "Repository updated. Total tools available: $TOTAL_AVAILABLE_TOOLS"
                 exit 0
                 ;;
             *)
@@ -1129,7 +1078,7 @@ parse_arguments() {
 }
 
 # =============================================================================
-# CLEANUP AND ERROR HANDLING
+# CLEANUP AND MAIN EXECUTION
 # =============================================================================
 
 cleanup_on_exit() {
@@ -1141,64 +1090,56 @@ cleanup_on_exit() {
     jobs -p 2>/dev/null | xargs -r kill 2>/dev/null || true
     
     # Clean temporary files
-    rm -f "$CACHE_DIR"/*.tmp 2>/dev/null || true
+    rm -rf "$CACHE_DIR" 2>/dev/null || true
     
-    # System cleanup if enabled
-    if [[ "$CLEANUP_AFTER" == "true" && "$exit_code" -eq 0 ]]; then
-        log_message "INFO" "Performing automatic cleanup..."
-        pacman -Scc --noconfirm &>/dev/null || true
-    fi
-    
-    log_message "INFO" "KYGOX session ended"
+    log_message "INFO" "kygoX session ended"
     exit "$exit_code"
 }
-
-# Signal handlers
-trap 'cleanup_on_exit 130' INT TERM
-trap 'cleanup_on_exit $?' EXIT
-
-# =============================================================================
-# MAIN EXECUTION FUNCTION
-# =============================================================================
 
 main() {
     # Parse command line arguments
     parse_arguments "$@"
     
-    # Display banner
+    # Create cache directory
+    mkdir -p "$CACHE_DIR"
+    
+    # Display banner with tool count
     display_banner
     
     # System validation and setup
     validate_system
     install_dependencies
-    setup_blackarch_repo
-    update_package_database
+    setup_security_repo
     
-    # Show initial status
+    # Create analysis tools
+    create_tool_analyzer
+    create_error_handler
+    
+    # Show status
     if [[ "$DRY_RUN" == "true" ]]; then
         echo -e "${YELLOW}${BOLD}DRY RUN MODE - No packages will be installed${RESET}"
         echo
     fi
     
     # Main interactive loop
-    if [[ "$INTERACTIVE_MODE" == "true" ]]; then
-        while true; do
-            show_main_menu
-            read -p "Select option: " -r choice
-            echo
-            
-            if ! handle_menu_selection "$choice"; then
-                echo -e "${RED}Invalid selection. Please try again.${RESET}"
-                sleep 1
-            fi
-            
-            echo
-        done
-    else
-        log_message "INFO" "Non-interactive mode - use menu options as command line arguments"
+    while true; do
         show_main_menu
-    fi
+        read -p "Select option: " -r choice
+        echo
+        
+        if ! handle_menu_selection "$choice"; then
+            echo -e "${RED}Invalid selection. Please try again.${RESET}"
+            sleep 1
+        fi
+        
+        echo
+        read -p "Press Enter to continue..." -r
+    done
 }
+
+# Signal handlers
+trap 'cleanup_on_exit 130' INT TERM
+trap 'cleanup_on_exit $?' EXIT
 
 # Execute main function with all arguments
 main "$@"
