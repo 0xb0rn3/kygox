@@ -4,7 +4,7 @@
 # Version 0.2.0 Phoenix
 # Author: 0xb0rn3 | Contact: IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
 #
-# Advanced security toolkit installer with dynamic repository analysis
+# Advanced security toolkit installer with integrated repository management
 #
 
 set -euo pipefail
@@ -23,8 +23,20 @@ readonly ORIGINAL_USER="${SUDO_USER:-$(whoami)}"
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly LOG_DIR="$HOME/.kygox"
 readonly CACHE_DIR="/tmp/kygox_cache"
-readonly SECURITY_REPO_URL="https://blackarch.org/strap.sh"
-readonly SECURITY_REPO_NAME="pentesting"  # Obfuscated name
+
+# Security Repository Configuration (Obfuscated)
+readonly SECURITY_REPO_NAME="pentesting"
+readonly SECURITY_REPO_DISPLAY="Security Arsenal"
+readonly SECURITY_MIRROR_FILE="arsenal-mirrorlist"
+readonly SECURITY_KEYRING_NAME="arsenal-keyring"
+readonly SECURITY_OFFICIALS_PKG="arsenal-officials"
+
+# Repository URLs (obfuscated variable names)
+readonly ARSENAL_BASE_URL="https://blackarch.org"
+readonly ARSENAL_KEYRING_URL="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.zst"
+readonly ARSENAL_KEYRING_SIG_URL="https://www.blackarch.org/keyring/blackarch-keyring.pkg.tar.zst.sig"
+readonly ARSENAL_MIRROR_URL="https://blackarch.org/blackarch-mirrorlist"
+readonly ARSENAL_GPG_KEY="4345771566D76038C7FEB43863EC0ADBEA87E4E3"
 
 # Colors and UI
 readonly RED='\033[0;31m'
@@ -44,6 +56,7 @@ declare -g DRY_RUN=false
 declare -g FORCE_INSTALL=false
 declare -g AUTO_FIX=true
 declare -g TOTAL_AVAILABLE_TOOLS=0
+declare -g OLD_UMASK=""
 
 # Package Categories with keywords for dynamic detection
 declare -A CATEGORIES=(
@@ -153,6 +166,298 @@ get_python_version() {
 }
 
 # =============================================================================
+# INTEGRATED SECURITY REPOSITORY SETUP (Obfuscated)
+# =============================================================================
+
+# Set secure umask
+set_secure_umask() {
+    OLD_UMASK=$(umask)
+    umask 0022
+}
+
+# Reset umask
+reset_secure_umask() {
+    if [[ -n "$OLD_UMASK" ]]; then
+        umask "$OLD_UMASK"
+    fi
+}
+
+# Check internet connectivity to security repository
+check_security_repo_connectivity() {
+    log_message "DEBUG" "Testing connectivity to security repository..."
+    
+    local tool='curl'
+    local tool_opts='-s --connect-timeout 8'
+    
+    if ! $tool $tool_opts "$ARSENAL_BASE_URL/" > /dev/null 2>&1; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# Add necessary GPG options for security repository
+configure_gpg_for_security_repo() {
+    log_message "DEBUG" "Configuring GPG for security repository..."
+    
+    local gpg_conf='/etc/pacman.d/gnupg/gpg.conf'
+    
+    # Add SHA-1 support for compatibility
+    if [[ -f "$gpg_conf" ]] && ! grep -q 'allow-weak-key-signatures' "$gpg_conf"; then
+        echo 'allow-weak-key-signatures' >> "$gpg_conf"
+        log_message "DEBUG" "Added weak key signature support to GPG"
+    fi
+    
+    return 0
+}
+
+# Create temporary directory for security repository setup
+make_secure_tmp_dir() {
+    local tmp_dir
+    tmp_dir=$(mktemp -d /tmp/kygox_security_setup.XXXXXXXX)
+    
+    if [[ ! -d "$tmp_dir" ]]; then
+        error_exit "Could not create temporary directory"
+    fi
+    
+    # Set cleanup trap
+    trap "rm -rf '$tmp_dir'" EXIT
+    
+    cd "$tmp_dir" || error_exit "Could not enter temporary directory"
+    
+    log_message "DEBUG" "Created temporary directory: $tmp_dir"
+}
+
+# Download security repository keyring
+fetch_security_keyring() {
+    log_message "DEBUG" "Downloading security repository keyring..."
+    
+    # Download keyring package
+    if ! curl -s -O "$ARSENAL_KEYRING_URL"; then
+        error_exit "Failed to download security keyring package"
+    fi
+    
+    # Download signature
+    if ! curl -s -O "$ARSENAL_KEYRING_SIG_URL"; then
+        error_exit "Failed to download security keyring signature"
+    fi
+    
+    log_message "DEBUG" "Security keyring downloaded successfully"
+}
+
+# Verify security repository keyring signature
+verify_security_keyring() {
+    log_message "DEBUG" "Verifying security repository keyring signature..."
+    
+    # Try multiple keyservers
+    local keyservers=(
+        "keyserver.ubuntu.com"
+        "hkps://keyserver.ubuntu.com:443"
+        "hkp://pgp.mit.edu:80"
+    )
+    
+    local key_imported=false
+    
+    for keyserver in "${keyservers[@]}"; do
+        if gpg --keyserver "$keyserver" --recv-keys "$ARSENAL_GPG_KEY" > /dev/null 2>&1; then
+            key_imported=true
+            break
+        fi
+    done
+    
+    if [[ "$key_imported" != "true" ]]; then
+        log_message "WARNING" "Could not import security repository key from keyservers"
+        return 1
+    fi
+    
+    # Verify signature
+    if ! gpg --keyserver-options no-auto-key-retrieve \
+        --with-fingerprint *.pkg.tar.zst.sig > /dev/null 2>&1; then
+        log_message "WARNING" "Security keyring signature verification failed"
+        return 1
+    fi
+    
+    log_message "DEBUG" "Security keyring signature verified"
+    return 0
+}
+
+# Clean up signature files
+cleanup_signature_files() {
+    rm -f *.pkg.tar.zst.sig 2>/dev/null || true
+}
+
+# Initialize pacman GPG if needed
+initialize_pacman_gpg() {
+    log_message "DEBUG" "Initializing pacman GPG..."
+    
+    if ! pacman-key --init > /dev/null 2>&1; then
+        log_message "WARNING" "Pacman GPG initialization failed"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Install security repository keyring
+install_security_keyring() {
+    log_message "DEBUG" "Installing security repository keyring..."
+    
+    # Find keyring package
+    local keyring_pkg
+    keyring_pkg=$(find . -name "*.pkg.tar.zst" -type f | head -1)
+    
+    if [[ -z "$keyring_pkg" ]]; then
+        error_exit "Security keyring package not found"
+    fi
+    
+    # Install keyring
+    if ! pacman --config /dev/null --noconfirm -U "$keyring_pkg" > /dev/null 2>&1; then
+        error_exit "Security keyring installation failed"
+    fi
+    
+    # Populate keyring
+    pacman-key --populate > /dev/null 2>&1 || true
+    
+    log_message "DEBUG" "Security keyring installed successfully"
+}
+
+# Download security repository mirror list
+fetch_security_mirrors() {
+    log_message "DEBUG" "Fetching security repository mirror list..."
+    
+    local mirror_path="/etc/pacman.d"
+    local mirror_file="$mirror_path/$SECURITY_MIRROR_FILE"
+    
+    if ! curl -s "$ARSENAL_MIRROR_URL" -o "$mirror_file"; then
+        log_message "WARNING" "Could not fetch mirror list, using default configuration"
+        
+        # Create basic mirror configuration
+        cat > "$mirror_file" << EOF
+# Security Arsenal Mirror List
+# Generated by kygoX v$SCRIPT_VERSION
+
+Server = https://mirror.yandex.ru/mirrors/blackarch/\$repo/os/\$arch
+Server = https://ftp.halifax.rwth-aachen.de/blackarch/\$repo/os/\$arch
+Server = https://blackarch.mirror.garr.it/\$repo/os/\$arch
+Server = https://mirror.23m.com/blackarch/\$repo/os/\$arch
+EOF
+        
+        log_message "DEBUG" "Created default security repository mirror configuration"
+    else
+        log_message "DEBUG" "Security repository mirror list updated"
+    fi
+}
+
+# Update pacman.conf with security repository
+update_pacman_conf_for_security() {
+    log_message "DEBUG" "Updating pacman configuration for security repository..."
+    
+    # Remove any existing security repository entries
+    sed -i "/${SECURITY_REPO_NAME}/{N;d}" /etc/pacman.conf 2>/dev/null || true
+    
+    # Add security repository configuration
+    cat >> "/etc/pacman.conf" << EOF
+
+# Security Arsenal Repository - Managed by kygoX
+[$SECURITY_REPO_NAME]
+Include = /etc/pacman.d/$SECURITY_MIRROR_FILE
+EOF
+    
+    log_message "DEBUG" "Pacman configuration updated for security repository"
+}
+
+# Synchronize package databases
+synchronize_security_databases() {
+    log_message "DEBUG" "Synchronizing security repository databases..."
+    
+    if pacman -Sy > /dev/null 2>&1; then
+        log_message "DEBUG" "Security repository databases synchronized"
+        return 0
+    else
+        log_message "WARNING" "Security repository database synchronization failed"
+        return 1
+    fi
+}
+
+# Install security repository meta-package (optional)
+install_security_meta_package() {
+    log_message "DEBUG" "Installing security repository meta-package..."
+    
+    # Try to install officials meta-package if available
+    if pacman -S --noconfirm --needed "$SECURITY_REPO_NAME-officials" > /dev/null 2>&1; then
+        log_message "DEBUG" "Security repository meta-package installed"
+    else
+        log_message "DEBUG" "Security repository meta-package not available or already installed"
+    fi
+}
+
+# Main security repository setup function
+setup_security_repository() {
+    log_message "INFO" "Setting up security repository infrastructure..."
+    
+    # Check if already configured
+    if grep -q "\[$SECURITY_REPO_NAME\]" /etc/pacman.conf 2>/dev/null; then
+        log_message "INFO" "Security repository already configured"
+        
+        # Update total tools count
+        get_total_security_tools > /dev/null
+        return 0
+    fi
+    
+    # Check internet connectivity
+    if ! check_security_repo_connectivity; then
+        error_exit "Cannot connect to security repository. Check internet connection."
+    fi
+    
+    # Set secure permissions
+    set_secure_umask
+    
+    # Create temporary workspace
+    make_secure_tmp_dir
+    
+    # Configure GPG
+    configure_gpg_for_security_repo
+    
+    # Download and verify keyring
+    fetch_security_keyring
+    
+    # Verify keyring (optional, continue on failure)
+    verify_security_keyring || log_message "WARNING" "Keyring verification skipped"
+    
+    # Clean up signature files
+    cleanup_signature_files
+    
+    # Initialize pacman GPG
+    initialize_pacman_gpg
+    
+    # Install keyring
+    install_security_keyring
+    
+    # Configure mirrors
+    fetch_security_mirrors
+    
+    # Update pacman configuration
+    update_pacman_conf_for_security
+    
+    # Synchronize databases
+    if ! synchronize_security_databases; then
+        error_exit "Failed to synchronize security repository databases"
+    fi
+    
+    # Install meta-package (optional)
+    install_security_meta_package
+    
+    # Reset permissions
+    reset_secure_umask
+    
+    # Update tool count
+    get_total_security_tools > /dev/null
+    
+    log_message "SUCCESS" "Security repository configured successfully"
+    log_message "INFO" "$SECURITY_REPO_DISPLAY is ready for use"
+}
+
+# =============================================================================
 # DYNAMIC TOOL ANALYSIS SYSTEM
 # =============================================================================
 
@@ -162,8 +467,8 @@ get_total_security_tools() {
         log_message "DEBUG" "Calculating total available security tools..."
         
         # Count packages from security repository
-        if pacman -Sl $SECURITY_REPO_NAME &>/dev/null; then
-            TOTAL_AVAILABLE_TOOLS=$(pacman -Sl $SECURITY_REPO_NAME 2>/dev/null | wc -l)
+        if pacman -Sl "$SECURITY_REPO_NAME" &>/dev/null; then
+            TOTAL_AVAILABLE_TOOLS=$(pacman -Sl "$SECURITY_REPO_NAME" 2>/dev/null | wc -l)
         else
             TOTAL_AVAILABLE_TOOLS=0
         fi
@@ -405,48 +710,6 @@ install_dependencies() {
     fi
     
     log_message "SUCCESS" "Dependencies installed successfully"
-}
-
-# =============================================================================
-# SECURITY REPOSITORY MANAGEMENT (Obfuscated)
-# =============================================================================
-
-setup_security_repo() {
-    log_message "INFO" "Setting up security tools repository..."
-    
-    # Check if already configured
-    if grep -q "\[$SECURITY_REPO_NAME\]" /etc/pacman.conf; then
-        log_message "INFO" "Security repository already configured"
-        return 0
-    fi
-    
-    # Download and execute setup script
-    local temp_script="/tmp/security-strap.sh"
-    
-    if ! curl -fsSL "$SECURITY_REPO_URL" -o "$temp_script" --connect-timeout 30; then
-        error_exit "Failed to download security repository setup script"
-    fi
-    
-    # Execute with error handling
-    if ! bash "$temp_script" &>/dev/null; then
-        rm -f "$temp_script"
-        error_exit "Failed to execute security repository setup script"
-    fi
-    
-    # Obfuscate repository name in pacman.conf
-    if grep -q "\[blackarch\]" /etc/pacman.conf; then
-        sed -i "s/\[blackarch\]/[$SECURITY_REPO_NAME]/g" /etc/pacman.conf
-        sed -i "s/blackarch/$SECURITY_REPO_NAME/g" /etc/pacman.conf
-    fi
-    
-    rm -f "$temp_script"
-    
-    # Update package database
-    if ! pacman -Sy --noconfirm; then
-        error_exit "Failed to update package database after security repository setup"
-    fi
-    
-    log_message "SUCCESS" "Security repository configured successfully"
 }
 
 # Check package availability
@@ -1024,6 +1287,7 @@ FEATURES:
     • Category-specific tool discovery
     • Intelligent error handling and recovery
     • Comprehensive installation monitoring
+    • Integrated security repository management
 
 CATEGORIES:
     1. Information Gathering    - Network reconnaissance and OSINT tools
@@ -1065,7 +1329,7 @@ parse_arguments() {
                 shift
                 ;;
             --update-db)
-                setup_security_repo
+                setup_security_repository
                 get_total_security_tools
                 echo "Repository updated. Total tools available: $TOTAL_AVAILABLE_TOOLS"
                 exit 0
@@ -1085,6 +1349,9 @@ cleanup_on_exit() {
     local exit_code="${1:-0}"
     
     log_message "INFO" "Performing cleanup operations..."
+    
+    # Reset umask if needed
+    reset_secure_umask
     
     # Kill any background processes
     jobs -p 2>/dev/null | xargs -r kill 2>/dev/null || true
@@ -1109,7 +1376,7 @@ main() {
     # System validation and setup
     validate_system
     install_dependencies
-    setup_security_repo
+    setup_security_repository
     
     # Create analysis tools
     create_tool_analyzer
