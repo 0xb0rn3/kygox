@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-#
-# kygoX - Arch Linux Security Arsenal Manager
-# Version 1.0.0 "Phantom"
-# Author: 0xb0rn3 | Contact: IG: theehiv3 | X: 0xbv1 | Email: q4n0@proton.me
-#
-# Advanced BlackArch integration with intelligent tool management
-#
 
 set -euo pipefail
 
-# =============================================================================
 # CONFIGURATION
-# =============================================================================
-
 readonly SCRIPT_VERSION="1.0.0"
 readonly SCRIPT_CODENAME="Phantom"
 readonly AUTHOR="0xb0rn3"
@@ -69,10 +59,6 @@ declare -A CATEGORIES=(
     ["10"]="social-engineering:Social Engineering:blackarch-social,blackarch-voip"
 )
 
-# =============================================================================
-# CORE UTILITY FUNCTIONS
-# =============================================================================
-
 log_message() {
     local level="$1"
     local message="$2"
@@ -99,15 +85,15 @@ print_banner() {
     cat << 'EOF'
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║                                                                          ║
-║  ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                             ║
-║  ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                             ║
-║  █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                              ║
-║  ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                              ║
-║  ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                             ║
-║  ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝                             ║
+║           ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                    ║
+║           ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                    ║
+║           █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                     ║
+║           ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                     ║
+║           ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                    ║
+║           ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝                    ║
 ║                                                                          ║
-║           kygoX - Arch Security Arsenal Manager                          ║
-║                    Version 1.0.0 Phantom                                 ║
+║              kygoX - Arch Security Arsenal Manager                       ║
+║                        Version 1.0.0 Phantom                             ║
 ║                  By 0xb0rn3 | IG: theehiv3 | X: 0xbv1                    ║
 ║                                                                          ║
 ╚══════════════════════════════════════════════════════════════════════════╝
@@ -142,10 +128,6 @@ get_python_version() {
         echo "Not installed"
     fi
 }
-
-# =============================================================================
-# BLACKARCH INTEGRATION
-# =============================================================================
 
 set_secure_umask() {
     OLD_UMASK=$(umask)
@@ -405,10 +387,6 @@ setup_blackarch_repository() {
     return 0
 }
 
-# =============================================================================
-# TOOL DISCOVERY AND MANAGEMENT
-# =============================================================================
-
 get_blackarch_tools_count() {
     if [[ $TOTAL_AVAILABLE_TOOLS -eq 0 ]]; then
         log_message "INFO" "Counting available BlackArch tools..."
@@ -512,10 +490,6 @@ analyze_category() {
     printf '%s\n' "${available_tools[@]}"
 }
 
-# =============================================================================
-# INSTALLATION ENGINE
-# =============================================================================
-
 install_single_package() {
     local package="$1"
     local max_retries=3
@@ -617,12 +591,8 @@ install_category() {
     fi
 }
 
-# =============================================================================
-# USER INTERFACE
-# =============================================================================
-
 show_main_menu() {
-    echo -e "${CYAN}${BOLD}[*] kygoX Elite Security Arsenal${RESET}"
+    echo -e "${CYAN}${BOLD}[*] kygoX Security Arsenal${RESET}"
     echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
     echo
     
@@ -764,10 +734,6 @@ install_all_tools() {
     echo -e "  • Failed: $failed"
 }
 
-# =============================================================================
-# STATE MANAGEMENT
-# =============================================================================
-
 init_state_management() {
     mkdir -p "$CONFIG_DIR" "$BACKUP_DIR" "$LOG_DIR"
     
@@ -819,10 +785,6 @@ with open("$STATE_FILE", "w") as f:
     json.dump(state, f, indent=2)
 PYTHON_SCRIPT
 }
-
-# =============================================================================
-# VALIDATION AND SETUP
-# =============================================================================
 
 validate_system() {
     echo -e "${CYAN}[*] Validating system requirements...${RESET}"
@@ -882,10 +844,6 @@ install_dependencies() {
     fi
 }
 
-# =============================================================================
-# CLEANUP AND MAINTENANCE
-# =============================================================================
-
 cleanup_on_exit() {
     local exit_code="${1:-0}"
     
@@ -920,10 +878,6 @@ fix_common_issues() {
     
     echo -e "${GREEN}[+] Common issues fixed${RESET}"
 }
-
-# =============================================================================
-# COMMAND LINE ARGUMENTS
-# =============================================================================
 
 show_help() {
     cat << 'HELP_TEXT'
@@ -1018,10 +972,6 @@ parse_arguments() {
         esac
     done
 }
-
-# =============================================================================
-# MAIN EXECUTION
-# =============================================================================
 
 main() {
     # Parse command line arguments
