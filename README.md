@@ -1541,7 +1541,6 @@ If kygox has enhanced your security workflow, please consider:
 
 **[⬆ Back to Top](#-kygox)**
 
-</div>
 
 <div align="center">
 
