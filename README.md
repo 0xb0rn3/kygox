@@ -1203,7 +1203,7 @@ For all the amazing security tools and contributions
 <details>
 <summary><b>🚀 v1.0.0 Phantom (Current)</b></summary>
 
-**Release Date:** 2024-01-15
+**Release Date:** 2025-10-21
 
 **Major Features:**
 - ✅ Complete rewrite with native BlackArch integration
