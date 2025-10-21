@@ -1546,12 +1546,6 @@ If kygox has enhanced your security workflow, please consider:
 <div align="center">
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  🔥 kygox v1.0.1 Nebula - Where Security Meets Cinema 🔥   │
-│  ⚡ Powered by BlackArch | Built for Hackers ⚡             │
-│  🎬 Now with Hollywood-Style Animations 🎬                  │
-└─────────────────────────────────────────────────────────────┘
-```
 
 [![Made with ❤️](https://img.shields.io/badge/Made%20with-❤️-red?style=for-the-badge)](https://github.com/0xb0rn3/kygox)
 [![Arch Linux](https://img.shields.io/badge/Powered%20by-Arch%20Linux-1793D1?style=for-the-badge&logo=arch-linux&logoColor=white)](https://archlinux.org/)
