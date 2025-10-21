@@ -74,11 +74,6 @@
 
 <div align="center">
 
-### 🎯 One-Line Deploy
-
-```bash
-curl -sL https://raw.githubusercontent.com/0xb0rn3/kygox/main/install.sh | sudo bash
-```
 
 ### 📥 Manual Installation
 
