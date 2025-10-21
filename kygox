@@ -3,8 +3,8 @@
 set -euo pipefail
 
 # CONFIGURATION
-readonly SCRIPT_VERSION="1.0.0"
-readonly SCRIPT_CODENAME="Phantom"
+readonly SCRIPT_VERSION="1.0.1"
+readonly SCRIPT_CODENAME="Nebula"
 readonly AUTHOR="0xb0rn3"
 readonly REPO_URL="https://github.com/0xb0rn3/kygox"
 
@@ -44,6 +44,7 @@ declare -g FORCE_INSTALL=false
 declare -g AUTO_FIX=true
 declare -g TOTAL_AVAILABLE_TOOLS=0
 declare -g OLD_UMASK=""
+declare -g LOADER_PID=""
 
 # Enhanced Tool Categories with BlackArch groups
 declare -A CATEGORIES=(
@@ -58,6 +59,260 @@ declare -A CATEGORIES=(
     ["9"]="post-exploitation:Post Exploitation:blackarch-backdoor,blackarch-tunnel,blackarch-keylogger"
     ["10"]="social-engineering:Social Engineering:blackarch-social,blackarch-voip"
 )
+
+# ============================================================================
+# ANIMATED LOADERS
+# ============================================================================
+
+show_forge_loader() {
+    local message="$1"
+    local duration="${2:-5}"
+    local pid="$$"
+    
+    (
+        local frames=(
+            "⚒ "
+            "⚒."
+            "⚒.."
+            "⚒..."
+            "🔨..."
+            "🔨.."
+            "🔨."
+            "🔨 "
+        )
+        
+        local sparks=("✦" "✧" "★" "☆" "✨" "💫")
+        local metals=("🔩" "⚙️" "🔧" "⚡")
+        
+        local start_time=$(date +%s)
+        local i=0
+        
+        tput civis # Hide cursor
+        
+        while kill -0 $pid 2>/dev/null; do
+            local current_time=$(date +%s)
+            local elapsed=$((current_time - start_time))
+            
+            if [[ $elapsed -ge $duration ]]; then
+                break
+            fi
+            
+            local frame="${frames[$((i % ${#frames[@]}))]}"
+            local spark="${sparks[$((RANDOM % ${#sparks[@]}))]}"
+            local metal="${metals[$((RANDOM % ${#metals[@]}))]}"
+            local progress=$((elapsed * 100 / duration))
+            
+            # Progress bar
+            local bar_width=40
+            local filled=$((progress * bar_width / 100))
+            local empty=$((bar_width - filled))
+            
+            printf "\r${CYAN}${BOLD}$frame ${message}${RESET} "
+            printf "${GREEN}["
+            printf "%${filled}s" | tr ' ' '█'
+            printf "%${empty}s" | tr ' ' '░'
+            printf "]${RESET} ${YELLOW}${progress}%%${RESET} $spark $metal"
+            
+            ((i++))
+            sleep 0.1
+        done
+        
+        printf "\r${GREEN}${BOLD}✓ ${message}${RESET}%*s\n" $(($(tput cols) - ${#message} - 3)) ""
+        tput cnorm # Show cursor
+    ) &
+    
+    LOADER_PID=$!
+}
+
+show_matrix_loader() {
+    local message="$1"
+    local duration="${2:-5}"
+    local pid="$$"
+    
+    (
+        local chars=("0" "1" "█" "▓" "▒" "░")
+        local start_time=$(date +%s)
+        
+        tput civis
+        
+        while kill -0 $pid 2>/dev/null; do
+            local current_time=$(date +%s)
+            local elapsed=$((current_time - start_time))
+            
+            if [[ $elapsed -ge $duration ]]; then
+                break
+            fi
+            
+            local matrix_line=""
+            for ((j=0; j<20; j++)); do
+                matrix_line+="${chars[$((RANDOM % ${#chars[@]}))]}"
+            done
+            
+            local progress=$((elapsed * 100 / duration))
+            
+            printf "\r${GREEN}${DIM}$matrix_line${RESET} ${CYAN}${BOLD}$message${RESET} ${YELLOW}${progress}%%${RESET}"
+            
+            sleep 0.1
+        done
+        
+        printf "\r${GREEN}${BOLD}✓ ${message}${RESET}%*s\n" $(($(tput cols) - ${#message} - 3)) ""
+        tput cnorm
+    ) &
+    
+    LOADER_PID=$!
+}
+
+show_hacking_loader() {
+    local message="$1"
+    local duration="${2:-5}"
+    local pid="$$"
+    
+    (
+        local frames=(
+            "[▸] Initializing"
+            "[▹▸] Connecting"
+            "[▹▹▸] Bypassing"
+            "[●] Infiltrating"
+            "[◉] Exploiting"
+            "[◎] Injecting"
+            "[⦿] Executing"
+            "[◉] Processing"
+        )
+        
+        local icons=("🔓" "🔐" "💀" "👾" "⚡" "🔥")
+        local start_time=$(date +%s)
+        local i=0
+        
+        tput civis
+        
+        while kill -0 $pid 2>/dev/null; do
+            local current_time=$(date +%s)
+            local elapsed=$((current_time - start_time))
+            
+            if [[ $elapsed -ge $duration ]]; then
+                break
+            fi
+            
+            local frame="${frames[$((i % ${#frames[@]}))]}"
+            local icon="${icons[$((RANDOM % ${#icons[@]}))]}"
+            local progress=$((elapsed * 100 / duration))
+            
+            # Animated dots
+            local dots=""
+            for ((j=0; j<$((i % 4)); j++)); do
+                dots+="."
+            done
+            
+            printf "\r${RED}${BOLD}$icon ${frame}${RESET} ${CYAN}${message}${dots}${RESET} ${GREEN}${progress}%%${RESET}"
+            
+            ((i++))
+            sleep 0.15
+        done
+        
+        printf "\r${GREEN}${BOLD}✓ ${message}${RESET}%*s\n" $(($(tput cols) - ${#message} - 3)) ""
+        tput cnorm
+    ) &
+    
+    LOADER_PID=$!
+}
+
+show_scan_loader() {
+    local message="$1"
+    local duration="${2:-5}"
+    local pid="$$"
+    
+    (
+        local start_time=$(date +%s)
+        local i=0
+        
+        tput civis
+        
+        while kill -0 $pid 2>/dev/null; do
+            local current_time=$(date +%s)
+            local elapsed=$((current_time - start_time))
+            
+            if [[ $elapsed -ge $duration ]]; then
+                break
+            fi
+            
+            local progress=$((elapsed * 100 / duration))
+            local bar_width=50
+            local pos=$((i % bar_width))
+            
+            printf "\r${CYAN}${BOLD}🔍 ${message}${RESET} ${DIM}["
+            for ((j=0; j<bar_width; j++)); do
+                if [[ $j -eq $pos ]]; then
+                    printf "${GREEN}${BOLD}◆${RESET}${DIM}"
+                else
+                    printf "─"
+                fi
+            done
+            printf "]${RESET} ${YELLOW}${progress}%%${RESET}"
+            
+            ((i++))
+            sleep 0.05
+        done
+        
+        printf "\r${GREEN}${BOLD}✓ ${message}${RESET}%*s\n" $(($(tput cols) - ${#message} - 3)) ""
+        tput cnorm
+    ) &
+    
+    LOADER_PID=$!
+}
+
+show_download_loader() {
+    local message="$1"
+    local duration="${2:-5}"
+    local pid="$$"
+    
+    (
+        local frames=("▁" "▂" "▃" "▄" "▅" "▆" "▇" "█" "▇" "▆" "▅" "▄" "▃" "▂")
+        local start_time=$(date +%s)
+        local i=0
+        
+        tput civis
+        
+        while kill -0 $pid 2>/dev/null; do
+            local current_time=$(date +%s)
+            local elapsed=$((current_time - start_time))
+            
+            if [[ $elapsed -ge $duration ]]; then
+                break
+            fi
+            
+            local progress=$((elapsed * 100 / duration))
+            local bars=""
+            
+            for ((j=0; j<8; j++)); do
+                local idx=$(((i + j) % ${#frames[@]}))
+                bars+="${frames[$idx]}"
+            done
+            
+            printf "\r${CYAN}${BOLD}⬇ ${message}${RESET} ${BLUE}${bars}${RESET} ${GREEN}${progress}%%${RESET}"
+            
+            ((i++))
+            sleep 0.08
+        done
+        
+        printf "\r${GREEN}${BOLD}✓ ${message}${RESET}%*s\n" $(($(tput cols) - ${#message} - 3)) ""
+        tput cnorm
+    ) &
+    
+    LOADER_PID=$!
+}
+
+stop_loader() {
+    if [[ -n "$LOADER_PID" ]] && kill -0 $LOADER_PID 2>/dev/null; then
+        kill $LOADER_PID 2>/dev/null || true
+        wait $LOADER_PID 2>/dev/null || true
+    fi
+    LOADER_PID=""
+    tput cnorm # Ensure cursor is visible
+}
+
+# ============================================================================
+# CORE FUNCTIONS (with integrated loaders)
+# ============================================================================
 
 log_message() {
     local level="$1"
@@ -75,6 +330,7 @@ log_message() {
 error_exit() {
     local message="$1"
     local exit_code="${2:-1}"
+    stop_loader
     log_message "ERROR" "$message"
     echo -e "${RED}${BOLD}[ERROR]${RESET} $message" >&2
     cleanup_on_exit "$exit_code"
@@ -85,15 +341,15 @@ print_banner() {
     cat << 'EOF'
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║                                                                          ║
-║           ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                    ║
-║           ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                    ║
-║           █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                     ║
-║           ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                     ║
-║           ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                    ║
-║           ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝                    ║
+║           █╗  █╗█╗   █╗ ██████╗  ██████╗ █╗  █╗                    ║
+║           █║ █╔╝╚█╗ █╔╝█╔════╝ █╔═══█╗╚█╗█╔╝                    ║
+║           ████╔╝  ╚███╔╝ █║  ███╗█║   █║ ╚███╔╝                     ║
+║           █╔═█╗   ╚█╔╝  █║   █║█║   █║ █╔█╗                     ║
+║           █║  █╗   █║   ╚██████╔╝╚██████╔╝█╔╝ █╗                    ║
+║           ╚╝  ╚╝   ╚╝    ╚═════╝  ╚═════╝ ╚╝  ╚╝                    ║
 ║                                                                          ║
 ║              kygoX - Arch Security Arsenal Manager                       ║
-║                        Version 1.0.0 Phantom                             ║
+║                        Version 1.0.1 Nebula                              ║
 ║                  By 0xb0rn3 | IG: theehiv3 | X: 0xbv1                    ║
 ║                                                                          ║
 ╚══════════════════════════════════════════════════════════════════════════╝
@@ -144,6 +400,8 @@ reset_umask() {
 
 check_internet() {
     log_message "INFO" "Checking internet connectivity..."
+    show_scan_loader "Testing network connectivity" 3 &
+    local loader_pid=$!
     
     local test_urls=(
         "https://blackarch.org/"
@@ -151,43 +409,54 @@ check_internet() {
         "https://google.com/"
     )
     
+    local connected=false
     for url in "${test_urls[@]}"; do
         if curl -s --connect-timeout 8 "$url" > /dev/null 2>&1; then
             log_message "INFO" "Internet connectivity confirmed via $url"
-            return 0
+            connected=true
+            break
         fi
     done
     
-    log_message "ERROR" "No internet connectivity detected"
-    return 1
+    wait $loader_pid 2>/dev/null || true
+    
+    if [[ "$connected" == "false" ]]; then
+        log_message "ERROR" "No internet connectivity detected"
+        return 1
+    fi
+    
+    return 0
 }
 
 check_pacman_gnupg() {
     log_message "INFO" "Initializing pacman GPG keyring..."
     
+    show_forge_loader "Forging cryptographic keys" 4 &
+    local loader_pid=$!
+    
     if [[ ! -d /etc/pacman.d/gnupg ]]; then
-        echo -e "${CYAN}[*] Initializing pacman keyring...${RESET}"
-        pacman-key --init 2>&1 | tee -a "$LOG_DIR/kygox.log"
-        pacman-key --populate archlinux 2>&1 | tee -a "$LOG_DIR/kygox.log"
+        pacman-key --init >> "$LOG_DIR/kygox.log" 2>&1
+        pacman-key --populate archlinux >> "$LOG_DIR/kygox.log" 2>&1
     fi
     
     # Fix common GPG issues
     if ! pacman-key --list-keys &>/dev/null; then
-        echo -e "${YELLOW}[!] GPG keyring issues detected, attempting fix...${RESET}"
-        
         rm -rf /etc/pacman.d/gnupg
-        pacman-key --init
-        pacman-key --populate archlinux
-        
-        # Update archlinux-keyring if needed
-        pacman -Sy --noconfirm archlinux-keyring 2>&1 | tee -a "$LOG_DIR/kygox.log"
+        pacman-key --init >> "$LOG_DIR/kygox.log" 2>&1
+        pacman-key --populate archlinux >> "$LOG_DIR/kygox.log" 2>&1
+        pacman -Sy --noconfirm archlinux-keyring >> "$LOG_DIR/kygox.log" 2>&1
     fi
+    
+    wait $loader_pid 2>/dev/null || true
     
     return 0
 }
 
 fetch_blackarch_keyring() {
     log_message "INFO" "Fetching BlackArch keyring v${BLACKARCH_KEYRING_VERSION}..."
+    
+    show_download_loader "Downloading BlackArch keyring" 5 &
+    local loader_pid=$!
     
     local keyring_urls=(
         "https://www.blackarch.org/keyring/blackarch-keyring-${BLACKARCH_KEYRING_VERSION}.tar.gz"
@@ -197,7 +466,8 @@ fetch_blackarch_keyring() {
     for url in "${keyring_urls[@]}"; do
         local filename=$(basename "$url")
         
-        if ! curl -s -L -o "$filename" "$url"; then
+        if ! curl -s -L -o "$filename" "$url" >> "$LOG_DIR/kygox.log" 2>&1; then
+            wait $loader_pid 2>/dev/null || true
             log_message "ERROR" "Failed to download $filename"
             return 1
         fi
@@ -205,11 +475,16 @@ fetch_blackarch_keyring() {
         log_message "INFO" "Downloaded $filename"
     done
     
+    wait $loader_pid 2>/dev/null || true
+    
     return 0
 }
 
 verify_blackarch_keyring() {
     log_message "INFO" "Verifying BlackArch keyring signature..."
+    
+    show_hacking_loader "Bypassing security verification" 4 &
+    local loader_pid=$!
     
     local keyservers=(
         "keyserver.ubuntu.com"
@@ -218,55 +493,53 @@ verify_blackarch_keyring() {
         "keys.openpgp.org"
     )
     
-    # Try to receive the key from multiple servers
     local key_imported=false
     for keyserver in "${keyservers[@]}"; do
-        echo -e "${CYAN}[*] Trying keyserver: $keyserver${RESET}"
-        
-        if gpg --keyserver "$keyserver" --recv-keys "$BLACKARCH_GPG_KEY" > /dev/null 2>&1; then
+        if gpg --keyserver "$keyserver" --recv-keys "$BLACKARCH_GPG_KEY" >> "$LOG_DIR/kygox.log" 2>&1; then
             key_imported=true
             log_message "INFO" "Successfully imported key from $keyserver"
             break
         fi
     done
     
+    wait $loader_pid 2>/dev/null || true
+    
     if [[ "$key_imported" != "true" ]]; then
         log_message "WARN" "Could not import GPG key from keyservers"
         echo -e "${YELLOW}[!] Warning: Could not verify keyring signature${RESET}"
-        echo -e "${YELLOW}[!] Continuing without verification (not recommended)${RESET}"
         return 0
     fi
     
-    # Verify signature
     if gpg --keyserver-options no-auto-key-retrieve \
         --with-fingerprint "blackarch-keyring-${BLACKARCH_KEYRING_VERSION}.tar.gz.sig" \
-        > /dev/null 2>&1; then
+        >> "$LOG_DIR/kygox.log" 2>&1; then
         log_message "INFO" "Keyring signature verified successfully"
         echo -e "${GREEN}[+] Keyring signature verified${RESET}"
-        return 0
-    else
-        log_message "WARN" "Keyring signature verification failed"
-        echo -e "${YELLOW}[!] Warning: Could not verify keyring signature${RESET}"
-        return 0
     fi
+    
+    return 0
 }
 
 install_blackarch_keyring() {
     log_message "INFO" "Installing BlackArch keyring..."
     
+    show_forge_loader "Installing security keys" 3 &
+    local loader_pid=$!
+    
     local keyring_file="blackarch-keyring-${BLACKARCH_KEYRING_VERSION}.tar.gz"
     
     if [[ ! -f "$keyring_file" ]]; then
+        wait $loader_pid 2>/dev/null || true
         log_message "ERROR" "Keyring file not found: $keyring_file"
         return 1
     fi
     
-    # Extract and install keyring
     tar xfz "$keyring_file" --strip-components=1 \
-        -C /usr/share/pacman/keyrings/ 2>&1 | tee -a "$LOG_DIR/kygox.log"
+        -C /usr/share/pacman/keyrings/ >> "$LOG_DIR/kygox.log" 2>&1
     
-    # Populate keyring
-    pacman-key --populate blackarch 2>&1 | tee -a "$LOG_DIR/kygox.log"
+    pacman-key --populate blackarch >> "$LOG_DIR/kygox.log" 2>&1
+    
+    wait $loader_pid 2>/dev/null || true
     
     log_message "INFO" "BlackArch keyring installed successfully"
     return 0
@@ -275,13 +548,19 @@ install_blackarch_keyring() {
 fetch_blackarch_mirrorlist() {
     log_message "INFO" "Fetching BlackArch mirror list..."
     
+    show_download_loader "Fetching mirror servers" 3 &
+    local loader_pid=$!
+    
     local mirror_path="/etc/pacman.d"
     local mirror_file="blackarch-mirrorlist"
     
-    if ! curl -s "$BLACKARCH_MIRROR_URL" -o "$mirror_path/$mirror_file"; then
+    if ! curl -s "$BLACKARCH_MIRROR_URL" -o "$mirror_path/$mirror_file" >> "$LOG_DIR/kygox.log" 2>&1; then
+        wait $loader_pid 2>/dev/null || true
         log_message "ERROR" "Failed to fetch mirror list"
         return 1
     fi
+    
+    wait $loader_pid 2>/dev/null || true
     
     log_message "INFO" "Mirror list updated successfully"
     return 0
@@ -289,6 +568,9 @@ fetch_blackarch_mirrorlist() {
 
 update_pacman_conf() {
     log_message "INFO" "Updating pacman.conf for BlackArch..."
+    
+    show_matrix_loader "Injecting repository configuration" 3 &
+    local loader_pid=$!
     
     # Remove existing BlackArch entries
     sed -i '/blackarch/{N;d}' /etc/pacman.conf 2>/dev/null || true
@@ -299,6 +581,8 @@ update_pacman_conf() {
 [blackarch]
 Include = /etc/pacman.d/blackarch-mirrorlist
 EOF
+    
+    wait $loader_pid 2>/dev/null || true
     
     log_message "INFO" "pacman.conf updated successfully"
     return 0
@@ -312,11 +596,10 @@ setup_blackarch_repository() {
     if grep -q "\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
         echo -e "${GREEN}[+] BlackArch repository already configured${RESET}"
         
-        # Still update database
-        echo -e "${CYAN}[*] Updating package databases...${RESET}"
-        if pacman -Syy --noconfirm 2>&1 | tee -a "$LOG_DIR/kygox.log"; then
-            echo -e "${GREEN}[+] Package databases updated${RESET}"
-        fi
+        show_scan_loader "Synchronizing package databases" 3 &
+        local loader_pid=$!
+        pacman -Syy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
+        wait $loader_pid 2>/dev/null || true
         
         return 0
     fi
@@ -326,7 +609,6 @@ setup_blackarch_repository() {
     trap "rm -rf '$tmp_dir'" EXIT
     cd "$tmp_dir" || error_exit "Could not enter temporary directory"
     
-    # Setup steps
     local setup_failed=false
     
     set_secure_umask
@@ -335,40 +617,34 @@ setup_blackarch_repository() {
         error_exit "Internet connection required"
     fi
     
-    echo -e "${CYAN}[*] Checking pacman GPG configuration...${RESET}"
     check_pacman_gnupg
     
-    echo -e "${CYAN}[*] Downloading BlackArch keyring...${RESET}"
     if ! fetch_blackarch_keyring; then
         setup_failed=true
     fi
     
     if [[ "$setup_failed" != "true" ]]; then
-        echo -e "${CYAN}[*] Verifying keyring...${RESET}"
         verify_blackarch_keyring
         
-        echo -e "${CYAN}[*] Installing keyring...${RESET}"
         if ! install_blackarch_keyring; then
             setup_failed=true
         fi
     fi
     
     if [[ "$setup_failed" != "true" ]]; then
-        echo -e "${CYAN}[*] Fetching mirror list...${RESET}"
         fetch_blackarch_mirrorlist
-        
-        echo -e "${CYAN}[*] Updating pacman configuration...${RESET}"
         update_pacman_conf
         
-        echo -e "${CYAN}[*] Synchronizing package databases...${RESET}"
-        if pacman -Syy --noconfirm 2>&1 | tee -a "$LOG_DIR/kygox.log"; then
-            echo -e "${GREEN}[+] Package databases synchronized${RESET}"
-        fi
+        show_scan_loader "Synchronizing package databases" 4 &
+        local loader_pid=$!
+        pacman -Syy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
+        wait $loader_pid 2>/dev/null || true
         
-        echo -e "${CYAN}[*] Installing BlackArch mirrorlist package...${RESET}"
-        pacman -S --noconfirm --needed blackarch-mirrorlist 2>&1 | tee -a "$LOG_DIR/kygox.log"
+        show_download_loader "Installing BlackArch mirrorlist package" 3 &
+        loader_pid=$!
+        pacman -S --noconfirm --needed blackarch-mirrorlist >> "$LOG_DIR/kygox.log" 2>&1
+        wait $loader_pid 2>/dev/null || true
         
-        # Handle pacnew file
         if [[ -f /etc/pacman.d/blackarch-mirrorlist.pacnew ]]; then
             mv /etc/pacman.d/blackarch-mirrorlist.pacnew \
                 /etc/pacman.d/blackarch-mirrorlist
@@ -391,11 +667,16 @@ get_blackarch_tools_count() {
     if [[ $TOTAL_AVAILABLE_TOOLS -eq 0 ]]; then
         log_message "INFO" "Counting available BlackArch tools..."
         
+        show_scan_loader "Scanning available arsenal" 2 &
+        local loader_pid=$!
+        
         if pacman -Sl blackarch &>/dev/null; then
             TOTAL_AVAILABLE_TOOLS=$(pacman -Sl blackarch 2>/dev/null | wc -l)
         else
             TOTAL_AVAILABLE_TOOLS=0
         fi
+        
+        wait $loader_pid 2>/dev/null || true
         
         log_message "INFO" "Found $TOTAL_AVAILABLE_TOOLS BlackArch tools"
     fi
@@ -405,13 +686,11 @@ get_blackarch_tools_count() {
 
 get_blackarch_groups() {
     log_message "INFO" "Retrieving BlackArch groups..."
-    
     pacman -Sg | grep "^blackarch-" | awk '{print $1}' | sort -u
 }
 
 get_tools_in_group() {
     local group="$1"
-    
     pacman -Sg "$group" 2>/dev/null | awk '{print $2}' | sort -u
 }
 
@@ -430,6 +709,9 @@ analyze_category() {
     echo -e "${CYAN}${BOLD}[*] Analyzing $category_name${RESET}"
     echo
     
+    show_scan_loader "Analyzing $category_name arsenal" 3 &
+    local loader_pid=$!
+    
     local all_tools=()
     local installed_tools=()
     local available_tools=()
@@ -437,13 +719,10 @@ analyze_category() {
     # Get tools from each BlackArch group
     IFS=',' read -ra GROUPS <<< "$blackarch_groups"
     for group in "${GROUPS[@]}"; do
-        echo -e "${CYAN}[*] Scanning group: $group${RESET}"
-        
         while IFS= read -r tool; do
             if [[ -n "$tool" ]]; then
                 all_tools+=("$tool")
                 
-                # Check if installed
                 if pacman -Qi "$tool" &>/dev/null; then
                     installed_tools+=("$tool")
                 else
@@ -457,6 +736,8 @@ analyze_category() {
     all_tools=($(printf '%s\n' "${all_tools[@]}" | sort -u))
     installed_tools=($(printf '%s\n' "${installed_tools[@]}" | sort -u))
     available_tools=($(printf '%s\n' "${available_tools[@]}" | sort -u))
+    
+    wait $loader_pid 2>/dev/null || true
     
     echo
     echo -e "${GREEN}${BOLD}[+] Analysis Results:${RESET}"
@@ -507,27 +788,32 @@ install_single_package() {
             return 0
         fi
         
-        echo -e "${CYAN}[*] Installing $package (attempt $((retry_count + 1))/$max_retries)...${RESET}"
+        show_forge_loader "Installing $package" 2 &
+        local loader_pid=$!
         
-        if pacman -S --noconfirm --needed "$package" 2>&1 | tee -a "$LOG_DIR/kygox.log"; then
+        if pacman -S --noconfirm --needed "$package" >> "$LOG_DIR/kygox.log" 2>&1; then
+            wait $loader_pid 2>/dev/null || true
             echo -e "${GREEN}[+] Successfully installed $package${RESET}"
             return 0
         else
+            wait $loader_pid 2>/dev/null || true
             ((retry_count++))
             
             if [[ $retry_count -lt $max_retries && "$AUTO_FIX" == "true" ]]; then
                 echo -e "${YELLOW}[!] Installation failed, attempting auto-fix...${RESET}"
                 
-                # Fix common issues
+                show_hacking_loader "Auto-fixing package manager" 2 &
+                loader_pid=$!
+                
                 rm -f /var/lib/pacman/db.lck
-                pacman -Sy --noconfirm 2>&1 | tee -a "$LOG_DIR/kygox.log"
+                pacman -Sy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
                 
                 if [[ $retry_count -gt 1 ]]; then
-                    # More aggressive fixes
-                    pacman -Sc --noconfirm 2>&1 | tee -a "$LOG_DIR/kygox.log"
-                    pacman-key --refresh-keys 2>&1 | tee -a "$LOG_DIR/kygox.log"
+                    pacman -Sc --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
+                    pacman-key --refresh-keys >> "$LOG_DIR/kygox.log" 2>&1
                 fi
                 
+                wait $loader_pid 2>/dev/null || true
                 sleep 2
             fi
         fi
@@ -593,7 +879,7 @@ install_category() {
 
 show_main_menu() {
     echo -e "${CYAN}${BOLD}[*] kygoX Security Arsenal${RESET}"
-    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${WHITE}────────────────────────────────────────────────────────────${RESET}"
     echo
     
     local total_tools=$(get_blackarch_tools_count)
@@ -616,7 +902,7 @@ show_main_menu() {
     echo -e "  ${CYAN}s${RESET}) System Status"
     echo -e "  ${CYAN}q${RESET}) Quit"
     echo
-    echo -e "${WHITE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"
+    echo -e "${WHITE}────────────────────────────────────────────────────────────${RESET}"
 }
 
 handle_menu_selection() {
@@ -659,8 +945,13 @@ browse_blackarch_groups() {
     echo -e "${CYAN}${BOLD}[*] BlackArch Groups${RESET}"
     echo
     
+    show_scan_loader "Scanning BlackArch groups" 2 &
+    local loader_pid=$!
+    
     local groups=()
     mapfile -t groups < <(get_blackarch_groups)
+    
+    wait $loader_pid 2>/dev/null || true
     
     echo -e "${GREEN}Found ${#groups[@]} BlackArch groups:${RESET}"
     echo
@@ -675,15 +966,26 @@ show_system_status() {
     echo -e "${CYAN}${BOLD}[*] System Status${RESET}"
     echo
     
+    show_scan_loader "Analyzing system status" 2 &
+    local loader_pid=$!
+    
+    local total_pkgs=$(pacman -Q | wc -l)
+    local ba_tools=$(get_blackarch_tools_count)
+    local ba_installed=$(pacman -Qg blackarch 2>/dev/null | wc -l)
+    local mem_info=$(free -h | grep '^Mem:' | awk '{print $3 "/" $2}')
+    local disk_info=$(df -h / | tail -1 | awk '{print $3 "/" $2 " (" $5 ")"}')
+    
+    wait $loader_pid 2>/dev/null || true
+    
     echo -e "${YELLOW}Package Statistics:${RESET}"
-    echo -e "  • Total packages: $(pacman -Q | wc -l)"
-    echo -e "  • BlackArch tools available: $(get_blackarch_tools_count)"
-    echo -e "  • BlackArch tools installed: $(pacman -Qg blackarch 2>/dev/null | wc -l)"
+    echo -e "  • Total packages: $total_pkgs"
+    echo -e "  • BlackArch tools available: $ba_tools"
+    echo -e "  • BlackArch tools installed: $ba_installed"
     echo
     
     echo -e "${YELLOW}System Resources:${RESET}"
-    echo -e "  • Memory: $(free -h | grep '^Mem:' | awk '{print $3 "/" $2}')"
-    echo -e "  • Disk: $(df -h / | tail -1 | awk '{print $3 "/" $2 " (" $5 ")"}')"
+    echo -e "  • Memory: $mem_info"
+    echo -e "  • Disk: $disk_info"
     echo
 }
 
@@ -691,9 +993,14 @@ install_all_tools() {
     echo -e "${CYAN}${BOLD}[*] Installing ALL BlackArch Tools${RESET}"
     echo
     
+    show_scan_loader "Scanning complete arsenal" 3 &
+    local loader_pid=$!
+    
     # Get all BlackArch packages
     local all_packages=()
     mapfile -t all_packages < <(pacman -Sl blackarch 2>/dev/null | awk '{print $2}')
+    
+    wait $loader_pid 2>/dev/null || true
     
     if [[ ${#all_packages[@]} -eq 0 ]]; then
         echo -e "${RED}[!] No BlackArch packages found${RESET}"
@@ -740,7 +1047,7 @@ init_state_management() {
     if [[ ! -f "$STATE_FILE" ]]; then
         cat > "$STATE_FILE" << 'EOF'
 {
-    "version": "1.0.0",
+    "version": "1.0.1",
     "installation_date": "",
     "blackarch_configured": false,
     "installed_categories": [],
@@ -750,62 +1057,33 @@ EOF
     fi
 }
 
-save_installation_state() {
-    local category="$1"
-    shift
-    local packages=("$@")
-    
-    python3 << PYTHON_SCRIPT
-import json
-from datetime import datetime
-
-try:
-    with open("$STATE_FILE", "r") as f:
-        state = json.load(f)
-except:
-    state = {
-        "version": "1.0.0",
-        "installation_date": "",
-        "blackarch_configured": True,
-        "installed_categories": [],
-        "installed_packages": []
-    }
-
-if not state.get("installation_date"):
-    state["installation_date"] = datetime.now().isoformat()
-
-if "$category" not in state["installed_categories"]:
-    state["installed_categories"].append("$category")
-
-for pkg in ${packages[@]}:
-    if pkg not in state["installed_packages"]:
-        state["installed_packages"].append(pkg)
-
-with open("$STATE_FILE", "w") as f:
-    json.dump(state, f, indent=2)
-PYTHON_SCRIPT
-}
-
 validate_system() {
-    echo -e "${CYAN}[*] Validating system requirements...${RESET}"
+    show_hacking_loader "Validating system requirements" 3 &
+    local loader_pid=$!
     
     # Check root privileges
     if [[ $EUID -ne 0 ]]; then
+        wait $loader_pid 2>/dev/null || true
         error_exit "This script must be run with sudo privileges"
     fi
     
     # Check for Arch-based system
     if ! command -v pacman &>/dev/null; then
+        wait $loader_pid 2>/dev/null || true
         error_exit "This tool requires an Arch-based distribution with pacman"
     fi
     
     # Check internet connectivity
     if ! check_internet; then
+        wait $loader_pid 2>/dev/null || true
         error_exit "Internet connectivity required"
     fi
     
-    # Check disk space (at least 10GB recommended)
+    # Check disk space
     local available_gb=$(df / | awk 'NR==2 {print int($4/1024/1024)}')
+    
+    wait $loader_pid 2>/dev/null || true
+    
     if [[ $available_gb -lt 10 ]]; then
         echo -e "${YELLOW}[!] Warning: Only ${available_gb}GB available${RESET}"
         echo -e "${YELLOW}[!] At least 10GB recommended for full installation${RESET}"
@@ -820,7 +1098,8 @@ validate_system() {
 }
 
 install_dependencies() {
-    echo -e "${CYAN}[*] Checking dependencies...${RESET}"
+    show_download_loader "Checking dependencies" 2 &
+    local loader_pid=$!
     
     local required_packages=("curl" "wget" "git" "python" "base-devel")
     local missing_packages=()
@@ -831,12 +1110,19 @@ install_dependencies() {
         fi
     done
     
+    wait $loader_pid 2>/dev/null || true
+    
     if [[ ${#missing_packages[@]} -gt 0 ]]; then
         echo -e "${CYAN}[*] Installing missing dependencies: ${missing_packages[*]}${RESET}"
         
-        if pacman -Sy --noconfirm --needed "${missing_packages[@]}" 2>&1 | tee -a "$LOG_DIR/kygox.log"; then
+        show_forge_loader "Installing dependencies" 4 &
+        loader_pid=$!
+        
+        if pacman -Sy --noconfirm --needed "${missing_packages[@]}" >> "$LOG_DIR/kygox.log" 2>&1; then
+            wait $loader_pid 2>/dev/null || true
             echo -e "${GREEN}[+] Dependencies installed${RESET}"
         else
+            wait $loader_pid 2>/dev/null || true
             error_exit "Failed to install dependencies"
         fi
     else
@@ -847,6 +1133,7 @@ install_dependencies() {
 cleanup_on_exit() {
     local exit_code="${1:-0}"
     
+    stop_loader
     log_message "INFO" "Performing cleanup..."
     
     # Reset umask
@@ -865,23 +1152,28 @@ cleanup_on_exit() {
 fix_common_issues() {
     echo -e "${CYAN}[*] Fixing common package management issues...${RESET}"
     
+    show_hacking_loader "Auto-fixing system issues" 4 &
+    local loader_pid=$!
+    
     # Remove lock files
     rm -f /var/lib/pacman/db.lck
     
     # Update package databases
-    pacman -Sy --noconfirm 2>&1 | tee -a "$LOG_DIR/kygox.log"
+    pacman -Sy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
     
     # Refresh keys if needed
     if ! pacman-key --list-keys &>/dev/null; then
-        pacman-key --refresh-keys 2>&1 | tee -a "$LOG_DIR/kygox.log"
+        pacman-key --refresh-keys >> "$LOG_DIR/kygox.log" 2>&1
     fi
+    
+    wait $loader_pid 2>/dev/null || true
     
     echo -e "${GREEN}[+] Common issues fixed${RESET}"
 }
 
 show_help() {
     cat << 'HELP_TEXT'
-kygoX Elite v1.0.0 Phantom - Arch Security Arsenal Manager
+kygoX Elite v1.0.1 Nebula - Arch Security Arsenal Manager
 
 USAGE:
     sudo ./kygox [OPTIONS]
@@ -954,8 +1246,11 @@ parse_arguments() {
                 exit 0
                 ;;
             --update)
-                pacman -Syy --noconfirm
+                show_download_loader "Updating repositories" 3 &
+                local loader_pid=$!
+                pacman -Syy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
                 fetch_blackarch_mirrorlist
+                wait $loader_pid 2>/dev/null || true
                 exit 0
                 ;;
             --fix)
