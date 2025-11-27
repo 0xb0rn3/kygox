@@ -181,19 +181,19 @@ error_exit() {
 print_banner() {
     clear
     cat << 'EOF'
-╔═════════════════════════════════════════════════════════════════╗
-║                                                                 ║
-║        ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                  ║
-║        ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                 ║
-║        █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                   ║
-║        ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                  ║
-║        ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                  ║
-║        ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝               ║
-║                                                                  ║
-║                   🗑️  UNINSTALLER v1.0.0 Purge  ♻️               ║
-║                 By 0xb0rn3 | Complete Removal Tool               ║
-║                                                                  ║
-╚══════════════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║        ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                   ║
+║        ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                   ║
+║        █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                    ║
+║        ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                    ║
+║        ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                   ║
+║        ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝                   ║
+║                                                                        ║
+║                   🗑️  UNINSTALLER v1.0.0 Purge  ♻️                     ║
+║                 By 0xb0rn3 | Complete Removal Tool                    ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
 EOF
     echo
 }
@@ -297,6 +297,7 @@ scan_system() {
     
     # First, verify BlackArch repository is configured
     echo -e "${CYAN}[*] Step 1/3: Verifying BlackArch repository...${RESET}"
+    
     if grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
         echo -e "${GREEN}[✓] BlackArch repository found in pacman.conf${RESET}"
     else
@@ -309,13 +310,18 @@ scan_system() {
     
     # Check if we can access the repository
     echo -e "${CYAN}[*] Step 2/3: Checking repository accessibility...${RESET}"
-    local all_packages=()
-    mapfile -t all_packages < <(get_all_blackarch_packages)
-    REMOVAL_STATS["scanned"]=${#all_packages[@]}
     
-    if [[ ${REMOVAL_STATS["scanned"]} -eq 0 ]]; then
-        echo -e "${YELLOW}[!] Cannot query BlackArch repository${RESET}"
-        echo -e "${YELLOW}[!] Trying alternative detection method...${RESET}"
+    local all_packages=()
+    local repo_accessible=false
+    
+    if timeout 5 pacman -Sl blackarch &>/dev/null; then
+        echo -e "${GREEN}[✓] Repository is accessible${RESET}"
+        repo_accessible=true
+        all_packages=($(timeout 10 pacman -Sl blackarch 2>/dev/null | awk '{print $2}' | head -100))
+        REMOVAL_STATS["scanned"]=${#all_packages[@]}
+    else
+        echo -e "${YELLOW}[!] Cannot access repository (timeout or unavailable)${RESET}"
+        REMOVAL_STATS["scanned"]=0
     fi
     
     echo
@@ -323,7 +329,43 @@ scan_system() {
     
     # Get installed BlackArch packages
     local installed_packages=()
-    mapfile -t installed_packages < <(get_installed_blackarch_packages)
+    
+    # Quick method: Check blackarch groups
+    echo -e "${DIM}  → Checking blackarch groups...${RESET}"
+    local group_count=0
+    while IFS= read -r pkg; do
+        if [[ -n "$pkg" ]]; then
+            installed_packages+=("$pkg")
+            ((group_count++))
+        fi
+    done < <(timeout 10 pacman -Qg 2>/dev/null | grep "^blackarch" | awk '{print $2}' | sort -u)
+    
+    echo -e "${DIM}  → Found ${group_count} packages in blackarch groups${RESET}"
+    
+    # Additional method: Check installed packages from blackarch repo
+    echo -e "${DIM}  → Verifying package repositories...${RESET}"
+    local verified=0
+    
+    # Only check first 50 packages to avoid hanging
+    local check_count=0
+    while IFS= read -r pkg && [[ $check_count -lt 50 ]]; do
+        ((check_count++))
+        local repo=$(timeout 2 pacman -Qi "$pkg" 2>/dev/null | grep "^Repository" | awk '{print $3}')
+        if [[ "$repo" == "blackarch" ]]; then
+            if ! printf '%s\n' "${installed_packages[@]}" | grep -q "^${pkg}$"; then
+                installed_packages+=("$pkg")
+                ((verified++))
+            fi
+        fi
+    done < <(pacman -Qq 2>/dev/null)
+    
+    echo -e "${DIM}  → Verified ${verified} additional packages${RESET}"
+    
+    # Remove duplicates and sort
+    if [[ ${#installed_packages[@]} -gt 0 ]]; then
+        installed_packages=($(printf '%s\n' "${installed_packages[@]}" | sort -u))
+    fi
+    
     REMOVAL_STATS["found"]=${#installed_packages[@]}
     
     echo
@@ -337,7 +379,7 @@ scan_system() {
         echo
         echo -e "${YELLOW}Debug Information:${RESET}"
         echo -e "  ${WHITE}•${RESET} Repository configured: $(grep -q "^\[blackarch\]" /etc/pacman.conf && echo "Yes" || echo "No")"
-        echo -e "  ${WHITE}•${RESET} BlackArch groups found: $(pacman -Qg 2>/dev/null | grep -c "^blackarch" || echo "0")"
+        echo -e "  ${WHITE}•${RESET} BlackArch groups found: $(timeout 5 pacman -Qg 2>/dev/null | grep -c "^blackarch" || echo "0")"
         echo -e "  ${WHITE}•${RESET} Total installed packages: $(pacman -Qq 2>/dev/null | wc -l)"
         echo
         return 1
