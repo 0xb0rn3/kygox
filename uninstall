@@ -199,9 +199,12 @@ EOF
 }
 
 check_root() {
+    echo -e "${CYAN}[*] Checking privileges...${RESET}"
     if [[ $EUID -ne 0 ]]; then
         error_exit "This script must be run with sudo privileges"
     fi
+    echo -e "${GREEN}[✓] Running with root privileges${RESET}"
+    echo
 }
 
 create_backup() {
@@ -233,29 +236,66 @@ create_backup() {
 get_all_blackarch_packages() {
     log_message "INFO" "Scanning for BlackArch packages..."
     
+    echo -e "${CYAN}[*] Querying BlackArch repository...${RESET}"
+    
+    # Check if BlackArch repository is configured
+    if ! grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
+        echo -e "${YELLOW}[!] BlackArch repository not found in pacman.conf${RESET}"
+        return 0
+    fi
+    
     # Get all packages from BlackArch repository
     if pacman -Sl blackarch &>/dev/null; then
+        echo -e "${GREEN}[✓] BlackArch repository accessible${RESET}"
         pacman -Sl blackarch 2>/dev/null | awk '{print $2}' | sort -u
+    else
+        echo -e "${YELLOW}[!] Cannot access BlackArch repository${RESET}"
+        return 0
     fi
 }
 
 get_installed_blackarch_packages() {
     log_message "INFO" "Identifying installed BlackArch packages..."
     
+    echo -e "${CYAN}[*] Scanning installed packages...${RESET}"
+    
+    local installed_ba_packages=()
+    local total_packages=$(pacman -Qq 2>/dev/null | wc -l)
+    local count=0
+    local last_percent=0
+    
+    # Show initial progress
+    echo -ne "${DIM}Checking packages... 0%${RESET}\r"
+    
     # Get installed packages that are from BlackArch
-    pacman -Qq 2>/dev/null | while read -r pkg; do
-        if pacman -Si "$pkg" 2>/dev/null | grep -q "^Repository.*blackarch"; then
-            echo "$pkg"
+    while IFS= read -r pkg; do
+        ((count++))
+        local percent=$((count * 100 / total_packages))
+        
+        # Update progress every 5%
+        if [[ $((percent - last_percent)) -ge 5 ]]; then
+            echo -ne "${DIM}Checking packages... ${percent}%${RESET}\r"
+            last_percent=$percent
         fi
-    done | sort -u
+        
+        # Check if package is from BlackArch
+        if pacman -Si "$pkg" 2>/dev/null | grep -q "^Repository.*blackarch"; then
+            installed_ba_packages+=("$pkg")
+        fi
+    done < <(pacman -Qq 2>/dev/null)
+    
+    echo -e "${GREEN}[✓] Package scan complete              ${RESET}"
+    
+    # Output the list
+    printf '%s\n' "${installed_ba_packages[@]}"
 }
 
 scan_system() {
     echo -e "${CYAN}${BOLD}[*] Scanning System for BlackArch Packages${RESET}"
     echo
     
-    show_scan_loader "Scanning installed packages" 3 &
-    local loader_pid=$!
+    # Don't use animated loader here, use direct progress
+    echo -e "${CYAN}[*] Step 1/2: Checking BlackArch repository...${RESET}"
     
     local all_packages=()
     local installed_packages=()
@@ -264,16 +304,17 @@ scan_system() {
     mapfile -t all_packages < <(get_all_blackarch_packages)
     REMOVAL_STATS["scanned"]=${#all_packages[@]}
     
+    echo
+    echo -e "${CYAN}[*] Step 2/2: Identifying installed packages...${RESET}"
+    
     # Get installed BlackArch packages
     mapfile -t installed_packages < <(get_installed_blackarch_packages)
     REMOVAL_STATS["found"]=${#installed_packages[@]}
     
-    wait $loader_pid 2>/dev/null || true
-    
     echo
     echo -e "${GREEN}${BOLD}[+] Scan Results:${RESET}"
-    echo -e "  ${WHITE}•${RESET} Total BlackArch packages: ${REMOVAL_STATS[scanned]}"
-    echo -e "  ${WHITE}•${RESET} Installed on system: ${RED}${REMOVAL_STATS[found]}${RESET}"
+    echo -e "  ${WHITE}•${RESET} Total BlackArch packages in repo: ${REMOVAL_STATS[scanned]}"
+    echo -e "  ${WHITE}•${RESET} Installed on your system: ${RED}${REMOVAL_STATS[found]}${RESET}"
     echo
     
     if [[ ${REMOVAL_STATS[found]} -eq 0 ]]; then
