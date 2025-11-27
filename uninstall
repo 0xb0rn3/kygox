@@ -194,6 +194,8 @@ print_banner() {
 ║              🗑️  UNINSTALLER v1.0.1 Purge  ♻️                        ║
 ║                By 0xb0rn3 | IG: theehiv3 | X: 0xbv1                 ║
 ║                                                                      ║
+║              🔍 Repository Correlation-Based Removal                 ║
+║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
 EOF
     echo
@@ -304,12 +306,13 @@ create_backup() {
 }
 
 scan_blackarch_packages() {
-    echo -e "${CYAN}${BOLD}[*] Scanning System - Correlating with BlackArch Repository${RESET}"
-    echo
+    # ALL OUTPUT MUST GO TO STDERR (>&2) SO IT DISPLAYS WHILE MAPFILE CAPTURES STDOUT
+    echo -e "${CYAN}${BOLD}[*] Scanning System - Correlating with BlackArch Repository${RESET}" >&2
+    echo >&2
     
     # Step 1: Query ALL packages from BlackArch repository
-    echo -e "${CYAN}[*] Step 1/3: Querying BlackArch Repository${RESET}"
-    echo -e "${DIM}  → Fetching master list of ALL BlackArch packages${RESET}"
+    echo -e "${CYAN}[*] Step 1/3: Querying BlackArch Repository${RESET}" >&2
+    echo -e "${DIM}  → Fetching master list of ALL BlackArch packages${RESET}" >&2
     
     show_scan_loader "Fetching BlackArch package list" 3 &
     local loader_pid=$!
@@ -324,18 +327,18 @@ scan_blackarch_packages() {
     wait $loader_pid 2>/dev/null || true
     
     if [[ ${#all_blackarch_packages[@]} -eq 0 ]]; then
-        echo -e "${RED}[✗] No packages found in BlackArch repository${RESET}"
+        echo -e "${RED}[✗] No packages found in BlackArch repository${RESET}" >&2
         log_message "ERROR" "BlackArch repository returned no packages"
         return 1
     fi
     
-    echo -e "${GREEN}[✓] Found ${REMOVAL_STATS[total_available]} packages in BlackArch repository${RESET}"
+    echo -e "${GREEN}[✓] Found ${REMOVAL_STATS[total_available]} packages in BlackArch repository${RESET}" >&2
     log_message "INFO" "Retrieved ${REMOVAL_STATS[total_available]} packages from BlackArch repo"
-    echo
+    echo >&2
     
     # Step 2: Get ALL installed packages (FAST - single command)
-    echo -e "${CYAN}[*] Step 2/3: Getting Installed Packages${RESET}"
-    echo -e "${DIM}  → Fetching list of all installed packages on system${RESET}"
+    echo -e "${CYAN}[*] Step 2/3: Getting Installed Packages${RESET}" >&2
+    echo -e "${DIM}  → Fetching list of all installed packages on system${RESET}" >&2
     
     show_scan_loader "Reading installed packages" 2 &
     loader_pid=$!
@@ -347,13 +350,13 @@ scan_blackarch_packages() {
     
     wait $loader_pid 2>/dev/null || true
     
-    echo -e "${GREEN}[✓] Found ${#all_installed_packages[@]} total installed packages${RESET}"
+    echo -e "${GREEN}[✓] Found ${#all_installed_packages[@]} total installed packages${RESET}" >&2
     log_message "INFO" "System has ${#all_installed_packages[@]} installed packages"
-    echo
+    echo >&2
     
     # Step 3: FAST CORRELATION - Find intersection using associative array
-    echo -e "${CYAN}[*] Step 3/3: Correlating Packages${RESET}"
-    echo -e "${DIM}  → Finding intersection: BlackArch repo ∩ Installed packages${RESET}"
+    echo -e "${CYAN}[*] Step 3/3: Correlating Packages${RESET}" >&2
+    echo -e "${DIM}  → Finding intersection: BlackArch repo ∩ Installed packages${RESET}" >&2
     
     show_scan_loader "Performing correlation analysis" 2 &
     loader_pid=$!
@@ -376,50 +379,56 @@ scan_blackarch_packages() {
     
     wait $loader_pid 2>/dev/null || true
     
-    echo -e "${GREEN}[✓] Correlation complete: ${REMOVAL_STATS[total_installed]} matches found${RESET}"
+    echo -e "${GREEN}[✓] Correlation complete: ${REMOVAL_STATS[total_installed]} matches found${RESET}" >&2
     log_message "INFO" "Correlation found ${REMOVAL_STATS[total_installed]} installed BlackArch packages"
-    echo
+    echo >&2
     
     # Display correlation results
-    echo -e "${GREEN}${BOLD}╔═══════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${GREEN}${BOLD}║               BLACKARCH PACKAGE CORRELATION              ║${RESET}"
-    echo -e "${GREEN}${BOLD}╠═══════════════════════════════════════════════════════════╣${RESET}"
-    echo -e "${GREEN}${BOLD}║${RESET}  Total in BlackArch Repo:      ${WHITE}${BOLD}${REMOVAL_STATS[total_available]}${RESET} packages"
-    echo -e "${GREEN}${BOLD}║${RESET}  Total Installed on System:    ${WHITE}${#all_installed_packages[@]}${RESET} packages"
-    echo -e "${GREEN}${BOLD}║${RESET}  BlackArch Packages Found:     ${RED}${BOLD}${REMOVAL_STATS[total_installed]}${RESET} packages"
+    echo -e "${GREEN}${BOLD}╔═══════════════════════════════════════════════════════════╗${RESET}" >&2
+    echo -e "${GREEN}${BOLD}║               BLACKARCH PACKAGE CORRELATION              ║${RESET}" >&2
+    echo -e "${GREEN}${BOLD}╠═══════════════════════════════════════════════════════════╣${RESET}" >&2
+    echo -e "${GREEN}${BOLD}║${RESET}  Total in BlackArch Repo:      ${WHITE}${BOLD}${REMOVAL_STATS[total_available]}${RESET} packages" >&2
+    echo -e "${GREEN}${BOLD}║${RESET}  Total Installed on System:    ${WHITE}${#all_installed_packages[@]}${RESET} packages" >&2
+    
+    if [[ ${REMOVAL_STATS[total_installed]} -eq 0 ]]; then
+        echo -e "${GREEN}${BOLD}║${RESET}  BlackArch Packages Found:     ${GREEN}${BOLD}${REMOVAL_STATS[total_installed]}${RESET} packages ${GREEN}✓${RESET}" >&2
+    else
+        echo -e "${GREEN}${BOLD}║${RESET}  BlackArch Packages Found:     ${RED}${BOLD}${REMOVAL_STATS[total_installed]}${RESET} packages" >&2
+    fi
     
     if [[ ${REMOVAL_STATS[total_available]} -gt 0 ]]; then
         local correlation_rate=$(( REMOVAL_STATS[total_installed] * 100 / REMOVAL_STATS[total_available] ))
-        echo -e "${GREEN}${BOLD}║${RESET}  Correlation Rate:             ${YELLOW}${correlation_rate}%${RESET}"
+        echo -e "${GREEN}${BOLD}║${RESET}  Correlation Rate:             ${YELLOW}${correlation_rate}%${RESET}" >&2
     fi
     
-    echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}"
-    echo
+    echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}" >&2
+    echo >&2
     
     if [[ ${REMOVAL_STATS[total_installed]} -eq 0 ]]; then
-        echo -e "${GREEN}[+] No BlackArch packages found installed${RESET}"
-        echo -e "${GREEN}[+] Your system is clean!${RESET}"
+        echo -e "${GREEN}${BOLD}[✓] No BlackArch packages installed${RESET}" >&2
+        echo -e "${GREEN}${BOLD}[✓] Your system is clean!${RESET}" >&2
+        log_message "INFO" "Correlation found 0 installed BlackArch packages"
         return 1
     fi
     
     # Show sample of packages that will be removed
-    echo -e "${YELLOW}${BOLD}Packages found (showing first 30 of ${REMOVAL_STATS[total_installed]}):${RESET}"
-    echo
+    echo -e "${YELLOW}${BOLD}Packages found (showing first 30 of ${REMOVAL_STATS[total_installed]}):${RESET}" >&2
+    echo >&2
     
     local count=0
     for pkg in "${installed_blackarch_packages[@]}"; do
         if [[ $count -ge 30 ]]; then
-            echo -e "  ${DIM}... and $((${#installed_blackarch_packages[@]} - 30)) more packages${RESET}"
+            echo -e "  ${DIM}... and $((${#installed_blackarch_packages[@]} - 30)) more packages${RESET}" >&2
             break
         fi
         
         # Show package name (descriptions would require pacman -Qi which is slow)
-        echo -e "  ${RED}•${RESET} ${CYAN}$pkg${RESET}"
+        echo -e "  ${RED}•${RESET} ${CYAN}$pkg${RESET}" >&2
         ((count++))
     done
-    echo
+    echo >&2
     
-    # Return the correlated list for removal
+    # Return the correlated list for removal (THIS GOES TO STDOUT FOR MAPFILE)
     printf '%s\n' "${installed_blackarch_packages[@]}"
 }
 
@@ -841,14 +850,28 @@ main() {
     echo
     
     local packages_to_remove=()
-    if ! mapfile -t packages_to_remove < <(scan_blackarch_packages); then
-        # No packages found
-        if [[ ${REMOVAL_STATS[total_installed]} -eq 0 ]]; then
-            echo
-            echo -e "${GREEN}${BOLD}╔═══════════════════════════════════════════════════════════╗${RESET}"
-            echo -e "${GREEN}${BOLD}║                   SYSTEM IS CLEAN                         ║${RESET}"
-            echo -e "${GREEN}${BOLD}╠═══════════════════════════════════════════════════════════╣${RESET}"
-            echo -e "${GREEN}${BOLD}║${RESET}  No BlackArch packages found installed                ${GREEN}${BOLD}║${RESET}"
+    local scan_exit_code=0
+    
+    # Capture both output and exit code
+    if mapfile -t packages_to_remove < <(scan_blackarch_packages); then
+        scan_exit_code=0
+    else
+        scan_exit_code=$?
+    fi
+    
+    # Check if scan found any packages
+    if [[ ${#packages_to_remove[@]} -eq 0 || ${REMOVAL_STATS[total_installed]} -eq 0 ]]; then
+        echo
+        echo -e "${GREEN}${BOLD}╔═══════════════════════════════════════════════════════════╗${RESET}"
+        echo -e "${GREEN}${BOLD}║                   SYSTEM IS CLEAN                         ║${RESET}"
+        echo -e "${GREEN}${BOLD}╠═══════════════════════════════════════════════════════════╣${RESET}"
+        echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} No BlackArch packages found installed                ${GREEN}${BOLD}║${RESET}"
+        echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} Your system is already clean!                        ${GREEN}${BOLD}║${RESET}"
+        echo -e "${GREEN}${BOLD}║${RESET}                                                         ${GREEN}${BOLD}║${RESET}"
+        
+        # Check if repository is still configured
+        if grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
+            echo -e "${GREEN}${BOLD}║${RESET}  ${YELLOW}Note:${RESET} BlackArch repository is still configured       ${GREEN}${BOLD}║${RESET}"
             echo -e "${GREEN}${BOLD}║${RESET}                                                         ${GREEN}${BOLD}║${RESET}"
             echo -e "${GREEN}${BOLD}║${RESET}  Would you like to clean the repository config?       ${GREEN}${BOLD}║${RESET}"
             echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}"
@@ -856,18 +879,29 @@ main() {
             
             read -p "Remove BlackArch repository configuration? [y/N]: " -n 1 -r
             echo
+            echo
+            
             if [[ $REPLY =~ ^[Yy]$ ]]; then
-                create_backup
+                if [[ "$DRY_RUN" != "true" ]]; then
+                    create_backup
+                fi
                 remove_blackarch_repository
                 sync_databases
-                echo -e "${GREEN}[✓] Repository configuration removed${RESET}"
+                clean_kygox_files
+                echo
+                echo -e "${GREEN}${BOLD}[✓] BlackArch repository configuration removed${RESET}"
             else
                 echo -e "${CYAN}[i] Repository configuration kept${RESET}"
             fi
-            
-            log_message "INFO" "No packages to remove, exiting"
-            exit 0
+        else
+            echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} BlackArch repository already removed               ${GREEN}${BOLD}║${RESET}"
+            echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}"
+            echo
+            echo -e "${GREEN}${BOLD}[✓] System is completely clean - nothing to do!${RESET}"
         fi
+        
+        log_message "INFO" "No packages to remove, system is clean"
+        exit 0
     fi
     
     log_message "INFO" "Found ${#packages_to_remove[@]} packages to remove"
