@@ -559,37 +559,46 @@ parse_arguments() {
                 ;;
             -v|--verbose)
                 VERBOSE_MODE=true
+                log_message "INFO" "Verbose mode enabled"
                 shift
                 ;;
             -n|--dry-run)
                 DRY_RUN=true
+                log_message "INFO" "Dry-run mode enabled"
                 shift
                 ;;
             -f|--force)
                 FORCE_REMOVE=true
+                log_message "INFO" "Force mode enabled"
                 shift
                 ;;
             -k|--keep-config)
                 KEEP_CONFIG=true
+                log_message "INFO" "Keep config mode enabled"
                 shift
                 ;;
             --packages-only)
                 packages_only=true
+                log_message "INFO" "Packages-only mode enabled"
                 shift
                 ;;
             --repo-only)
                 repo_only=true
+                log_message "INFO" "Repo-only mode enabled"
                 shift
                 ;;
             *)
-                error_exit "Unknown option: $1"
+                echo -e "${RED}[ERROR] Unknown option: $1${RESET}" >&2
+                echo "Run with --help for usage information"
+                exit 1
                 ;;
         esac
     done
     
     # Handle mutually exclusive options
     if [[ "$packages_only" == "true" && "$repo_only" == "true" ]]; then
-        error_exit "Cannot use --packages-only and --repo-only together"
+        echo -e "${RED}[ERROR] Cannot use --packages-only and --repo-only together${RESET}" >&2
+        exit 1
     fi
     
     echo "$packages_only $repo_only"
@@ -622,11 +631,19 @@ confirm_removal() {
 }
 
 main() {
+    # Initialize log
+    log_message "INFO" "=== kygox-uninstall started ==="
+    
     # Parse arguments
-    local options_result
-    options_result=$(parse_arguments "$@")
-    local packages_only=$(echo "$options_result" | cut -d' ' -f1)
-    local repo_only=$(echo "$options_result" | cut -d' ' -f2)
+    local packages_only=false
+    local repo_only=false
+    
+    if [[ $# -gt 0 ]]; then
+        local options_result
+        options_result=$(parse_arguments "$@")
+        packages_only=$(echo "$options_result" | cut -d' ' -f1)
+        repo_only=$(echo "$options_result" | cut -d' ' -f2)
+    fi
     
     # Display banner
     print_banner
@@ -641,11 +658,24 @@ main() {
     fi
     
     # Scan system for BlackArch packages
+    echo -e "${CYAN}[*] Starting system scan...${RESET}"
+    echo
+    
     local packages_to_remove=()
-    mapfile -t packages_to_remove < <(scan_system)
+    if ! mapfile -t packages_to_remove < <(scan_system); then
+        # scan_system returns 1 if no packages found
+        if [[ ${REMOVAL_STATS[found]} -eq 0 ]]; then
+            echo -e "${GREEN}${BOLD}[✓] Nothing to remove - system is clean${RESET}"
+            log_message "INFO" "No BlackArch packages found"
+            exit 0
+        fi
+    fi
+    
+    log_message "INFO" "Found ${REMOVAL_STATS[found]} BlackArch packages"
     
     # Exit if no packages found
     if [[ ${REMOVAL_STATS[found]} -eq 0 ]]; then
+        echo -e "${GREEN}${BOLD}[✓] Nothing to remove - system is clean${RESET}"
         exit 0
     fi
     
@@ -684,6 +714,8 @@ main() {
     if [[ "$DRY_RUN" != "true" ]]; then
         echo -e "${CYAN}[i] You may want to run 'sudo pacman -Sc' to clean package cache${RESET}"
     fi
+    
+    log_message "INFO" "=== kygox-uninstall completed ==="
 }
 
 # Signal handlers
