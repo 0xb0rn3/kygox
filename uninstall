@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # CONFIGURATION
-readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_VERSION="1.0.1"
 readonly SCRIPT_CODENAME="Purge"
 readonly AUTHOR="0xb0rn3"
 readonly REPO_URL="https://github.com/0xb0rn3/kygox"
@@ -33,16 +33,17 @@ declare -g VERBOSE_MODE=false
 declare -g DRY_RUN=false
 declare -g FORCE_REMOVE=false
 declare -g KEEP_CONFIG=false
+declare -g KEEP_REPO=false
 declare -g LOADER_PID=""
 declare -A REMOVAL_STATS=(
-    ["scanned"]=0
-    ["found"]=0
+    ["total_available"]=0
+    ["total_installed"]=0
     ["removed"]=0
     ["failed"]=0
 )
 
 # ============================================================================
-# ANIMATED LOADERS
+# ANIMATED LOADERS (Same as installer)
 # ============================================================================
 
 show_purge_loader() {
@@ -181,19 +182,19 @@ error_exit() {
 print_banner() {
     clear
     cat << 'EOF'
-╔════════════════════════════════════════════════════════════════════════╗
-║                                                                        ║
-║        ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                   ║
-║        ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                   ║
-║        █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                    ║
-║        ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                    ║
-║        ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                   ║
-║        ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝                   ║
-║                                                                        ║
-║                   🗑️  UNINSTALLER v1.0.0 Purge  ♻️                     ║
-║                 By 0xb0rn3 | Complete Removal Tool                    ║
-║                                                                        ║
-╚════════════════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║        ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗                  ║
+║        ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝                  ║
+║        █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝                   ║
+║        ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗                   ║
+║        ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗                  ║
+║        ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝                  ║
+║                                                                      ║
+║                 🗑️  UNINSTALLER v1.0.1 Purge  ♻️                     ║
+║               By 0xb0rn3 | Complete Removal Tool                    ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
 EOF
     echo
 }
@@ -207,8 +208,20 @@ check_root() {
     echo
 }
 
+check_blackarch_configured() {
+    if ! grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
+        echo -e "${YELLOW}[!] BlackArch repository not found in pacman.conf${RESET}"
+        echo -e "${YELLOW}[!] Cannot scan for packages without repository configuration${RESET}"
+        echo
+        echo -e "${CYAN}[i] If you've already removed BlackArch, there's nothing to uninstall${RESET}"
+        return 1
+    fi
+    return 0
+}
+
 create_backup() {
     log_message "INFO" "Creating backup before uninstallation..."
+    echo -e "${CYAN}[*] Creating backup...${RESET}"
     
     mkdir -p "$BACKUP_DIR"
     
@@ -226,171 +239,94 @@ create_backup() {
     
     # Save list of installed BlackArch packages
     if command -v pacman &>/dev/null; then
-        pacman -Qm | grep -i blackarch > "$BACKUP_DIR/blackarch_packages.txt" 2>/dev/null || true
+        pacman -Qq 2>/dev/null | while read pkg; do
+            if pacman -Qi "$pkg" 2>/dev/null | grep -q "^Repository.*blackarch"; then
+                echo "$pkg"
+            fi
+        done > "$BACKUP_DIR/blackarch_packages.txt"
         log_message "INFO" "Saved list of installed packages"
     fi
     
-    echo -e "${GREEN}[+] Backup created at: $BACKUP_DIR${RESET}"
+    echo -e "${GREEN}[+] Backup created at: ${DIM}$BACKUP_DIR${RESET}"
+    echo
 }
 
-get_all_blackarch_packages() {
-    log_message "INFO" "Scanning for BlackArch packages..."
-    
-    echo -e "${CYAN}[*] Querying BlackArch repository...${RESET}"
-    
-    # Check if BlackArch repository is configured
-    if ! grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
-        echo -e "${YELLOW}[!] BlackArch repository not found in pacman.conf${RESET}"
-        return 0
-    fi
-    
-    # Get all packages from BlackArch repository
-    if pacman -Sl blackarch &>/dev/null; then
-        echo -e "${GREEN}[✓] BlackArch repository accessible${RESET}"
-        pacman -Sl blackarch 2>/dev/null | awk '{print $2}' | sort -u
-    else
-        echo -e "${YELLOW}[!] Cannot access BlackArch repository${RESET}"
-        return 0
-    fi
-}
-
-get_installed_blackarch_packages() {
-    log_message "INFO" "Identifying installed BlackArch packages..."
-    
-    echo -e "${CYAN}[*] Scanning installed packages...${RESET}"
-    
-    local installed_ba_packages=()
-    
-    # Method 1: Get packages directly from blackarch group
-    echo -ne "${DIM}Method 1: Checking blackarch groups...${RESET}\r"
-    while IFS= read -r pkg; do
-        if [[ -n "$pkg" ]]; then
-            installed_ba_packages+=("$pkg")
-        fi
-    done < <(pacman -Qg 2>/dev/null | grep "^blackarch" | awk '{print $2}' | sort -u)
-    
-    # Method 2: Get packages installed from blackarch repo
-    echo -ne "${DIM}Method 2: Checking package origins...    ${RESET}\r"
-    while IFS= read -r pkg; do
-        # Check if package is from blackarch repository
-        local repo=$(pacman -Qi "$pkg" 2>/dev/null | grep "^Repository" | awk '{print $3}')
-        if [[ "$repo" == "blackarch" ]]; then
-            # Only add if not already in list
-            if ! printf '%s\n' "${installed_ba_packages[@]}" | grep -q "^${pkg}$"; then
-                installed_ba_packages+=("$pkg")
-            fi
-        fi
-    done < <(pacman -Qq 2>/dev/null)
-    
-    # Remove duplicates and sort
-    installed_ba_packages=($(printf '%s\n' "${installed_ba_packages[@]}" | sort -u))
-    
-    echo -e "${GREEN}[✓] Package scan complete - Found ${#installed_ba_packages[@]} packages${RESET}"
-    
-    # Output the list
-    printf '%s\n' "${installed_ba_packages[@]}"
-}
-
-scan_system() {
+scan_blackarch_packages() {
     echo -e "${CYAN}${BOLD}[*] Scanning System for BlackArch Packages${RESET}"
     echo
     
-    # First, verify BlackArch repository is configured
+    # Step 1: Check if BlackArch is configured
     echo -e "${CYAN}[*] Step 1/3: Verifying BlackArch repository...${RESET}"
     
-    if grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
-        echo -e "${GREEN}[✓] BlackArch repository found in pacman.conf${RESET}"
-    else
-        echo -e "${RED}[✗] BlackArch repository NOT found in pacman.conf${RESET}"
-        echo -e "${YELLOW}[!] If you have BlackArch configured, the script cannot detect it${RESET}"
-        REMOVAL_STATS["scanned"]=0
-        REMOVAL_STATS["found"]=0
+    if ! check_blackarch_configured; then
         return 1
     fi
     
-    # Check if we can access the repository
-    echo -e "${CYAN}[*] Step 2/3: Checking repository accessibility...${RESET}"
+    echo -e "${GREEN}[✓] BlackArch repository found in pacman.conf${RESET}"
+    echo
     
-    local all_packages=()
-    local repo_accessible=false
+    # Step 2: Get ALL BlackArch packages from repository (like installer does)
+    echo -e "${CYAN}[*] Step 2/3: Querying BlackArch repository...${RESET}"
     
-    if timeout 5 pacman -Sl blackarch &>/dev/null; then
-        echo -e "${GREEN}[✓] Repository is accessible${RESET}"
-        repo_accessible=true
-        all_packages=($(timeout 10 pacman -Sl blackarch 2>/dev/null | awk '{print $2}' | head -100))
-        REMOVAL_STATS["scanned"]=${#all_packages[@]}
+    show_scan_loader "Scanning BlackArch repository" 3 &
+    local loader_pid=$!
+    
+    local all_blackarch_packages=()
+    
+    # This is exactly how the installer does it
+    if pacman -Sl blackarch &>/dev/null; then
+        mapfile -t all_blackarch_packages < <(pacman -Sl blackarch 2>/dev/null | awk '{print $2}' | sort -u)
+        REMOVAL_STATS["total_available"]=${#all_blackarch_packages[@]}
     else
-        echo -e "${YELLOW}[!] Cannot access repository (timeout or unavailable)${RESET}"
-        REMOVAL_STATS["scanned"]=0
+        wait $loader_pid 2>/dev/null || true
+        echo -e "${RED}[✗] Cannot access BlackArch repository${RESET}"
+        return 1
     fi
     
+    wait $loader_pid 2>/dev/null || true
+    
+    echo -e "${GREEN}[✓] Found ${REMOVAL_STATS[total_available]} packages in BlackArch repository${RESET}"
     echo
-    echo -e "${CYAN}[*] Step 3/3: Identifying installed packages...${RESET}"
     
-    # Get installed BlackArch packages
-    local installed_packages=()
+    # Step 3: Check which ones are installed (like installer does)
+    echo -e "${CYAN}[*] Step 3/3: Checking installed packages...${RESET}"
     
-    # Quick method: Check blackarch groups
-    echo -e "${DIM}  → Checking blackarch groups...${RESET}"
-    local group_count=0
-    while IFS= read -r pkg; do
-        if [[ -n "$pkg" ]]; then
-            installed_packages+=("$pkg")
-            ((group_count++))
+    show_scan_loader "Analyzing installed packages" 3 &
+    loader_pid=$!
+    
+    local installed_blackarch_packages=()
+    
+    # Check each BlackArch package to see if it's installed
+    for pkg in "${all_blackarch_packages[@]}"; do
+        if pacman -Qi "$pkg" &>/dev/null; then
+            installed_blackarch_packages+=("$pkg")
         fi
-    done < <(timeout 10 pacman -Qg 2>/dev/null | grep "^blackarch" | awk '{print $2}' | sort -u)
+    done
     
-    echo -e "${DIM}  → Found ${group_count} packages in blackarch groups${RESET}"
+    REMOVAL_STATS["total_installed"]=${#installed_blackarch_packages[@]}
     
-    # Additional method: Check installed packages from blackarch repo
-    echo -e "${DIM}  → Verifying package repositories...${RESET}"
-    local verified=0
+    wait $loader_pid 2>/dev/null || true
     
-    # Only check first 50 packages to avoid hanging
-    local check_count=0
-    while IFS= read -r pkg && [[ $check_count -lt 50 ]]; do
-        ((check_count++))
-        local repo=$(timeout 2 pacman -Qi "$pkg" 2>/dev/null | grep "^Repository" | awk '{print $3}')
-        if [[ "$repo" == "blackarch" ]]; then
-            if ! printf '%s\n' "${installed_packages[@]}" | grep -q "^${pkg}$"; then
-                installed_packages+=("$pkg")
-                ((verified++))
-            fi
-        fi
-    done < <(pacman -Qq 2>/dev/null)
-    
-    echo -e "${DIM}  → Verified ${verified} additional packages${RESET}"
-    
-    # Remove duplicates and sort
-    if [[ ${#installed_packages[@]} -gt 0 ]]; then
-        installed_packages=($(printf '%s\n' "${installed_packages[@]}" | sort -u))
-    fi
-    
-    REMOVAL_STATS["found"]=${#installed_packages[@]}
-    
+    echo -e "${GREEN}[✓] Found ${REMOVAL_STATS[total_installed]} installed BlackArch packages${RESET}"
     echo
+    
+    # Display results
     echo -e "${GREEN}${BOLD}[+] Scan Results:${RESET}"
-    echo -e "  ${WHITE}•${RESET} BlackArch packages in repository: ${REMOVAL_STATS[scanned]}"
-    echo -e "  ${WHITE}•${RESET} BlackArch packages on your system: ${RED}${REMOVAL_STATS[found]}${RESET}"
+    echo -e "  ${WHITE}•${RESET} Total BlackArch packages: ${REMOVAL_STATS[total_available]}"
+    echo -e "  ${WHITE}•${RESET} Installed on your system: ${RED}${BOLD}${REMOVAL_STATS[total_installed]}${RESET}"
     echo
     
-    if [[ ${REMOVAL_STATS[found]} -eq 0 ]]; then
-        echo -e "${GREEN}[+] No BlackArch packages found installed.${RESET}"
-        echo
-        echo -e "${YELLOW}Debug Information:${RESET}"
-        echo -e "  ${WHITE}•${RESET} Repository configured: $(grep -q "^\[blackarch\]" /etc/pacman.conf && echo "Yes" || echo "No")"
-        echo -e "  ${WHITE}•${RESET} BlackArch groups found: $(timeout 5 pacman -Qg 2>/dev/null | grep -c "^blackarch" || echo "0")"
-        echo -e "  ${WHITE}•${RESET} Total installed packages: $(pacman -Qq 2>/dev/null | wc -l)"
-        echo
+    if [[ ${REMOVAL_STATS[total_installed]} -eq 0 ]]; then
+        echo -e "${GREEN}[+] No BlackArch packages found installed${RESET}"
         return 1
     fi
     
-    # Display some installed packages
-    echo -e "${YELLOW}Installed BlackArch packages (showing first 20):${RESET}"
+    # Show sample of installed packages
+    echo -e "${YELLOW}Installed BlackArch packages (showing first 30):${RESET}"
     local count=0
-    for pkg in "${installed_packages[@]}"; do
-        if [[ $count -ge 20 ]]; then
-            echo -e "  ${DIM}... and $((${#installed_packages[@]} - 20)) more packages${RESET}"
+    for pkg in "${installed_blackarch_packages[@]}"; do
+        if [[ $count -ge 30 ]]; then
+            echo -e "  ${DIM}... and $((${#installed_blackarch_packages[@]} - 30)) more packages${RESET}"
             break
         fi
         echo -e "  ${RED}•${RESET} $pkg"
@@ -398,8 +334,8 @@ scan_system() {
     done
     echo
     
-    # Return the list for removal
-    printf '%s\n' "${installed_packages[@]}"
+    # Return the list
+    printf '%s\n' "${installed_blackarch_packages[@]}"
 }
 
 remove_package() {
@@ -407,25 +343,28 @@ remove_package() {
     
     if [[ "$DRY_RUN" == "true" ]]; then
         echo -e "${YELLOW}[DRY RUN] Would remove: $package${RESET}"
+        ((REMOVAL_STATS["removed"]++))
         return 0
     fi
     
     log_message "INFO" "Removing package: $package"
     
+    # Try multiple removal methods
     if pacman -Rns --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1; then
         echo -e "${GREEN}[+] Removed: $package${RESET}"
         ((REMOVAL_STATS["removed"]++))
         return 0
     elif pacman -Rn --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1; then
-        echo -e "${GREEN}[+] Removed (without dependencies): $package${RESET}"
+        echo -e "${GREEN}[+] Removed (no deps): $package${RESET}"
         ((REMOVAL_STATS["removed"]++))
         return 0
-    elif pacman -R --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1; then
-        echo -e "${YELLOW}[!] Removed (basic): $package${RESET}"
+    elif pacman -Rdd --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1; then
+        echo -e "${YELLOW}[!] Removed (forced): $package${RESET}"
         ((REMOVAL_STATS["removed"]++))
         return 0
     else
-        echo -e "${RED}[!] Failed to remove: $package${RESET}"
+        echo -e "${RED}[!] Failed: $package${RESET}"
+        log_message "ERROR" "Failed to remove: $package"
         ((REMOVAL_STATS["failed"]++))
         return 1
     fi
@@ -447,6 +386,7 @@ remove_packages() {
         wait $LOADER_PID 2>/dev/null || true
     fi
     
+    # Process in batches for better output
     local batch_size=10
     local total_batches=$(( (${#packages[@]} + batch_size - 1) / batch_size ))
     
@@ -473,12 +413,17 @@ remove_blackarch_repository() {
     echo -e "${CYAN}${BOLD}[*] Removing BlackArch Repository Configuration${RESET}"
     echo
     
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${YELLOW}[DRY RUN] Would remove BlackArch repository configuration${RESET}"
+        return 0
+    fi
+    
     show_purge_loader "Cleaning repository configuration" 3 &
     local loader_pid=$!
     
     # Remove BlackArch from pacman.conf
     if [[ -f /etc/pacman.conf ]]; then
-        sed -i '/\[blackarch\]/,+1d' /etc/pacman.conf
+        sed -i '/^\[blackarch\]/,/^$/d' /etc/pacman.conf
         log_message "INFO" "Removed BlackArch from pacman.conf"
     fi
     
@@ -488,10 +433,10 @@ remove_blackarch_repository() {
         log_message "INFO" "Removed BlackArch mirrorlist"
     fi
     
-    # Remove BlackArch keyring
+    # Remove BlackArch keyring package
     if pacman -Qi blackarch-keyring &>/dev/null; then
         pacman -Rns --noconfirm blackarch-keyring >> "$LOG_DIR/kygox_uninstall.log" 2>&1 || true
-        log_message "INFO" "Removed BlackArch keyring"
+        log_message "INFO" "Removed BlackArch keyring package"
     fi
     
     # Remove BlackArch keys from pacman keyring
@@ -517,16 +462,23 @@ clean_kygox_files() {
         "$LOG_DIR"
     )
     
-    # Don't remove backup directory we just created
-    files_to_remove=("${files_to_remove[@]/$BACKUP_DIR/}")
-    
     for file in "${files_to_remove[@]}"; do
+        # Don't remove backup directory we just created
+        if [[ "$file" == *"$BACKUP_DIR"* ]]; then
+            continue
+        fi
+        
         if [[ -n "$file" && -e "$file" ]]; then
             if [[ "$DRY_RUN" == "true" ]]; then
                 echo -e "${YELLOW}[DRY RUN] Would remove: $file${RESET}"
             else
-                rm -rf "$file"
-                echo -e "${GREEN}[+] Removed: $file${RESET}"
+                # Keep the backup directory
+                if [[ "$file" == "$CONFIG_DIR" ]]; then
+                    find "$file" -mindepth 1 -maxdepth 1 ! -path "*/backups" -exec rm -rf {} + 2>/dev/null || true
+                else
+                    rm -rf "$file" 2>/dev/null || true
+                fi
+                echo -e "${GREEN}[+] Cleaned: $file${RESET}"
                 log_message "INFO" "Removed: $file"
             fi
         fi
@@ -536,6 +488,11 @@ clean_kygox_files() {
 }
 
 sync_databases() {
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${YELLOW}[DRY RUN] Would synchronize package databases${RESET}"
+        return 0
+    fi
+    
     echo -e "${CYAN}[*] Synchronizing package databases...${RESET}"
     
     show_scan_loader "Updating package databases" 2 &
@@ -551,37 +508,64 @@ sync_databases() {
 
 show_summary() {
     echo
-    echo -e "${CYAN}${BOLD}╔════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${CYAN}${BOLD}║                   UNINSTALLATION SUMMARY                   ║${RESET}"
-    echo -e "${CYAN}${BOLD}╠════════════════════════════════════════════════════════════╣${RESET}"
-    echo -e "${CYAN}${BOLD}║${RESET}  Packages Scanned:      ${WHITE}${REMOVAL_STATS[scanned]}${RESET}"
-    echo -e "${CYAN}${BOLD}║${RESET}  Packages Found:        ${YELLOW}${REMOVAL_STATS[found]}${RESET}"
-    echo -e "${CYAN}${BOLD}║${RESET}  Successfully Removed:  ${GREEN}${REMOVAL_STATS[removed]}${RESET}"
-    echo -e "${CYAN}${BOLD}║${RESET}  Failed to Remove:      ${RED}${REMOVAL_STATS[failed]}${RESET}"
-    echo -e "${CYAN}${BOLD}╠════════════════════════════════════════════════════════════╣${RESET}"
-    echo -e "${CYAN}${BOLD}║${RESET}  Backup Location:                                          ${CYAN}${BOLD}║${RESET}"
-    echo -e "${CYAN}${BOLD}║${RESET}  ${DIM}$BACKUP_DIR${RESET}"
-    echo -e "${CYAN}${BOLD}╚════════════════════════════════════════════════════════════╝${RESET}"
+    echo -e "${CYAN}${BOLD}╔═════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}${BOLD}║                   UNINSTALLATION SUMMARY                    ║${RESET}"
+    echo -e "${CYAN}${BOLD}╠═════════════════════════════════════════════════════════════╣${RESET}"
+    echo -e "${CYAN}${BOLD}║${RESET}  Total BlackArch Packages:    ${WHITE}${REMOVAL_STATS[total_available]}${RESET}"
+    echo -e "${CYAN}${BOLD}║${RESET}  Found Installed:             ${YELLOW}${REMOVAL_STATS[total_installed]}${RESET}"
+    echo -e "${CYAN}${BOLD}║${RESET}  Successfully Removed:        ${GREEN}${REMOVAL_STATS[removed]}${RESET}"
+    echo -e "${CYAN}${BOLD}║${RESET}  Failed to Remove:            ${RED}${REMOVAL_STATS[failed]}${RESET}"
+    echo -e "${CYAN}${BOLD}╠═════════════════════════════════════════════════════════════╣${RESET}"
+    echo -e "${CYAN}${BOLD}║${RESET}  Backup Location:                                        ${CYAN}${BOLD}║${RESET}"
+    echo -e "${CYAN}${BOLD}║${RESET}  ${DIM}${BACKUP_DIR:0:57}${RESET}"
+    echo -e "${CYAN}${BOLD}╚═════════════════════════════════════════════════════════════╝${RESET}"
     echo
     
     if [[ ${REMOVAL_STATS[removed]} -gt 0 ]]; then
-        echo -e "${GREEN}${BOLD}[✓] BlackArch packages successfully removed from your system${RESET}"
+        echo -e "${GREEN}${BOLD}[✓] Successfully removed ${REMOVAL_STATS[removed]} BlackArch packages${RESET}"
     fi
     
     if [[ ${REMOVAL_STATS[failed]} -gt 0 ]]; then
-        echo -e "${YELLOW}[!] Some packages could not be removed. Check logs for details:${RESET}"
-        echo -e "    ${DIM}$LOG_DIR/kygox_uninstall.log${RESET}"
+        echo -e "${YELLOW}[!] ${REMOVAL_STATS[failed]} packages could not be removed${RESET}"
+        echo -e "    ${DIM}Check logs: $LOG_DIR/kygox_uninstall.log${RESET}"
     fi
     
     echo
 }
 
+confirm_removal() {
+    if [[ "$FORCE_REMOVE" == "true" ]]; then
+        return 0
+    fi
+    
+    echo
+    echo -e "${RED}${BOLD}╔═════════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${RED}${BOLD}║                        ⚠️  WARNING ⚠️                        ║${RESET}"
+    echo -e "${RED}${BOLD}╠═════════════════════════════════════════════════════════════╣${RESET}"
+    echo -e "${RED}${BOLD}║${RESET}  This will remove ALL BlackArch packages from            ${RED}${BOLD}║${RESET}"
+    echo -e "${RED}${BOLD}║${RESET}  your system.                                            ${RED}${BOLD}║${RESET}"
+    echo -e "${RED}${BOLD}║${RESET}                                                          ${RED}${BOLD}║${RESET}"
+    echo -e "${RED}${BOLD}║${RESET}  Packages to remove: ${YELLOW}${BOLD}${REMOVAL_STATS[total_installed]}${RESET}                              ${RED}${BOLD}║${RESET}"
+    echo -e "${RED}${BOLD}║${RESET}                                                          ${RED}${BOLD}║${RESET}"
+    echo -e "${RED}${BOLD}║${RESET}  A backup will be created before proceeding.            ${RED}${BOLD}║${RESET}"
+    echo -e "${RED}${BOLD}╚═════════════════════════════════════════════════════════════╝${RESET}"
+    echo
+    
+    read -p "Type 'REMOVE ALL' to confirm: " -r confirmation
+    
+    if [[ "$confirmation" != "REMOVE ALL" ]]; then
+        echo -e "${YELLOW}[!] Uninstallation cancelled${RESET}"
+        exit 0
+    fi
+    echo
+}
+
 show_help() {
     cat << 'HELP_TEXT'
-kygox-uninstall v1.0.0 Purge - BlackArch Removal Tool
+kygox-uninstall v1.0.1 Purge - BlackArch Removal Tool
 
 USAGE:
-    sudo ./kygox-uninstall [OPTIONS]
+    sudo ./uninstall [OPTIONS]
 
 OPTIONS:
     -h, --help              Show this help message
@@ -589,19 +573,21 @@ OPTIONS:
     -n, --dry-run          Show what would be removed without removing
     -f, --force            Force removal without confirmation
     -k, --keep-config      Keep kygox configuration files
-    --packages-only        Remove only packages, keep repository config
-    --repo-only            Remove only repository config, keep packages
+    --keep-repo            Remove packages but keep repository configuration
 
 EXAMPLES:
-    sudo ./kygox-uninstall              # Interactive removal
-    sudo ./kygox-uninstall -n           # Preview what would be removed
-    sudo ./kygox-uninstall -f           # Force removal without prompts
-    sudo ./kygox-uninstall -k           # Keep configuration files
+    sudo ./uninstall                # Interactive removal with confirmation
+    sudo ./uninstall -n             # Preview what would be removed
+    sudo ./uninstall -f             # Force removal without prompts
+    sudo ./uninstall -k             # Keep configuration files
+    sudo ./uninstall --keep-repo    # Remove packages but keep repo
 
 NOTES:
-    - A backup is automatically created before removal
-    - Backups are stored in: ~/.config/kygox/backups/
-    - Logs are saved to: ~/.kygox/kygox_uninstall.log
+    - Scans ALL BlackArch packages like the installer does
+    - Shows exactly what's installed before removing
+    - Creates automatic backup before removal
+    - Backups stored in: ~/.config/kygox/backups/
+    - Logs saved to: ~/.kygox/kygox_uninstall.log
 
 SUPPORT:
     Repository: https://github.com/0xb0rn3/kygox
@@ -611,9 +597,6 @@ HELP_TEXT
 }
 
 parse_arguments() {
-    local packages_only=false
-    local repo_only=false
-    
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -622,32 +605,22 @@ parse_arguments() {
                 ;;
             -v|--verbose)
                 VERBOSE_MODE=true
-                log_message "INFO" "Verbose mode enabled"
                 shift
                 ;;
             -n|--dry-run)
                 DRY_RUN=true
-                log_message "INFO" "Dry-run mode enabled"
                 shift
                 ;;
             -f|--force)
                 FORCE_REMOVE=true
-                log_message "INFO" "Force mode enabled"
                 shift
                 ;;
             -k|--keep-config)
                 KEEP_CONFIG=true
-                log_message "INFO" "Keep config mode enabled"
                 shift
                 ;;
-            --packages-only)
-                packages_only=true
-                log_message "INFO" "Packages-only mode enabled"
-                shift
-                ;;
-            --repo-only)
-                repo_only=true
-                log_message "INFO" "Repo-only mode enabled"
+            --keep-repo)
+                KEEP_REPO=true
                 shift
                 ;;
             *)
@@ -657,61 +630,19 @@ parse_arguments() {
                 ;;
         esac
     done
-    
-    # Handle mutually exclusive options
-    if [[ "$packages_only" == "true" && "$repo_only" == "true" ]]; then
-        echo -e "${RED}[ERROR] Cannot use --packages-only and --repo-only together${RESET}" >&2
-        exit 1
-    fi
-    
-    echo "$packages_only $repo_only"
-}
-
-confirm_removal() {
-    if [[ "$FORCE_REMOVE" == "true" ]]; then
-        return 0
-    fi
-    
-    echo
-    echo -e "${RED}${BOLD}╔════════════════════════════════════════════════════════════╗${RESET}"
-    echo -e "${RED}${BOLD}║                        ⚠️  WARNING ⚠️                        ║${RESET}"
-    echo -e "${RED}${BOLD}╠════════════════════════════════════════════════════════════╣${RESET}"
-    echo -e "${RED}${BOLD}║${RESET}  This will remove ALL BlackArch packages and              ${RED}${BOLD}║${RESET}"
-    echo -e "${RED}${BOLD}║${RESET}  repository configuration from your system.               ${RED}${BOLD}║${RESET}"
-    echo -e "${RED}${BOLD}║${RESET}                                                            ${RED}${BOLD}║${RESET}"
-    echo -e "${RED}${BOLD}║${RESET}  Found: ${YELLOW}${REMOVAL_STATS[found]} packages${RESET} will be removed                ${RED}${BOLD}║${RESET}"
-    echo -e "${RED}${BOLD}║${RESET}                                                            ${RED}${BOLD}║${RESET}"
-    echo -e "${RED}${BOLD}║${RESET}  A backup will be created before proceeding.              ${RED}${BOLD}║${RESET}"
-    echo -e "${RED}${BOLD}╚════════════════════════════════════════════════════════════╝${RESET}"
-    echo
-    
-    read -p "Type 'REMOVE ALL' to confirm removal: " -r confirmation
-    
-    if [[ "$confirmation" != "REMOVE ALL" ]]; then
-        echo -e "${YELLOW}[!] Uninstallation cancelled${RESET}"
-        exit 0
-    fi
 }
 
 main() {
     # Initialize log
-    log_message "INFO" "=== kygox-uninstall started ==="
+    log_message "INFO" "=== kygox-uninstall v${SCRIPT_VERSION} started ==="
     
     # Parse arguments
-    local packages_only=false
-    local repo_only=false
-    
-    if [[ $# -gt 0 ]]; then
-        local options_result
-        options_result=$(parse_arguments "$@")
-        packages_only=$(echo "$options_result" | cut -d' ' -f1)
-        repo_only=$(echo "$options_result" | cut -d' ' -f2)
-    fi
+    parse_arguments "$@"
     
     # Display banner
     print_banner
     
-    # Check root privileges
+    # Check root
     check_root
     
     # Show mode
@@ -720,26 +651,25 @@ main() {
         echo
     fi
     
-    # Scan system for BlackArch packages
-    echo -e "${CYAN}[*] Starting system scan...${RESET}"
-    echo
-    
+    # Scan for BlackArch packages (EXACTLY like installer)
     local packages_to_remove=()
-    if ! mapfile -t packages_to_remove < <(scan_system); then
-        # scan_system returns 1 if no packages found
-        if [[ ${REMOVAL_STATS[found]} -eq 0 ]]; then
-            echo -e "${GREEN}${BOLD}[✓] Nothing to remove - system is clean${RESET}"
-            log_message "INFO" "No BlackArch packages found"
+    if ! mapfile -t packages_to_remove < <(scan_blackarch_packages); then
+        if [[ ${REMOVAL_STATS[total_installed]} -eq 0 ]]; then
+            echo -e "${GREEN}${BOLD}[✓] Nothing to remove - no BlackArch packages installed${RESET}"
+            
+            # Still offer to clean repo config
+            if check_blackarch_configured; then
+                echo
+                read -p "Remove BlackArch repository configuration? [y/N]: " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    remove_blackarch_repository
+                    sync_databases
+                fi
+            fi
+            
             exit 0
         fi
-    fi
-    
-    log_message "INFO" "Found ${REMOVAL_STATS[found]} BlackArch packages"
-    
-    # Exit if no packages found
-    if [[ ${REMOVAL_STATS[found]} -eq 0 ]]; then
-        echo -e "${GREEN}${BOLD}[✓] Nothing to remove - system is clean${RESET}"
-        exit 0
     fi
     
     # Confirm removal
@@ -748,21 +678,14 @@ main() {
     # Create backup
     if [[ "$DRY_RUN" != "true" ]]; then
         create_backup
-        echo
     fi
     
     # Remove packages
-    if [[ "$repo_only" != "true" ]]; then
-        remove_packages "${packages_to_remove[@]}"
-    fi
+    remove_packages "${packages_to_remove[@]}"
     
-    # Remove repository configuration
-    if [[ "$packages_only" != "true" ]]; then
+    # Remove repository configuration (unless keeping it)
+    if [[ "$KEEP_REPO" != "true" ]]; then
         remove_blackarch_repository
-    fi
-    
-    # Sync databases
-    if [[ "$DRY_RUN" != "true" && "$repo_only" != "true" ]]; then
         sync_databases
     fi
     
@@ -774,16 +697,16 @@ main() {
     
     echo -e "${GREEN}${BOLD}[✓] Uninstallation complete!${RESET}"
     
-    if [[ "$DRY_RUN" != "true" ]]; then
+    if [[ "$DRY_RUN" != "true" && "$KEEP_REPO" != "true" ]]; then
         echo -e "${CYAN}[i] You may want to run 'sudo pacman -Sc' to clean package cache${RESET}"
     fi
     
-    log_message "INFO" "=== kygox-uninstall completed ==="
+    log_message "INFO" "=== kygox-uninstall completed successfully ==="
 }
 
 # Signal handlers
 trap 'stop_loader; exit 130' INT TERM
 trap 'stop_loader' EXIT
 
-# Execute main function
+# Execute main
 main "$@"
