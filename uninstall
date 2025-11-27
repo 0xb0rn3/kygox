@@ -260,31 +260,32 @@ get_installed_blackarch_packages() {
     echo -e "${CYAN}[*] Scanning installed packages...${RESET}"
     
     local installed_ba_packages=()
-    local total_packages=$(pacman -Qq 2>/dev/null | wc -l)
-    local count=0
-    local last_percent=0
     
-    # Show initial progress
-    echo -ne "${DIM}Checking packages... 0%${RESET}\r"
-    
-    # Get installed packages that are from BlackArch
+    # Method 1: Get packages directly from blackarch group
+    echo -ne "${DIM}Method 1: Checking blackarch groups...${RESET}\r"
     while IFS= read -r pkg; do
-        ((count++))
-        local percent=$((count * 100 / total_packages))
-        
-        # Update progress every 5%
-        if [[ $((percent - last_percent)) -ge 5 ]]; then
-            echo -ne "${DIM}Checking packages... ${percent}%${RESET}\r"
-            last_percent=$percent
-        fi
-        
-        # Check if package is from BlackArch
-        if pacman -Si "$pkg" 2>/dev/null | grep -q "^Repository.*blackarch"; then
+        if [[ -n "$pkg" ]]; then
             installed_ba_packages+=("$pkg")
+        fi
+    done < <(pacman -Qg 2>/dev/null | grep "^blackarch" | awk '{print $2}' | sort -u)
+    
+    # Method 2: Get packages installed from blackarch repo
+    echo -ne "${DIM}Method 2: Checking package origins...    ${RESET}\r"
+    while IFS= read -r pkg; do
+        # Check if package is from blackarch repository
+        local repo=$(pacman -Qi "$pkg" 2>/dev/null | grep "^Repository" | awk '{print $3}')
+        if [[ "$repo" == "blackarch" ]]; then
+            # Only add if not already in list
+            if ! printf '%s\n' "${installed_ba_packages[@]}" | grep -q "^${pkg}$"; then
+                installed_ba_packages+=("$pkg")
+            fi
         fi
     done < <(pacman -Qq 2>/dev/null)
     
-    echo -e "${GREEN}[✓] Package scan complete              ${RESET}"
+    # Remove duplicates and sort
+    installed_ba_packages=($(printf '%s\n' "${installed_ba_packages[@]}" | sort -u))
+    
+    echo -e "${GREEN}[✓] Package scan complete - Found ${#installed_ba_packages[@]} packages${RESET}"
     
     # Output the list
     printf '%s\n' "${installed_ba_packages[@]}"
@@ -294,31 +295,51 @@ scan_system() {
     echo -e "${CYAN}${BOLD}[*] Scanning System for BlackArch Packages${RESET}"
     echo
     
-    # Don't use animated loader here, use direct progress
-    echo -e "${CYAN}[*] Step 1/2: Checking BlackArch repository...${RESET}"
+    # First, verify BlackArch repository is configured
+    echo -e "${CYAN}[*] Step 1/3: Verifying BlackArch repository...${RESET}"
+    if grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
+        echo -e "${GREEN}[✓] BlackArch repository found in pacman.conf${RESET}"
+    else
+        echo -e "${RED}[✗] BlackArch repository NOT found in pacman.conf${RESET}"
+        echo -e "${YELLOW}[!] If you have BlackArch configured, the script cannot detect it${RESET}"
+        REMOVAL_STATS["scanned"]=0
+        REMOVAL_STATS["found"]=0
+        return 1
+    fi
     
+    # Check if we can access the repository
+    echo -e "${CYAN}[*] Step 2/3: Checking repository accessibility...${RESET}"
     local all_packages=()
-    local installed_packages=()
-    
-    # Get all BlackArch packages available
     mapfile -t all_packages < <(get_all_blackarch_packages)
     REMOVAL_STATS["scanned"]=${#all_packages[@]}
     
+    if [[ ${REMOVAL_STATS["scanned"]} -eq 0 ]]; then
+        echo -e "${YELLOW}[!] Cannot query BlackArch repository${RESET}"
+        echo -e "${YELLOW}[!] Trying alternative detection method...${RESET}"
+    fi
+    
     echo
-    echo -e "${CYAN}[*] Step 2/2: Identifying installed packages...${RESET}"
+    echo -e "${CYAN}[*] Step 3/3: Identifying installed packages...${RESET}"
     
     # Get installed BlackArch packages
+    local installed_packages=()
     mapfile -t installed_packages < <(get_installed_blackarch_packages)
     REMOVAL_STATS["found"]=${#installed_packages[@]}
     
     echo
     echo -e "${GREEN}${BOLD}[+] Scan Results:${RESET}"
-    echo -e "  ${WHITE}•${RESET} Total BlackArch packages in repo: ${REMOVAL_STATS[scanned]}"
-    echo -e "  ${WHITE}•${RESET} Installed on your system: ${RED}${REMOVAL_STATS[found]}${RESET}"
+    echo -e "  ${WHITE}•${RESET} BlackArch packages in repository: ${REMOVAL_STATS[scanned]}"
+    echo -e "  ${WHITE}•${RESET} BlackArch packages on your system: ${RED}${REMOVAL_STATS[found]}${RESET}"
     echo
     
     if [[ ${REMOVAL_STATS[found]} -eq 0 ]]; then
-        echo -e "${GREEN}[+] No BlackArch packages found. System is clean!${RESET}"
+        echo -e "${GREEN}[+] No BlackArch packages found installed.${RESET}"
+        echo
+        echo -e "${YELLOW}Debug Information:${RESET}"
+        echo -e "  ${WHITE}•${RESET} Repository configured: $(grep -q "^\[blackarch\]" /etc/pacman.conf && echo "Yes" || echo "No")"
+        echo -e "  ${WHITE}•${RESET} BlackArch groups found: $(pacman -Qg 2>/dev/null | grep -c "^blackarch" || echo "0")"
+        echo -e "  ${WHITE}•${RESET} Total installed packages: $(pacman -Qq 2>/dev/null | wc -l)"
+        echo
         return 1
     fi
     
