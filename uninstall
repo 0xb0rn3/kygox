@@ -55,27 +55,63 @@ def check_root():
         sys.exit(1)
 
 
-def verify_blackarch_repo() -> bool:
-    """Verify BlackArch repository is accessible"""
-    print(f"\n{CYAN}[1/5] Verifying BlackArch repository...{RESET}")
+def setup_blackarch_repo():
+    """Setup BlackArch repository if not present (same as installer)"""
+    print(f"\n{CYAN}Setting up BlackArch repository...{RESET}")
     
-    # Check pacman.conf
+    # Check if already configured
     try:
         with open('/etc/pacman.conf', 'r') as f:
-            if '[blackarch]' not in f.read():
-                print(f"{RED}✗ BlackArch not in pacman.conf{RESET}")
-                return False
+            if '[blackarch]' in f.read():
+                print(f"{GREEN}✓ BlackArch already configured{RESET}")
+                run_cmd(['pacman', '-Sy', '--noconfirm'], capture=False)
+                return True
     except:
+        pass
+    
+    # Run strap.sh (same as installer)
+    print(f"{CYAN}Installing BlackArch repository...{RESET}")
+    
+    # Download strap.sh
+    success, _ = run_cmd(['curl', '-O', 'https://blackarch.org/strap.sh'])
+    if not success:
+        print(f"{RED}✗ Failed to download strap.sh{RESET}")
         return False
+    
+    # Make executable
+    run_cmd(['chmod', '+x', 'strap.sh'])
+    
+    # Run installer
+    success, _ = run_cmd(['./strap.sh'], capture=False)
+    if not success:
+        print(f"{RED}✗ Failed to setup BlackArch{RESET}")
+        return False
+    
+    # Clean up
+    Path('strap.sh').unlink(missing_ok=True)
+    
+    # Sync databases
+    run_cmd(['pacman', '-Sy', '--noconfirm'], capture=False)
+    
+    print(f"{GREEN}✓ BlackArch repository configured{RESET}")
+    return True
+
+
+def verify_blackarch_repo() -> bool:
+    """Verify BlackArch repository is accessible"""
+    print(f"\n{CYAN}[1/6] Verifying BlackArch repository...{RESET}")
     
     # Test repository access
     success, _ = run_cmd(['pacman', '-Sl', 'blackarch'])
-    if not success:
-        print(f"{RED}✗ Cannot access BlackArch repository{RESET}")
-        return False
+    if success:
+        print(f"{GREEN}✓ Repository accessible{RESET}")
+        return True
     
-    print(f"{GREEN}✓ Repository accessible{RESET}")
-    return True
+    # Not accessible, try to set it up
+    print(f"{YELLOW}⚠ BlackArch repository not accessible{RESET}")
+    print(f"{CYAN}Setting up repository for accurate correlation...{RESET}")
+    
+    return setup_blackarch_repo()
 
 
 def get_blackarch_packages() -> Set[str]:
@@ -83,7 +119,7 @@ def get_blackarch_packages() -> Set[str]:
     Get ALL packages from BlackArch repository
     EXACT same method as installer uses
     """
-    print(f"\n{CYAN}[2/5] Querying BlackArch repository...{RESET}")
+    print(f"\n{CYAN}[2/6] Querying BlackArch repository...{RESET}")
     
     success, output = run_cmd(['pacman', '-Sl', 'blackarch'])
     if not success:
@@ -106,7 +142,7 @@ def get_installed_packages() -> Set[str]:
     Get ALL installed packages on system
     EXACT same method as installer uses
     """
-    print(f"\n{CYAN}[3/5] Scanning installed packages...{RESET}")
+    print(f"\n{CYAN}[3/6] Scanning installed packages...{RESET}")
     
     success, output = run_cmd(['pacman', '-Qq'])
     if not success:
@@ -124,7 +160,7 @@ def correlate_packages(blackarch_pkgs: Set[str], installed_pkgs: Set[str]) -> Se
     Find intersection: BlackArch ∩ Installed
     EXACT same correlation as installer
     """
-    print(f"\n{CYAN}[4/5] Correlating packages...{RESET}")
+    print(f"\n{CYAN}[4/6] Correlating packages...{RESET}")
     print(f"{CYAN}Formula: BlackArch_Repo ∩ Installed_System{RESET}")
     
     matched = blackarch_pkgs & installed_pkgs
@@ -180,7 +216,7 @@ def remove_packages(packages: Set[str], dry_run: bool = False) -> Dict[str, int]
     Remove packages with multiple fallback methods
     Returns stats: {'removed': N, 'failed': N}
     """
-    print(f"\n{CYAN}[5/5] Removing packages...{RESET}")
+    print(f"\n{CYAN}[5/6] Removing packages...{RESET}")
     
     if dry_run:
         print(f"{YELLOW}DRY RUN MODE - No actual removal{RESET}")
@@ -225,7 +261,7 @@ def remove_packages(packages: Set[str], dry_run: bool = False) -> Dict[str, int]
 
 def clean_repo_config():
     """Remove BlackArch repository configuration"""
-    print(f"\n{CYAN}Cleaning repository configuration...{RESET}")
+    print(f"\n{CYAN}[6/6] Cleaning repository configuration...{RESET}")
     
     # Remove from pacman.conf
     try:
@@ -274,11 +310,10 @@ def main():
     if dry_run:
         print(f"\n{YELLOW}DRY RUN MODE ENABLED{RESET}")
     
-    # STEP 1: Verify repository
+    # STEP 1: Verify repository (setup if needed)
     if not verify_blackarch_repo():
         print(f"\n{RED}CANNOT PROCEED{RESET}")
-        print(f"{YELLOW}BlackArch repository must be accessible to correlate packages{RESET}")
-        print(f"{CYAN}If BlackArch is already removed, there's nothing to uninstall{RESET}")
+        print(f"{RED}Failed to setup BlackArch repository{RESET}")
         sys.exit(1)
     
     # STEP 2: Get BlackArch packages (from repository)
