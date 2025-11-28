@@ -422,11 +422,31 @@ scan_blackarch_packages() {
             break
         fi
         
-        # Show package name (descriptions would require pacman -Qi which is slow)
+        # Show package name
         echo -e "  ${RED}•${RESET} ${CYAN}$pkg${RESET}" >&2
         ((count++))
     done
     echo >&2
+    
+    # Debug: Show actual array size vs stats
+    log_message "DEBUG" "Array size: ${#installed_blackarch_packages[@]}, Stats: ${REMOVAL_STATS[total_installed]}"
+    
+    # Sanity check before returning
+    if [[ ${#installed_blackarch_packages[@]} -ne ${REMOVAL_STATS[total_installed]} ]]; then
+        echo -e "${RED}${BOLD}[DEBUG] Warning: Array size mismatch!${RESET}" >&2
+        echo -e "${RED}  Array has: ${#installed_blackarch_packages[@]} packages${RESET}" >&2
+        echo -e "${RED}  Stats show: ${REMOVAL_STATS[total_installed]} packages${RESET}" >&2
+        echo >&2
+        log_message "ERROR" "Package count mismatch detected in scan function"
+        
+        # Use actual array size
+        REMOVAL_STATS["total_installed"]=${#installed_blackarch_packages[@]}
+        
+        if [[ ${#installed_blackarch_packages[@]} -eq 0 ]]; then
+            echo -e "${GREEN}${BOLD}[✓] Corrected: Actually 0 packages installed${RESET}" >&2
+            return 1
+        fi
+    fi
     
     # Return the correlated list for removal (THIS GOES TO STDOUT FOR MAPFILE)
     printf '%s\n' "${installed_blackarch_packages[@]}"
@@ -861,25 +881,26 @@ main() {
     
     # Check if scan found any packages
     if [[ ${#packages_to_remove[@]} -eq 0 || ${REMOVAL_STATS[total_installed]} -eq 0 ]]; then
-        echo
-        echo -e "${GREEN}${BOLD}╔═══════════════════════════════════════════════════════════╗${RESET}"
-        echo -e "${GREEN}${BOLD}║                   SYSTEM IS CLEAN                         ║${RESET}"
-        echo -e "${GREEN}${BOLD}╠═══════════════════════════════════════════════════════════╣${RESET}"
-        echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} No BlackArch packages found installed                ${GREEN}${BOLD}║${RESET}"
-        echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} Your system is already clean!                        ${GREEN}${BOLD}║${RESET}"
-        echo -e "${GREEN}${BOLD}║${RESET}                                                         ${GREEN}${BOLD}║${RESET}"
+        echo >&2
+        echo -e "${GREEN}${BOLD}╔═══════════════════════════════════════════════════════════╗${RESET}" >&2
+        echo -e "${GREEN}${BOLD}║                   SYSTEM IS CLEAN                         ║${RESET}" >&2
+        echo -e "${GREEN}${BOLD}╠═══════════════════════════════════════════════════════════╣${RESET}" >&2
+        echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} No BlackArch packages found installed                ${GREEN}${BOLD}║${RESET}" >&2
+        echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} Your system is already clean!                        ${GREEN}${BOLD}║${RESET}" >&2
+        echo -e "${GREEN}${BOLD}║${RESET}                                                         ${GREEN}${BOLD}║${RESET}" >&2
         
         # Check if repository is still configured
         if grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
-            echo -e "${GREEN}${BOLD}║${RESET}  ${YELLOW}Note:${RESET} BlackArch repository is still configured       ${GREEN}${BOLD}║${RESET}"
-            echo -e "${GREEN}${BOLD}║${RESET}                                                         ${GREEN}${BOLD}║${RESET}"
-            echo -e "${GREEN}${BOLD}║${RESET}  Would you like to clean the repository config?       ${GREEN}${BOLD}║${RESET}"
-            echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}"
-            echo
+            echo -e "${GREEN}${BOLD}║${RESET}  ${YELLOW}Note:${RESET} BlackArch repository is still configured       ${GREEN}${BOLD}║${RESET}" >&2
+            echo -e "${GREEN}${BOLD}║${RESET}                                                         ${GREEN}${BOLD}║${RESET}" >&2
+            echo -e "${GREEN}${BOLD}║${RESET}  Would you like to clean the repository config?       ${GREEN}${BOLD}║${RESET}" >&2
+            echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}" >&2
+            echo >&2
             
-            read -p "Remove BlackArch repository configuration? [y/N]: " -n 1 -r
-            echo
-            echo
+            # IMPORTANT: Read from /dev/tty to get user input
+            read -p "Remove BlackArch repository configuration? [y/N]: " -n 1 -r </dev/tty
+            echo >&2
+            echo >&2
             
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 if [[ "$DRY_RUN" != "true" ]]; then
@@ -888,20 +909,31 @@ main() {
                 remove_blackarch_repository
                 sync_databases
                 clean_kygox_files
-                echo
-                echo -e "${GREEN}${BOLD}[✓] BlackArch repository configuration removed${RESET}"
+                echo >&2
+                echo -e "${GREEN}${BOLD}[✓] BlackArch repository configuration removed${RESET}" >&2
             else
-                echo -e "${CYAN}[i] Repository configuration kept${RESET}"
+                echo -e "${CYAN}[i] Repository configuration kept${RESET}" >&2
             fi
         else
-            echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} BlackArch repository already removed               ${GREEN}${BOLD}║${RESET}"
-            echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}"
-            echo
-            echo -e "${GREEN}${BOLD}[✓] System is completely clean - nothing to do!${RESET}"
+            echo -e "${GREEN}${BOLD}║${RESET}  ${GREEN}✓${RESET} BlackArch repository already removed               ${GREEN}${BOLD}║${RESET}" >&2
+            echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}" >&2
+            echo >&2
+            echo -e "${GREEN}${BOLD}[✓] System is completely clean - nothing to do!${RESET}" >&2
         fi
         
         log_message "INFO" "No packages to remove, system is clean"
         exit 0
+    fi
+    
+    # Sanity check: packages_to_remove should match REMOVAL_STATS
+    if [[ ${#packages_to_remove[@]} -ne ${REMOVAL_STATS[total_installed]} ]]; then
+        echo >&2
+        echo -e "${RED}${BOLD}[ERROR] Internal inconsistency detected:${RESET}" >&2
+        echo -e "${RED}  Array has ${#packages_to_remove[@]} packages${RESET}" >&2
+        echo -e "${RED}  Stats show ${REMOVAL_STATS[total_installed]} packages${RESET}" >&2
+        echo >&2
+        log_message "ERROR" "Package count mismatch: array=${#packages_to_remove[@]} stats=${REMOVAL_STATS[total_installed]}"
+        exit 1
     fi
     
     log_message "INFO" "Found ${#packages_to_remove[@]} packages to remove"
