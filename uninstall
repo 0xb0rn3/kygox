@@ -324,7 +324,13 @@ scan_blackarch_packages() {
     
     REMOVAL_STATS["total_available"]=${#all_blackarch_packages[@]}
     
-    wait $loader_pid 2>/dev/null || true
+    # FORCE STOP LOADER
+    if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
+        kill $loader_pid 2>/dev/null || true
+        wait $loader_pid 2>/dev/null || true
+    fi
+    LOADER_PID=""
+    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) "" >&2
     
     if [[ ${#all_blackarch_packages[@]} -eq 0 ]]; then
         echo -e "${RED}[✗] No packages found in BlackArch repository${RESET}" >&2
@@ -348,7 +354,13 @@ scan_blackarch_packages() {
     # Get ALL installed packages in one fast command
     mapfile -t all_installed_packages < <(pacman -Qq 2>/dev/null | sort -u)
     
-    wait $loader_pid 2>/dev/null || true
+    # FORCE STOP LOADER
+    if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
+        kill $loader_pid 2>/dev/null || true
+        wait $loader_pid 2>/dev/null || true
+    fi
+    LOADER_PID=""
+    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) "" >&2
     
     echo -e "${GREEN}[✓] Found ${#all_installed_packages[@]} total installed packages${RESET}" >&2
     log_message "INFO" "System has ${#all_installed_packages[@]} installed packages"
@@ -377,7 +389,13 @@ scan_blackarch_packages() {
     
     REMOVAL_STATS["total_installed"]=${#installed_blackarch_packages[@]}
     
-    wait $loader_pid 2>/dev/null || true
+    # FORCE STOP LOADER
+    if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
+        kill $loader_pid 2>/dev/null || true
+        wait $loader_pid 2>/dev/null || true
+    fi
+    LOADER_PID=""
+    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) "" >&2
     
     echo -e "${GREEN}[✓] Correlation complete: ${REMOVAL_STATS[total_installed]} matches found${RESET}" >&2
     log_message "INFO" "Correlation found ${REMOVAL_STATS[total_installed]} installed BlackArch packages"
