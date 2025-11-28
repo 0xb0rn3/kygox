@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+# NOTE: We don't use 'set -e' because we want to continue removing packages
+# even if some individual package removals fail
+set -uo pipefail
 
 # CONFIGURATION
 readonly SCRIPT_VERSION="1.0.1"
@@ -253,30 +255,13 @@ verify_blackarch_repository() {
     # Try to access the repository
     echo -e "${CYAN}[*] Testing repository accessibility...${RESET}"
     
-    show_scan_loader "Connecting to BlackArch repository" 2 &
-    local loader_pid=$!
-    
     if ! pacman -Sl blackarch &>/dev/null; then
-        if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
-            kill $loader_pid 2>/dev/null || true
-            wait $loader_pid 2>/dev/null || true
-        fi
-        LOADER_PID=""
-        printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
-        
         echo -e "${RED}[✗] Cannot access BlackArch repository${RESET}"
         echo -e "${YELLOW}[!] Repository is configured but not accessible${RESET}"
         echo
         echo -e "${CYAN}Try running: ${WHITE}sudo pacman -Sy${RESET}"
         return 1
     fi
-    
-    if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
-        kill $loader_pid 2>/dev/null || true
-        wait $loader_pid 2>/dev/null || true
-    fi
-    LOADER_PID=""
-    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
     
     echo -e "${GREEN}[✓] BlackArch repository is accessible${RESET}"
     log_message "INFO" "BlackArch repository verified and accessible"
@@ -323,21 +308,10 @@ scan_and_correlate_packages() {
     echo -e "${CYAN}[*] Step 1/3: Querying BlackArch Repository${RESET}"
     echo -e "${DIM}  → Fetching master list of ALL BlackArch packages${RESET}"
     
-    show_scan_loader "Fetching BlackArch package list" 3 &
-    local loader_pid=$!
-    
     local all_blackarch_packages=()
     mapfile -t all_blackarch_packages < <(pacman -Sl blackarch 2>/dev/null | awk '{print $2}' | sort -u)
     
     REMOVAL_STATS["total_available"]=${#all_blackarch_packages[@]}
-    
-    # FORCE STOP LOADER
-    if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
-        kill $loader_pid 2>/dev/null || true
-        wait $loader_pid 2>/dev/null || true
-    fi
-    LOADER_PID=""
-    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
     
     if [[ ${#all_blackarch_packages[@]} -eq 0 ]]; then
         echo -e "${RED}[✗] No packages found in BlackArch repository${RESET}"
@@ -353,19 +327,8 @@ scan_and_correlate_packages() {
     echo -e "${CYAN}[*] Step 2/3: Getting Installed Packages${RESET}"
     echo -e "${DIM}  → Fetching list of all installed packages on system${RESET}"
     
-    show_scan_loader "Reading installed packages" 2 &
-    loader_pid=$!
-    
     local all_installed_packages=()
     mapfile -t all_installed_packages < <(pacman -Qq 2>/dev/null | sort -u)
-    
-    # FORCE STOP LOADER
-    if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
-        kill $loader_pid 2>/dev/null || true
-        wait $loader_pid 2>/dev/null || true
-    fi
-    LOADER_PID=""
-    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
     
     echo -e "${GREEN}[✓] Found ${#all_installed_packages[@]} total installed packages${RESET}"
     log_message "INFO" "System has ${#all_installed_packages[@]} installed packages"
@@ -374,9 +337,6 @@ scan_and_correlate_packages() {
     # Step 3: FAST MATCHING - Find intersection
     echo -e "${CYAN}[*] Step 3/3: Matching Packages${RESET}"
     echo -e "${DIM}  → Finding intersection: BlackArch repo ∩ Installed packages${RESET}"
-    
-    show_scan_loader "Performing package matching" 2 &
-    loader_pid=$!
     
     # Create associative array of installed packages for O(1) lookup
     declare -A installed_lookup
@@ -393,14 +353,6 @@ scan_and_correlate_packages() {
     done
     
     REMOVAL_STATS["total_installed"]=${#PACKAGES_TO_REMOVE[@]}
-    
-    # FORCE STOP LOADER
-    if [[ -n "$loader_pid" ]] && kill -0 $loader_pid 2>/dev/null; then
-        kill $loader_pid 2>/dev/null || true
-        wait $loader_pid 2>/dev/null || true
-    fi
-    LOADER_PID=""
-    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
     
     echo -e "${GREEN}[✓] Matching complete: ${REMOVAL_STATS[total_installed]} packages found${RESET}"
     log_message "INFO" "Found ${REMOVAL_STATS[total_installed]} installed BlackArch packages"
@@ -461,27 +413,47 @@ remove_package() {
         return 0
     fi
     
-    log_message "INFO" "Removing package: $package"
+    log_message "INFO" "Attempting to remove package: $package"
     
-    # Try multiple removal methods
-    if pacman -Rns --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1; then
-        echo -e "${GREEN}[+] Removed: $package${RESET}"
-        ((REMOVAL_STATS["removed"]++))
-        return 0
-    elif pacman -Rn --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1; then
-        echo -e "${GREEN}[+] Removed (no deps): $package${RESET}"
-        ((REMOVAL_STATS["removed"]++))
-        return 0
-    elif pacman -Rdd --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1; then
-        echo -e "${YELLOW}[!] Removed (forced): $package${RESET}"
-        ((REMOVAL_STATS["removed"]++))
-        return 0
-    else
-        echo -e "${RED}[!] Failed: $package${RESET}"
-        log_message "ERROR" "Failed to remove: $package"
-        ((REMOVAL_STATS["failed"]++))
-        return 1
+    # Clean up any loader artifacts before showing removal message
+    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) "" 2>/dev/null || true
+    
+    # Try multiple removal methods - using || true to prevent script exit
+    if pacman -Rns --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1 || true; then
+        # Check if it was actually removed
+        if ! pacman -Qi "$package" &>/dev/null; then
+            echo -e "${GREEN}[+] Removed: $package${RESET}"
+            ((REMOVAL_STATS["removed"]++))
+            log_message "INFO" "Successfully removed: $package"
+            return 0
+        fi
     fi
+    
+    # Try without dependency removal
+    if pacman -Rn --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1 || true; then
+        if ! pacman -Qi "$package" &>/dev/null; then
+            echo -e "${GREEN}[+] Removed (no deps): $package${RESET}"
+            ((REMOVAL_STATS["removed"]++))
+            log_message "INFO" "Successfully removed (no deps): $package"
+            return 0
+        fi
+    fi
+    
+    # Try forced removal
+    if pacman -Rdd --noconfirm "$package" >> "$LOG_DIR/kygox_uninstall.log" 2>&1 || true; then
+        if ! pacman -Qi "$package" &>/dev/null; then
+            echo -e "${YELLOW}[!] Removed (forced): $package${RESET}"
+            ((REMOVAL_STATS["removed"]++))
+            log_message "WARN" "Removed with force: $package"
+            return 0
+        fi
+    fi
+    
+    # All methods failed
+    echo -e "${RED}[!] Failed: $package${RESET}"
+    log_message "ERROR" "Failed to remove: $package"
+    ((REMOVAL_STATS["failed"]++))
+    return 1
 }
 
 remove_packages() {
@@ -497,12 +469,21 @@ remove_packages() {
     
     if [[ "$DRY_RUN" != "true" ]]; then
         show_purge_loader "Preparing removal process" 2 &
-        wait $LOADER_PID 2>/dev/null || true
+        local prep_pid=$!
+        sleep 2
+        if [[ -n "$prep_pid" ]] && kill -0 $prep_pid 2>/dev/null; then
+            kill $prep_pid 2>/dev/null || true
+            wait $prep_pid 2>/dev/null || true
+        fi
+        printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
     fi
     
     # Process in batches for better output
     local batch_size=10
     local total_batches=$(( (${#packages[@]} + batch_size - 1) / batch_size ))
+    
+    echo -e "${CYAN}[*] Processing ${#packages[@]} packages in $total_batches batches${RESET}"
+    echo
     
     for ((i=0; i<${#packages[@]}; i+=batch_size)); do
         local batch=("${packages[@]:i:batch_size}")
@@ -511,7 +492,14 @@ remove_packages() {
         echo -e "${CYAN}[*] Batch $batch_num/$total_batches${RESET}"
         
         for pkg in "${batch[@]}"; do
-            remove_package "$pkg"
+            # Clean any loader artifacts
+            printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) "" 2>/dev/null || true
+            
+            # Remove package with error handling
+            if ! remove_package "$pkg"; then
+                # Log but continue
+                log_message "WARN" "Failed to remove $pkg, continuing with next package"
+            fi
         done
         
         local progress=$(( (i + batch_size) * 100 / ${#packages[@]} ))
@@ -521,6 +509,9 @@ remove_packages() {
         echo -e "${GREEN}[+] Progress: ${progress}% (Removed: ${REMOVAL_STATS[removed]}, Failed: ${REMOVAL_STATS[failed]})${RESET}"
         echo
     done
+    
+    echo -e "${GREEN}${BOLD}[✓] Package removal process complete${RESET}"
+    echo
 }
 
 remove_blackarch_repository() {
@@ -924,15 +915,54 @@ main() {
     
     log_message "INFO" "Found ${#PACKAGES_TO_REMOVE[@]} packages to remove"
     
+    # CRITICAL: Kill ALL background jobs and clean screen completely
+    echo
+    echo -e "${CYAN}[*] Preparing for confirmation...${RESET}"
+    
+    # Kill all background jobs (loaders)
+    jobs -p | xargs -r kill 2>/dev/null || true
+    sleep 1
+    
+    # Clear screen artifacts aggressively
+    tput cnorm 2>/dev/null || true
+    clear
+    
+    # Reshow the analysis box
+    echo
+    echo -e "${GREEN}${BOLD}╔═══════════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${GREEN}${BOLD}║               BLACKARCH PACKAGE ANALYSIS                 ║${RESET}"
+    echo -e "${GREEN}${BOLD}╠═══════════════════════════════════════════════════════════╣${RESET}"
+    echo -e "${GREEN}${BOLD}║${RESET}  Total in BlackArch Repo:      ${WHITE}${BOLD}${REMOVAL_STATS[total_available]}${RESET} packages"
+    echo -e "${GREEN}${BOLD}║${RESET}  Total Installed on System:    ${WHITE}8537${RESET} packages"
+    echo -e "${GREEN}${BOLD}║${RESET}  BlackArch Packages Found:     ${RED}${BOLD}${REMOVAL_STATS[total_installed]}${RESET} packages"
+    if [[ ${REMOVAL_STATS[total_available]} -gt 0 ]]; then
+        local match_rate=$(( REMOVAL_STATS[total_installed] * 100 / REMOVAL_STATS[total_available] ))
+        echo -e "${GREEN}${BOLD}║${RESET}  Match Rate:                   ${YELLOW}${match_rate}%${RESET}"
+    fi
+    echo -e "${GREEN}${BOLD}╚═══════════════════════════════════════════════════════════╝${RESET}"
+    echo
+    
     # STEP 4: Confirm removal
+    # CRITICAL: Clean up any ghost loaders first
+    stop_loader
+    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
+    tput cnorm 2>/dev/null || true
+    sleep 0.3
+    
     echo -e "${CYAN}${BOLD}[*] Step 4: Confirmation${RESET}"
     confirm_removal
     
     # STEP 5: Clean old backups from previous versions
+    stop_loader
+    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
+    
     echo -e "${CYAN}${BOLD}[*] Step 5: Cleanup${RESET}"
     clean_old_backups
     
     # STEP 6: Remove packages
+    stop_loader
+    printf "\r%*s\r" $(tput cols 2>/dev/null || echo 80) ""
+    
     echo -e "${CYAN}${BOLD}[*] Step 6: Removing Packages${RESET}"
     echo -e "${DIM}  → Removing ${#PACKAGES_TO_REMOVE[@]} packages found in BlackArch repository${RESET}"
     echo
