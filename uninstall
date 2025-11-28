@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-kygox-uninstall v2.0.0
-Uses EXACT same correlation mechanism as installer
+kygox-uninstall
+Uses EXACT same intersection mechanism as installer
 """
 
 import subprocess
 import sys
 import os
 import json
+import tempfile
 from pathlib import Path
 from typing import Set, List, Dict
 
 # Configuration
-VERSION = "2.0.0"
 LOG_FILE = Path.home() / ".kygox" / "uninstall.log"
 BACKUP_FILE = Path.home() / ".kygox" / "backup.json"
 
@@ -37,7 +37,7 @@ def run_cmd(cmd: List[str], capture=True) -> tuple:
     """Run command and return (success, output)"""
     try:
         if capture:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            result = subprocess.run(cmd, capture_output=True, text=True)
             return (result.returncode == 0, result.stdout)
         else:
             result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -56,7 +56,7 @@ def check_root():
 
 
 def setup_blackarch_repo():
-    """Setup BlackArch repository if not present (same as installer)"""
+    """Setup BlackArch repository if not present"""
     print(f"\n{CYAN}Setting up BlackArch repository...{RESET}")
     
     # Check if already configured
@@ -69,7 +69,7 @@ def setup_blackarch_repo():
     except:
         pass
     
-    # Run strap.sh (same as installer)
+    # Run strap.sh
     print(f"{CYAN}Installing BlackArch repository...{RESET}")
     
     # Download strap.sh
@@ -109,7 +109,7 @@ def verify_blackarch_repo() -> bool:
     
     # Not accessible, try to set it up
     print(f"{YELLOW}⚠ BlackArch repository not accessible{RESET}")
-    print(f"{CYAN}Setting up repository for accurate correlation...{RESET}")
+    print(f"{CYAN}Setting up repository for accurate comparison...{RESET}")
     
     return setup_blackarch_repo()
 
@@ -117,7 +117,6 @@ def verify_blackarch_repo() -> bool:
 def get_blackarch_packages() -> Set[str]:
     """
     Get ALL packages from BlackArch repository
-    EXACT same method as installer uses
     """
     print(f"\n{CYAN}[2/6] Querying BlackArch repository...{RESET}")
     
@@ -140,7 +139,6 @@ def get_blackarch_packages() -> Set[str]:
 def get_installed_packages() -> Set[str]:
     """
     Get ALL installed packages on system
-    EXACT same method as installer uses
     """
     print(f"\n{CYAN}[3/6] Scanning installed packages...{RESET}")
     
@@ -158,14 +156,13 @@ def get_installed_packages() -> Set[str]:
 def correlate_packages(blackarch_pkgs: Set[str], installed_pkgs: Set[str]) -> Set[str]:
     """
     Find intersection: BlackArch ∩ Installed
-    EXACT same correlation as installer
     """
-    print(f"\n{CYAN}[4/6] Correlating packages...{RESET}")
+    print(f"\n{CYAN}[4/6] Calculating intersection...{RESET}")
     print(f"{CYAN}Formula: BlackArch_Repo ∩ Installed_System{RESET}")
     
     matched = blackarch_pkgs & installed_pkgs
     
-    print(f"\n{BOLD}CORRELATION RESULTS:{RESET}")
+    print(f"\n{BOLD}RESULTS:{RESET}")
     print(f"  BlackArch repo:     {len(blackarch_pkgs):>5} packages")
     print(f"  Installed system:   {len(installed_pkgs):>5} packages")
     print(f"  {RED}Matched (to remove): {len(matched):>5} packages{RESET}")
@@ -174,14 +171,13 @@ def correlate_packages(blackarch_pkgs: Set[str], installed_pkgs: Set[str]) -> Se
         match_rate = (len(matched) / len(blackarch_pkgs)) * 100
         print(f"  Match rate:         {match_rate:>5.1f}%")
     
-    log(f"Correlation: {len(matched)} packages matched")
+    log(f"Intersection: {len(matched)} packages matched")
     return matched
 
 
 def create_backup(packages: Set[str]):
     """Create backup of package list"""
     backup_data = {
-        'version': VERSION,
         'packages': sorted(list(packages)),
         'count': len(packages)
     }
@@ -213,10 +209,11 @@ def confirm_removal(packages: Set[str]) -> bool:
 
 def remove_packages(packages: Set[str], dry_run: bool = False) -> Dict[str, int]:
     """
-    Remove packages with multiple fallback methods
-    Returns stats: {'removed': N, 'failed': N}
+    Remove packages using Bulk Transaction mode.
+    Writes targets to a temporary file and pipes to pacman to allow 
+    dependency resolution to occur in a single pass.
     """
-    print(f"\n{CYAN}[5/6] Removing packages...{RESET}")
+    print(f"\n{CYAN}[5/6] Removing packages (Bulk Mode)...{RESET}")
     
     if dry_run:
         print(f"{YELLOW}DRY RUN MODE - No actual removal{RESET}")
@@ -224,38 +221,70 @@ def remove_packages(packages: Set[str], dry_run: bool = False) -> Dict[str, int]
     
     stats = {'removed': 0, 'failed': 0}
     packages_list = sorted(list(packages))
-    total = len(packages_list)
     
-    for i, pkg in enumerate(packages_list, 1):
-        # Progress indicator every 10 packages
-        if i % 10 == 0 or i == 1:
-            progress = (i / total) * 100
-            print(f"  Progress: {i}/{total} ({progress:.1f}%)")
+    # Create a temporary file containing the list of packages
+    # We use a temp file + stdin to avoid "Argument list too long" errors
+    try:
+        with tempfile.NamedTemporaryFile(mode='w+', delete=False) as tmp:
+            tmp_path = tmp.name
+            for pkg in packages_list:
+                tmp.write(f"{pkg}\n")
         
-        # Try removal methods in order
-        methods = [
-            (['pacman', '-Rns', '--noconfirm', pkg], 'standard'),
-            (['pacman', '-Rn', '--noconfirm', pkg], 'no-deps'),
-            (['pacman', '-Rdd', '--noconfirm', pkg], 'force'),
-        ]
+        print(f"  Executing bulk removal transaction...")
         
-        removed = False
-        for cmd, method in methods:
-            success, _ = run_cmd(cmd, capture=False)
-            if success:
-                # Verify actually removed
-                check_success, _ = run_cmd(['pacman', '-Qi', pkg], capture=False)
-                if not check_success:  # Package not found = successfully removed
-                    removed = True
-                    log(f"Removed ({method}): {pkg}")
-                    break
+        # Command: pacman -Rsu --noconfirm - < tmp_file
+        # -R: Remove
+        # -s: Recursive (remove dependencies not required by other packages)
+        # -u: Unneeded (remove targets that are not required by any other packages)
+        # This combination ensures a clean sweep without breaking dependencies
         
-        if removed:
-            stats['removed'] += 1
+        with open(tmp_path, 'r') as f:
+            # We pipe the file content to stdin
+            process = subprocess.Popen(
+                ['pacman', '-Rsu', '--noconfirm', '-'],
+                stdin=f,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            stdout, stderr = process.communicate()
+            
+        if process.returncode == 0:
+            print(f"{GREEN}✓ Bulk transaction successful{RESET}")
+            stats['removed'] = len(packages)
+            log("Bulk removal successful")
         else:
-            stats['failed'] += 1
-            log(f"FAILED: {pkg}")
-    
+            print(f"{RED}✗ Bulk transaction failed. Output below:{RESET}")
+            print(stderr)
+            log(f"Bulk removal failed: {stderr}")
+            stats['failed'] = len(packages)
+            
+            # Fallback: Aggressive Force Remove (Only if standard bulk fails)
+            print(f"\n{YELLOW}Attempting aggressive fallback (Force Remove)...{RESET}")
+            with open(tmp_path, 'r') as f:
+                process = subprocess.Popen(
+                    ['pacman', '-Rdd', '--noconfirm', '-'],
+                    stdin=f,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                stdout, stderr = process.communicate()
+                
+            if process.returncode == 0:
+                 print(f"{GREEN}✓ Force removal successful{RESET}")
+                 stats['removed'] = len(packages)
+                 stats['failed'] = 0
+            else:
+                 print(f"{RED}✗ Force removal failed{RESET}")
+        
+        # Cleanup
+        os.unlink(tmp_path)
+            
+    except Exception as e:
+        print(f"{RED}Error during bulk removal: {e}{RESET}")
+        stats['failed'] = len(packages)
+
     return stats
 
 
@@ -296,7 +325,7 @@ def clean_repo_config():
 
 def main():
     """Main execution flow"""
-    print(f"{BOLD}kygox-uninstall v{VERSION}{RESET}")
+    print(f"{BOLD}kygox-uninstall{RESET}")
     print("=" * 60)
     
     # Check privileges
@@ -328,7 +357,7 @@ def main():
         print(f"{RED}Failed to query installed packages{RESET}")
         sys.exit(1)
     
-    # STEP 4: Correlate (find intersection)
+    # STEP 4: Intersect
     matched = correlate_packages(blackarch_pkgs, installed_pkgs)
     
     if not matched:
