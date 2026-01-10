@@ -179,7 +179,7 @@ show_hacking_loader() {
             "[◉] Processing"
         )
         
-        local icons=("🔓" "🔐" "💀" "👾" "⚡" "🔥")
+        local icons=("🔓" "🔒" "💀" "👾" "⚡" "🔥")
         local start_time=$(date +%s)
         local i=0
         
@@ -311,7 +311,427 @@ stop_loader() {
 }
 
 # ============================================================================
-# CORE FUNCTIONS (with integrated loaders)
+# BLACKARCH UPDATE SYSTEM WITH AUTO-FIX
+# ============================================================================
+
+backup_pacman_conf() {
+    local timestamp=$(date +%Y%m%d_%H%M%S)
+    local backup_path="$BACKUP_DIR/pacman.conf.$timestamp"
+    
+    log_message "INFO" "Backing up pacman.conf to $backup_path"
+    
+    mkdir -p "$BACKUP_DIR"
+    
+    if cp /etc/pacman.conf "$backup_path"; then
+        echo "$backup_path" > "$CONFIG_DIR/latest_pacman_backup"
+        log_message "INFO" "Backup created successfully"
+        echo -e "${GREEN}✓ Configuration backed up${RESET}"
+        return 0
+    else
+        log_message "ERROR" "Failed to backup pacman.conf"
+        return 1
+    fi
+}
+
+restore_pacman_conf() {
+    local backup_file="$1"
+    
+    if [[ -z "$backup_file" && -f "$CONFIG_DIR/latest_pacman_backup" ]]; then
+        backup_file=$(cat "$CONFIG_DIR/latest_pacman_backup")
+    fi
+    
+    if [[ ! -f "$backup_file" ]]; then
+        log_message "ERROR" "No backup file found for restore"
+        echo -e "${RED}✗ No backup available${RESET}"
+        return 1
+    fi
+    
+    log_message "INFO" "Restoring pacman.conf from $backup_file"
+    
+    show_hacking_loader "Restoring configuration" 2 &
+    local loader_pid=$!
+    
+    if cp "$backup_file" /etc/pacman.conf; then
+        wait $loader_pid 2>/dev/null || true
+        log_message "INFO" "Configuration restored successfully"
+        echo -e "${GREEN}✓ Configuration restored${RESET}"
+        return 0
+    else
+        wait $loader_pid 2>/dev/null || true
+        log_message "ERROR" "Failed to restore pacman.conf"
+        echo -e "${RED}✗ Restore failed${RESET}"
+        return 1
+    fi
+}
+
+force_fix_keyrings() {
+    echo -e "${CYAN}${BOLD}[*] Force Fixing Keyrings${RESET}"
+    log_message "INFO" "Starting aggressive keyring repair"
+    
+    show_forge_loader "Forging new cryptographic keys" 5 &
+    local loader_pid=$!
+    
+    # Step 1: Remove corrupted keyrings
+    rm -rf /etc/pacman.d/gnupg 2>/dev/null
+    
+    # Step 2: Initialize new keyring
+    pacman-key --init >> "$LOG_DIR/kygox.log" 2>&1
+    
+    # Step 3: Populate Arch keys
+    pacman-key --populate archlinux >> "$LOG_DIR/kygox.log" 2>&1
+    
+    wait $loader_pid 2>/dev/null || true
+    
+    # Step 4: Update archlinux-keyring package
+    show_download_loader "Downloading latest keyrings" 4 &
+    loader_pid=$!
+    
+    pacman -Sy --noconfirm archlinux-keyring >> "$LOG_DIR/kygox.log" 2>&1
+    
+    wait $loader_pid 2>/dev/null || true
+    
+    # Step 5: Import BlackArch keys with multiple keyservers
+    show_forge_loader "Importing BlackArch keys" 4 &
+    loader_pid=$!
+    
+    local keyservers=(
+        "hkps://keyserver.ubuntu.com:443"
+        "hkp://keyserver.ubuntu.com:80"
+        "hkp://pgp.mit.edu:80"
+        "hkps://keys.openpgp.org"
+        "hkp://keyserver.pgp.com:80"
+    )
+    
+    local key_imported=false
+    for keyserver in "${keyservers[@]}"; do
+        if gpg --keyserver "$keyserver" --recv-keys "$BLACKARCH_GPG_KEY" >> "$LOG_DIR/kygox.log" 2>&1; then
+            key_imported=true
+            log_message "INFO" "Key imported from $keyserver"
+            break
+        fi
+    done
+    
+    # Step 6: Populate BlackArch keys if available
+    if pacman -Qi blackarch-keyring &>/dev/null; then
+        pacman-key --populate blackarch >> "$LOG_DIR/kygox.log" 2>&1
+    fi
+    
+    # Step 7: Refresh all keys
+    pacman-key --refresh-keys >> "$LOG_DIR/kygox.log" 2>&1
+    
+    wait $loader_pid 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ Keyrings repaired${RESET}"
+    log_message "INFO" "Keyring repair completed"
+    return 0
+}
+
+force_update_mirrors() {
+    echo -e "${CYAN}${BOLD}[*] Updating Mirror Lists${RESET}"
+    log_message "INFO" "Updating mirror configurations"
+    
+    show_download_loader "Fetching latest mirrors" 4 &
+    local loader_pid=$!
+    
+    # Update Arch mirrors (if reflector is available)
+    if command -v reflector &>/dev/null; then
+        reflector --country "Germany,France,Netherlands,USA" \
+                  --age 12 \
+                  --protocol https \
+                  --sort rate \
+                  --save /etc/pacman.d/mirrorlist >> "$LOG_DIR/kygox.log" 2>&1
+        log_message "INFO" "Arch mirrors updated with reflector"
+    else
+        # Manual mirror update
+        curl -s "https://archlinux.org/mirrorlist/?country=DE&country=FR&country=NL&protocol=https&use_mirror_status=on" \
+            | sed 's/^#Server/Server/' > /etc/pacman.d/mirrorlist
+        log_message "INFO" "Arch mirrors updated manually"
+    fi
+    
+    # Update BlackArch mirrors
+    if [[ -f /etc/pacman.d/blackarch-mirrorlist ]] || grep -q "\[blackarch\]" /etc/pacman.conf; then
+        curl -s "$BLACKARCH_MIRROR_URL" -o /etc/pacman.d/blackarch-mirrorlist >> "$LOG_DIR/kygox.log" 2>&1
+        log_message "INFO" "BlackArch mirrors updated"
+    fi
+    
+    wait $loader_pid 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ Mirrors updated${RESET}"
+    return 0
+}
+
+force_clear_cache() {
+    echo -e "${CYAN}${BOLD}[*] Clearing Package Cache${RESET}"
+    log_message "INFO" "Clearing package cache"
+    
+    show_hacking_loader "Purging cache" 3 &
+    local loader_pid=$!
+    
+    # Clear package cache
+    pacman -Scc --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
+    
+    # Remove lock files
+    rm -f /var/lib/pacman/db.lck 2>/dev/null
+    
+    # Clean sync databases
+    rm -rf /var/lib/pacman/sync/* 2>/dev/null
+    
+    wait $loader_pid 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ Cache cleared${RESET}"
+    log_message "INFO" "Cache cleared successfully"
+    return 0
+}
+
+force_sync_databases() {
+    echo -e "${CYAN}${BOLD}[*] Synchronizing Package Databases${RESET}"
+    log_message "INFO" "Force syncing databases"
+    
+    show_scan_loader "Syncing package databases" 4 &
+    local loader_pid=$!
+    
+    # Force double refresh
+    if ! pacman -Syy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1; then
+        wait $loader_pid 2>/dev/null || true
+        log_message "ERROR" "Database sync failed"
+        return 1
+    fi
+    
+    wait $loader_pid 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ Databases synchronized${RESET}"
+    log_message "INFO" "Database sync completed"
+    return 0
+}
+
+handle_conflicting_packages() {
+    echo -e "${CYAN}${BOLD}[*] Resolving Package Conflicts${RESET}"
+    log_message "INFO" "Checking for conflicting packages"
+    
+    show_hacking_loader "Analyzing conflicts" 3 &
+    local loader_pid=$!
+    
+    # Common conflicting packages that need replacement
+    local conflicts=(
+        "python-typing_extensions:python-typing-extensions"
+        "dbus-python:python-dbus"
+        "flake8:python-flake8"
+    )
+    
+    for conflict in "${conflicts[@]}"; do
+        local old_pkg=$(echo "$conflict" | cut -d':' -f1)
+        local new_pkg=$(echo "$conflict" | cut -d':' -f2)
+        
+        if pacman -Qi "$old_pkg" &>/dev/null; then
+            log_message "INFO" "Replacing $old_pkg with $new_pkg"
+            pacman -S --noconfirm "$new_pkg" >> "$LOG_DIR/kygox.log" 2>&1
+        fi
+    done
+    
+    wait $loader_pid 2>/dev/null || true
+    
+    echo -e "${GREEN}✓ Conflicts resolved${RESET}"
+    return 0
+}
+
+force_update_system() {
+    local max_attempts=3
+    local attempt=1
+    local update_success=false
+    
+    echo -e "${CYAN}${BOLD}[*] Performing System Update (Attempt $attempt/$max_attempts)${RESET}"
+    log_message "INFO" "Starting system update attempt $attempt"
+    
+    while [[ $attempt -le $max_attempts && "$update_success" == "false" ]]; do
+        show_download_loader "Updating packages (Attempt $attempt)" 6 &
+        local loader_pid=$!
+        
+        # Attempt update with force flags
+        if pacman -Syu --noconfirm --overwrite '*' >> "$LOG_DIR/kygox.log" 2>&1; then
+            wait $loader_pid 2>/dev/null || true
+            update_success=true
+            echo -e "${GREEN}✓ System updated successfully${RESET}"
+            log_message "INFO" "System update completed successfully"
+            return 0
+        else
+            wait $loader_pid 2>/dev/null || true
+            log_message "WARN" "Update attempt $attempt failed"
+            
+            if [[ $attempt -lt $max_attempts ]]; then
+                echo -e "${YELLOW}⚠ Update failed, applying auto-fix...${RESET}"
+                
+                # Progressive auto-fix strategy
+                case $attempt in
+                    1)
+                        # First attempt: Clear locks and refresh
+                        rm -f /var/lib/pacman/db.lck 2>/dev/null
+                        pacman -Sy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
+                        ;;
+                    2)
+                        # Second attempt: Clear cache and fix keyrings
+                        force_clear_cache
+                        force_fix_keyrings
+                        force_sync_databases
+                        ;;
+                esac
+                
+                ((attempt++))
+                sleep 2
+            fi
+        fi
+    done
+    
+    if [[ "$update_success" == "false" ]]; then
+        echo -e "${RED}✗ System update failed after $max_attempts attempts${RESET}"
+        log_message "ERROR" "System update failed after all attempts"
+        return 1
+    fi
+}
+
+blackarch_force_update() {
+    echo -e "${CYAN}${BOLD}"
+    echo "═══════════════════════════════════════════════════════════"
+    echo "          🔄 BLACKARCH FORCE UPDATE SYSTEM 🔄"
+    echo "═══════════════════════════════════════════════════════════"
+    echo -e "${RESET}"
+    echo
+    
+    echo -e "${YELLOW}${BOLD}This will:${RESET}"
+    echo -e "  • Backup current configuration"
+    echo -e "  • Force fix all keyrings"
+    echo -e "  • Update mirror lists"
+    echo -e "  • Resolve package conflicts"
+    echo -e "  • Perform full system update"
+    echo -e "  • Auto-rollback on critical failure"
+    echo
+    
+    read -p "$(echo -e ${CYAN}Continue with force update? [Y/n]:${RESET} )" -n 1 -r
+    echo
+    
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        echo -e "${YELLOW}Update cancelled${RESET}"
+        return 0
+    fi
+    
+    echo
+    local update_failed=false
+    local backup_path=""
+    
+    # PHASE 1: Backup
+    echo -e "${CYAN}${BOLD}[PHASE 1/6] BACKUP${RESET}"
+    if backup_pacman_conf; then
+        backup_path=$(cat "$CONFIG_DIR/latest_pacman_backup")
+        echo -e "${GREEN}✓ Phase 1 complete${RESET}"
+    else
+        echo -e "${RED}✗ Backup failed - aborting${RESET}"
+        return 1
+    fi
+    echo
+    
+    # PHASE 2: Keyring repair
+    echo -e "${CYAN}${BOLD}[PHASE 2/6] KEYRING REPAIR${RESET}"
+    if force_fix_keyrings; then
+        echo -e "${GREEN}✓ Phase 2 complete${RESET}"
+    else
+        echo -e "${YELLOW}⚠ Keyring repair had issues, continuing...${RESET}"
+    fi
+    echo
+    
+    # PHASE 3: Mirror update
+    echo -e "${CYAN}${BOLD}[PHASE 3/6] MIRROR UPDATE${RESET}"
+    if force_update_mirrors; then
+        echo -e "${GREEN}✓ Phase 3 complete${RESET}"
+    else
+        echo -e "${YELLOW}⚠ Mirror update had issues, continuing...${RESET}"
+    fi
+    echo
+    
+    # PHASE 4: Database sync
+    echo -e "${CYAN}${BOLD}[PHASE 4/6] DATABASE SYNC${RESET}"
+    if force_sync_databases; then
+        echo -e "${GREEN}✓ Phase 4 complete${RESET}"
+    else
+        echo -e "${RED}✗ Database sync failed${RESET}"
+        update_failed=true
+    fi
+    echo
+    
+    # PHASE 5: Conflict resolution
+    if [[ "$update_failed" == "false" ]]; then
+        echo -e "${CYAN}${BOLD}[PHASE 5/6] CONFLICT RESOLUTION${RESET}"
+        handle_conflicting_packages
+        echo -e "${GREEN}✓ Phase 5 complete${RESET}"
+        echo
+    fi
+    
+    # PHASE 6: System update
+    if [[ "$update_failed" == "false" ]]; then
+        echo -e "${CYAN}${BOLD}[PHASE 6/6] SYSTEM UPDATE${RESET}"
+        if ! force_update_system; then
+            update_failed=true
+        fi
+        echo
+    fi
+    
+    # Result handling
+    echo -e "${CYAN}${BOLD}═══════════════════════════════════════════════════════════${RESET}"
+    
+    if [[ "$update_failed" == "true" ]]; then
+        echo -e "${RED}${BOLD}✗ UPDATE FAILED${RESET}"
+        echo
+        echo -e "${YELLOW}Attempting automatic rollback...${RESET}"
+        
+        if restore_pacman_conf "$backup_path"; then
+            force_sync_databases
+            echo -e "${GREEN}✓ Rolled back to previous configuration${RESET}"
+        else
+            echo -e "${RED}✗ Rollback failed${RESET}"
+            echo -e "${YELLOW}Manual restore required from: $backup_path${RESET}"
+        fi
+        
+        echo
+        echo -e "${CYAN}Check logs for details: $LOG_DIR/kygox.log${RESET}"
+        return 1
+    else
+        echo -e "${GREEN}${BOLD}✓ UPDATE COMPLETED SUCCESSFULLY${RESET}"
+        echo
+        echo -e "${GREEN}System Summary:${RESET}"
+        
+        show_scan_loader "Generating system report" 2 &
+        local loader_pid=$!
+        
+        local total_pkgs=$(pacman -Q | wc -l)
+        local updates_available=$(pacman -Qu 2>/dev/null | wc -l)
+        local orphans=$(pacman -Qtdq 2>/dev/null | wc -l)
+        
+        wait $loader_pid 2>/dev/null || true
+        
+        echo -e "  • Total packages: $total_pkgs"
+        echo -e "  • Updates available: $updates_available"
+        echo -e "  • Orphaned packages: $orphans"
+        
+        if [[ $orphans -gt 0 ]]; then
+            echo
+            read -p "$(echo -e ${CYAN}Clean orphaned packages? [y/N]:${RESET} )" -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                show_hacking_loader "Removing orphans" 3 &
+                loader_pid=$!
+                pacman -Rns --noconfirm $(pacman -Qtdq) >> "$LOG_DIR/kygox.log" 2>&1
+                wait $loader_pid 2>/dev/null || true
+                echo -e "${GREEN}✓ Orphans cleaned${RESET}"
+            fi
+        fi
+        
+        echo
+        echo -e "${CYAN}Backup saved: $backup_path${RESET}"
+        log_message "INFO" "Update completed successfully"
+        return 0
+    fi
+}
+
+# ============================================================================
+# CORE FUNCTIONS
 # ============================================================================
 
 log_message() {
@@ -342,8 +762,8 @@ print_banner() {
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║                                                                          ║
 ║           █╗  █╗█╗   █╗ ██████╗  ██████╗ █╗  █╗                    ║
-║           █║ █╔╝╚█╗ █╔╝█╔════╝ █╔═══█╗╚█╗█╔╝                    ║
-║           ████╔╝  ╚███╔╝ █║  ███╗█║   █║ ╚███╔╝                     ║
+║           █║ █╔╝╚█╗ █╔╝█╔════╝ ██╔═══██╗╚██╗██╔╝                    ║
+║           ████╔╝  ╚███╔╝ █║  ███╗██║   ██║ ╚███╔╝                     ║
 ║           █╔═█╗   ╚█╔╝  █║   █║█║   █║ █╔█╗                     ║
 ║           █║  █╗   █║   ╚██████╔╝╚██████╔╝█╔╝ █╗                    ║
 ║           ╚╝  ╚╝   ╚╝    ╚═════╝  ╚═════╝ ╚╝  ╚╝                    ║
@@ -898,6 +1318,7 @@ show_main_menu() {
     echo
     echo -e "${YELLOW}${BOLD}Special Options:${RESET}"
     echo -e "  ${CYAN}a${RESET}) Install ALL BlackArch Tools"
+    echo -e "  ${CYAN}u${RESET}) 🔄 Force Update BlackArch System"
     echo -e "  ${CYAN}g${RESET}) Browse BlackArch Groups"
     echo -e "  ${CYAN}s${RESET}) System Status"
     echo -e "  ${CYAN}q${RESET}) Quit"
@@ -924,6 +1345,9 @@ handle_menu_selection() {
             if [[ "$confirmation" == "INSTALL ALL" ]]; then
                 install_all_tools
             fi
+            ;;
+        u|U)
+            blackarch_force_update
             ;;
         g|G)
             browse_blackarch_groups
@@ -1185,16 +1609,31 @@ OPTIONS:
     -f, --force            Force installation
     --no-auto-fix          Disable automatic error fixing
     --setup                Setup BlackArch repository only
-    --update               Update BlackArch mirrorlist and databases
+    --update               🔄 Force update BlackArch system (with auto-fix)
+    --force-update         Same as --update
     --fix                  Fix common package management issues
+    --fix-keyrings         Force rebuild GPG keyrings
+    --update-mirrors       Update mirror lists only
+    --restore-config [FILE] Restore pacman.conf from backup
     --stats                Show system statistics
+
+UPDATE SYSTEM:
+    The --update option performs a comprehensive system update with:
+    • Automatic pacman.conf backup
+    • Force keyring repair
+    • Mirror list updates
+    • Package conflict resolution
+    • Multi-attempt update with progressive auto-fix
+    • Automatic rollback on critical failure
 
 EXAMPLES:
     sudo ./kygox                    # Interactive mode
     sudo ./kygox -v                 # Verbose interactive mode
     sudo ./kygox --setup            # Setup BlackArch only
-    sudo ./kygox --update           # Update repositories
-    sudo ./kygox --fix              # Fix common issues
+    sudo ./kygox --update           # Force update system
+    sudo ./kygox --fix-keyrings     # Fix GPG issues
+    sudo ./kygox --update-mirrors   # Update mirrors only
+    sudo ./kygox --restore-config   # Restore last backup
 
 CATEGORIES:
     1. Information Gathering    - Scanners, recon, fingerprinting
@@ -1207,6 +1646,24 @@ CATEGORIES:
     8. Sniffing & Spoofing      - Sniffers, spoofers, proxies
     9. Post Exploitation        - Backdoors, tunnels, keyloggers
     10. Social Engineering      - Social engineering, VoIP
+
+UPDATE PROCESS:
+    Phase 1: Configuration backup
+    Phase 2: Keyring repair (multi-keyserver)
+    Phase 3: Mirror updates
+    Phase 4: Database synchronization
+    Phase 5: Conflict resolution
+    Phase 6: System update (3 attempts with progressive fixes)
+    
+    On failure: Automatic rollback to backed up configuration
+
+TROUBLESHOOTING:
+    If update fails:
+    1. Check logs: ~/.kygox/kygox.log
+    2. Try: sudo ./kygox --fix-keyrings
+    3. Try: sudo ./kygox --update-mirrors
+    4. Restore: sudo ./kygox --restore-config
+    5. Manual: Check ~/.config/kygox/backups/
 
 SUPPORT:
     Repository: https://github.com/0xb0rn3/kygox
@@ -1245,20 +1702,35 @@ parse_arguments() {
                 setup_blackarch_repository
                 exit 0
                 ;;
-            --update)
-                show_download_loader "Updating repositories" 3 &
-                local loader_pid=$!
-                pacman -Syy --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
-                fetch_blackarch_mirrorlist
-                wait $loader_pid 2>/dev/null || true
+            --update|--force-update)
+                init_state_management
+                blackarch_force_update
                 exit 0
                 ;;
             --fix)
                 fix_common_issues
                 exit 0
                 ;;
+            --fix-keyrings)
+                force_fix_keyrings
+                exit 0
+                ;;
+            --update-mirrors)
+                force_update_mirrors
+                exit 0
+                ;;
             --stats)
                 show_system_status
+                exit 0
+                ;;
+            --restore-config)
+                if [[ -n "$2" && -f "$2" ]]; then
+                    restore_pacman_conf "$2"
+                    shift 2
+                else
+                    restore_pacman_conf
+                    shift
+                fi
                 exit 0
                 ;;
             *)
