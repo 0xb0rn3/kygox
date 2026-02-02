@@ -407,6 +407,7 @@ install_tool_with_fallback() {
 install_tools_direct() {
     local tools=("$@")
     local total=${#tools[@]}
+    local is_retry="${1:-false}"
     
     if [[ $total -eq 0 ]]; then
         echo "[!] No tools to install"
@@ -443,15 +444,19 @@ install_tools_direct() {
     echo "    - AUR Fallback: $AUR_FALLBACK_COUNT"
     echo "    - Failed: $failed"
     
-    if [[ $failed -gt 0 ]]; then
+    # Automated retry logic - only retry once, then skip
+    if [[ $failed -gt 0 ]] && [[ "$is_retry" != "retry" ]]; then
         echo ""
         echo -e "${YELLOW}[!] $failed tools failed to install${RESET}"
-        echo -e "${YELLOW}[?] Retry failed tools? (y/n):${RESET} "
-        read -r retry_response
-        
-        if [[ "$retry_response" =~ ^[Yy]$ ]]; then
-            retry_failed_tools
-        fi
+        echo -e "${CYAN}[*] Auto-retrying failed tools (1 attempt)...${RESET}"
+        sleep 1
+        retry_failed_tools_auto
+    elif [[ $failed -gt 0 ]] && [[ "$is_retry" == "retry" ]]; then
+        echo ""
+        echo -e "${YELLOW}[!] $failed tools still failed after retry${RESET}"
+        echo -e "${DIM}[*] Skipping remaining failures and continuing...${RESET}"
+        > "$FAILED_TOOLS_FILE"  # Clear failed tools file
+        sleep 1
     fi
 }
 
@@ -474,6 +479,60 @@ retry_failed_tools() {
     
     # Retry installation
     install_tools_direct "${unique_tools[@]}"
+}
+
+retry_failed_tools_auto() {
+    if [[ ! -f "$FAILED_TOOLS_FILE" ]] || [[ ! -s "$FAILED_TOOLS_FILE" ]]; then
+        return 0
+    fi
+    
+    local failed_tools
+    mapfile -t failed_tools < "$FAILED_TOOLS_FILE"
+    
+    # Remove duplicates
+    local unique_tools=($(printf "%s\n" "${failed_tools[@]}" | sort -u))
+    
+    if [[ ${#unique_tools[@]} -eq 0 ]]; then
+        return 0
+    fi
+    
+    echo "[*] Retrying ${#unique_tools[@]} failed tools (automatic)"
+    
+    # Clear the failed tools file
+    > "$FAILED_TOOLS_FILE"
+    
+    # Retry installation with retry flag to prevent infinite loop
+    local temp_tools=("${unique_tools[@]}")
+    local total=${#temp_tools[@]}
+    
+    # Reset counters
+    AUR_FALLBACK_COUNT=0
+    BLACKARCH_INSTALL_COUNT=0
+    
+    local failed=0
+    local installed=0
+    
+    for tool in "${temp_tools[@]}"; do
+        printf "\r[*] Retry: %-30s (%d/%d)" "$tool" "$((installed + failed + 1))" "$total"
+        
+        if install_tool_with_fallback "$tool"; then
+            ((installed++))
+        else
+            ((failed++))
+        fi
+    done
+    
+    printf "\n"
+    echo "[+] Retry Results:"
+    echo "    - BlackArch: $BLACKARCH_INSTALL_COUNT"
+    echo "    - AUR Fallback: $AUR_FALLBACK_COUNT"
+    echo "    - Failed: $failed"
+    
+    if [[ $failed -gt 0 ]]; then
+        echo ""
+        echo -e "${DIM}[*] $failed tools failed after retry, skipping...${RESET}"
+        > "$FAILED_TOOLS_FILE"  # Clear failed tools file
+    fi
 }
 
 install_from_aur_only() {
@@ -761,10 +820,11 @@ CATEGORIES:
 
 FEATURES:
     - Automatic AUR fallback for failed installations
-    - Retry option for failed tools
+    - Auto-retry failed tools once, then skip (fully automated)
     - Auto-installs: blackarch-menus, blackarch-config-gtk, blackarch-config-zsh
     - Interactive AUR search and installation
     - Dual-source updates (pacman + AUR)
+    - Non-interactive installation flow
 
 EXAMPLES:
     sudo ./kyGX                    # Interactive mode
