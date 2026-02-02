@@ -5,11 +5,13 @@ set -euo pipefail
 readonly ORIGINAL_USER="${SUDO_USER:-$(whoami)}"
 readonly USER_HOME=$(getent passwd "$ORIGINAL_USER" | cut -d: -f6)
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly LOG_DIR="$USER_HOME/.kygox"
-readonly CONFIG_DIR="$USER_HOME/.config/kygox"
-readonly STATE_FILE="$CONFIG_DIR/kygox_state.json"
+readonly LOG_DIR="$USER_HOME/.kyGX"
+readonly CONFIG_DIR="$USER_HOME/.config/kyGX"
+readonly STATE_FILE="$CONFIG_DIR/kyGX_state.json"
 readonly BACKUP_DIR="$CONFIG_DIR/backups"
 readonly TOOLS_CACHE="$CONFIG_DIR/.toollist.json"
+readonly AUR_CACHE="$CONFIG_DIR/.aur_tools.json"
+readonly FAILED_TOOLS_FILE="$CONFIG_DIR/.failed_tools.txt"
 readonly TOOLS_URL="https://blackarch.org/tools.html"
 
 readonly RED='\033[0;31m'
@@ -24,6 +26,15 @@ readonly RESET='\033[0m'
 declare -g VERBOSE_MODE=false
 declare -g DRY_RUN=false
 declare -g FORCE_INSTALL=false
+declare -g AUR_FALLBACK_COUNT=0
+declare -g BLACKARCH_INSTALL_COUNT=0
+
+# Default BlackArch configuration packages
+readonly DEFAULT_CONFIGS=(
+    "blackarch-menus"
+    "blackarch-config-gtk"
+    "blackarch-config-zsh"
+)
 
 declare -A SLIM_TOOLS=(
     ["information-gathering"]="nmap masscan nikto recon-ng theharvester dnsenum fierce wafw00f whatweb dmitry"
@@ -40,10 +51,11 @@ declare -A SLIM_TOOLS=(
 
 init_dirs() {
     mkdir -p "$LOG_DIR" "$CONFIG_DIR" "$BACKUP_DIR"
+    touch "$FAILED_TOOLS_FILE"
 }
 
 log_message() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_DIR/kygox.log"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_DIR/kyGX.log"
 }
 
 error_exit() {
@@ -95,7 +107,7 @@ validate_system() {
 }
 
 install_dependencies() {
-    local required_packages=("curl" "wget" "python" "jq")
+    local required_packages=("curl" "wget" "python" "jq" "git" "base-devel")
     local missing_packages=()
     
     for package in "${required_packages[@]}"; do
@@ -106,9 +118,42 @@ install_dependencies() {
     
     if [[ ${#missing_packages[@]} -gt 0 ]]; then
         echo "[*] Installing dependencies: ${missing_packages[*]}"
-        pacman -Sy --noconfirm --needed "${missing_packages[@]}" >> "$LOG_DIR/kygox.log" 2>&1 || error_exit "Failed to install dependencies"
+        pacman -Sy --noconfirm --needed "${missing_packages[@]}" >> "$LOG_DIR/kyGX.log" 2>&1 || error_exit "Failed to install dependencies"
         echo "[+] Dependencies installed"
     fi
+}
+
+check_and_install_yay() {
+    if command -v yay &>/dev/null; then
+        echo "[+] yay (AUR helper) already installed"
+        return 0
+    fi
+    
+    echo "[*] Installing yay (AUR helper)"
+    
+    cd /tmp || exit 1
+    
+    if [[ -d "yay" ]]; then
+        rm -rf yay
+    fi
+    
+    if ! sudo -u "$ORIGINAL_USER" git clone https://aur.archlinux.org/yay.git >> "$LOG_DIR/kyGX.log" 2>&1; then
+        error_exit "Failed to clone yay repository"
+    fi
+    
+    cd yay || exit 1
+    
+    if ! sudo -u "$ORIGINAL_USER" makepkg -si --noconfirm >> "$LOG_DIR/kyGX.log" 2>&1; then
+        cd ..
+        rm -rf yay
+        error_exit "Failed to install yay"
+    fi
+    
+    cd ..
+    rm -rf yay
+    
+    echo "[+] yay installed successfully"
+    log_message "YAY: Installed yay AUR helper"
 }
 
 backup_pacman_conf() {
@@ -152,39 +197,59 @@ EOF
     fi
 }
 
-setup_Security_repository() {
+setup_blackarch_repository() {
     if grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
-        echo "[+] Security repository already configured"
-        return 0
-    fi
-    
-    echo "[*] Setting up Security repository"
-    backup_pacman_conf
-    
-    cd /tmp || exit 1
-    
-    if ! curl -O https://blackarch.org/strap.sh 2>/dev/null; then
-        error_exit "Failed to download BlackArch setup script"
-    fi
-    
-    chmod +x strap.sh
-    
-    if ! ./strap.sh 2>&1 | grep -v "^$" >> "$LOG_DIR/kygox.log"; then
+        echo "[+] BlackArch repository already configured"
+    else
+        echo "[*] Setting up BlackArch repository"
+        backup_pacman_conf
+        
+        cd /tmp || exit 1
+        
+        if ! curl -O https://blackarch.org/strap.sh 2>/dev/null; then
+            error_exit "Failed to download BlackArch setup script"
+        fi
+        
+        chmod +x strap.sh
+        
+        if ! ./strap.sh 2>&1 | grep -v "^$" >> "$LOG_DIR/kyGX.log"; then
+            rm -f strap.sh
+            error_exit "Failed to setup BlackArch repository"
+        fi
+        
         rm -f strap.sh
-        error_exit "Failed to setup Security repository"
+        
+        echo "[+] BlackArch repository configured"
+        
+        pacman -Sy >> "$LOG_DIR/kyGX.log" 2>&1
     fi
     
-    rm -f strap.sh
+    # Install default BlackArch configuration packages
+    install_default_configs
+}
+
+install_default_configs() {
+    echo "[*] Installing default BlackArch configuration packages"
     
-    echo "[+] Security repository configured"
-    
-    pacman -Sy >> "$LOG_DIR/kygox.log" 2>&1
+    for config in "${DEFAULT_CONFIGS[@]}"; do
+        if pacman -Qi "$config" &>/dev/null 2>&1; then
+            echo "[+] $config already installed"
+        else
+            echo "[*] Installing $config"
+            if pacman -S --noconfirm --needed "$config" >> "$LOG_DIR/kyGX.log" 2>&1; then
+                echo "[+] $config installed"
+                log_message "CONFIG: Installed $config"
+            else
+                echo "[!] Failed to install $config"
+                log_message "CONFIG: Failed to install $config"
+            fi
+        fi
+    done
 }
 
 fetch_blackarch_tools() {
-    echo "[*] Fetching tool list.."
+    echo "[*] Fetching tool list from BlackArch"
     
-    # Create Python parser script in temp directory
     local parser_script="/tmp/blackarch_parser_$$.py"
     
     cat > "$parser_script" << 'PYEOF'
@@ -227,9 +292,7 @@ class BlackArchToolsParser(HTMLParser):
         elif tag == 'tr' and self.in_row:
             self.in_row = False
             
-            # Process row: [name, version, desc, category, website]
             if len(self.current_row_data) >= 4:
-                # Skip header row
                 if not self.header_passed:
                     if 'name' in self.current_row_data[0].lower():
                         self.header_passed = True
@@ -238,7 +301,6 @@ class BlackArchToolsParser(HTMLParser):
                 tool_name = self.current_row_data[0].strip()
                 category = self.current_row_data[3].strip()
                 
-                # Remove 'blackarch-' prefix
                 if category.startswith('blackarch-'):
                     category = category[10:]
                 
@@ -280,7 +342,6 @@ PYEOF
     
     chmod +x "$parser_script"
     
-    # Run Python parser and capture output
     local tools_json
     if tools_json=$(python3 "$parser_script" "$TOOLS_URL" 2>/dev/null); then
         echo "$tools_json" > "$TOOLS_CACHE"
@@ -309,6 +370,40 @@ get_category_tools() {
     jq -r ".[\"$category\"][]?" "$TOOLS_CACHE" 2>/dev/null || echo ""
 }
 
+install_tool_with_fallback() {
+    local tool="$1"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "[DRY RUN] Would install: $tool"
+        return 0
+    fi
+    
+    # Try BlackArch first
+    if pacman -S --noconfirm --needed "$tool" >> "$LOG_DIR/kyGX.log" 2>&1; then
+        ((BLACKARCH_INSTALL_COUNT++))
+        log_message "BLACKARCH: Successfully installed $tool"
+        return 0
+    fi
+    
+    # Fallback to AUR with yay
+    echo "[!] $tool failed via BlackArch, trying AUR fallback..."
+    log_message "BLACKARCH: Failed to install $tool, attempting AUR fallback"
+    
+    if command -v yay &>/dev/null; then
+        if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" >> "$LOG_DIR/kyGX.log" 2>&1; then
+            ((AUR_FALLBACK_COUNT++))
+            echo "[+] $tool installed via AUR"
+            log_message "AUR: Successfully installed $tool via fallback"
+            return 0
+        fi
+    fi
+    
+    # Both failed - record for retry option
+    echo "$tool" >> "$FAILED_TOOLS_FILE"
+    log_message "FAILED: $tool failed both BlackArch and AUR installation"
+    return 1
+}
+
 install_tools_direct() {
     local tools=("$@")
     local total=${#tools[@]}
@@ -317,6 +412,10 @@ install_tools_direct() {
         echo "[!] No tools to install"
         return 0
     fi
+    
+    # Reset counters
+    AUR_FALLBACK_COUNT=0
+    BLACKARCH_INSTALL_COUNT=0
     
     echo "[*] Installing $total tools"
     
@@ -331,15 +430,110 @@ install_tools_direct() {
     for tool in "${tools[@]}"; do
         printf "\r[*] Installing: %-30s (%d/%d)" "$tool" "$((installed + failed + 1))" "$total"
         
-        if pacman -S --noconfirm --needed "$tool" >> "$LOG_DIR/kygox.log" 2>&1; then
+        if install_tool_with_fallback "$tool"; then
             ((installed++))
         else
             ((failed++))
-            log_message "Failed to install: $tool"
         fi
     done
     
-    printf "\n[+] Installed: $installed | Failed: $failed\n"
+    printf "\n"
+    echo "[+] Results:"
+    echo "    - BlackArch: $BLACKARCH_INSTALL_COUNT"
+    echo "    - AUR Fallback: $AUR_FALLBACK_COUNT"
+    echo "    - Failed: $failed"
+    
+    if [[ $failed -gt 0 ]]; then
+        echo ""
+        echo -e "${YELLOW}[!] $failed tools failed to install${RESET}"
+        echo -e "${YELLOW}[?] Retry failed tools? (y/n):${RESET} "
+        read -r retry_response
+        
+        if [[ "$retry_response" =~ ^[Yy]$ ]]; then
+            retry_failed_tools
+        fi
+    fi
+}
+
+retry_failed_tools() {
+    if [[ ! -f "$FAILED_TOOLS_FILE" ]] || [[ ! -s "$FAILED_TOOLS_FILE" ]]; then
+        echo "[!] No failed tools to retry"
+        return 0
+    fi
+    
+    local failed_tools
+    mapfile -t failed_tools < "$FAILED_TOOLS_FILE"
+    
+    # Remove duplicates
+    local unique_tools=($(printf "%s\n" "${failed_tools[@]}" | sort -u))
+    
+    echo "[*] Retrying ${#unique_tools[@]} failed tools"
+    
+    # Clear the failed tools file
+    > "$FAILED_TOOLS_FILE"
+    
+    # Retry installation
+    install_tools_direct "${unique_tools[@]}"
+}
+
+install_from_aur_only() {
+    check_and_install_yay
+    
+    echo ""
+    echo -e "${CYAN}[*] Enter tool names to install from AUR (space-separated):${RESET}"
+    read -r -a aur_tools
+    
+    if [[ ${#aur_tools[@]} -eq 0 ]]; then
+        echo "[!] No tools specified"
+        return 1
+    fi
+    
+    echo "[*] Installing ${#aur_tools[@]} tools from AUR"
+    
+    local installed=0
+    local failed=0
+    
+    for tool in "${aur_tools[@]}"; do
+        echo "[*] Installing $tool from AUR"
+        if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" >> "$LOG_DIR/kyGX.log" 2>&1; then
+            echo "[+] $tool installed"
+            ((installed++))
+            log_message "AUR: Installed $tool"
+        else
+            echo "[!] Failed to install $tool"
+            ((failed++))
+            log_message "AUR: Failed to install $tool"
+        fi
+    done
+    
+    echo ""
+    echo "[+] AUR Installation Results: Installed: $installed | Failed: $failed"
+}
+
+search_aur_tools() {
+    check_and_install_yay
+    
+    echo ""
+    echo -e "${CYAN}[*] Enter search term (e.g., 'exploit', 'scanner', 'recon'):${RESET}"
+    read -r search_term
+    
+    if [[ -z "$search_term" ]]; then
+        echo "[!] No search term provided"
+        return 1
+    fi
+    
+    echo "[*] Searching AUR for: $search_term"
+    echo ""
+    
+    sudo -u "$ORIGINAL_USER" yay -Ss "$search_term" | head -50
+    
+    echo ""
+    echo -e "${YELLOW}[?] Install any of these? (y/n):${RESET} "
+    read -r install_response
+    
+    if [[ "$install_response" =~ ^[Yy]$ ]]; then
+        install_from_aur_only
+    fi
 }
 
 install_slim_tools() {
@@ -371,8 +565,8 @@ install_category_tools() {
     install_tools_direct "${tools[@]}"
 }
 
-install_all_Security_tools() {
-    echo "[*] Installing ALL Security tools by category"
+install_all_blackarch_tools() {
+    echo "[*] Installing ALL BlackArch tools by category"
     
     if [[ ! -f "$TOOLS_CACHE" ]]; then
         fetch_blackarch_tools || error_exit "Failed to fetch tool list"
@@ -393,14 +587,38 @@ install_all_Security_tools() {
     echo "[+] All categories processed"
 }
 
-cleanup_kygox() {
-    echo "[*] Cleaning up kygox"
+update_system() {
+    echo "[*] Updating system (pacman + AUR)"
+    
+    echo "[*] Updating pacman packages"
+    pacman -Syu --noconfirm >> "$LOG_DIR/kyGX.log" 2>&1
+    
+    if command -v yay &>/dev/null; then
+        echo "[*] Updating AUR packages"
+        sudo -u "$ORIGINAL_USER" yay -Syu --noconfirm >> "$LOG_DIR/kyGX.log" 2>&1
+    fi
+    
+    echo "[+] System updated"
+}
+
+cleanup_kyGX() {
+    echo "[*] Cleaning up kyGX"
     
     restore_default_pacman_conf
     
     if [[ -f "$TOOLS_CACHE" ]]; then
         rm -f "$TOOLS_CACHE"
-        echo "[+] Removed tool cache"
+        echo "[+] Removed BlackArch tool cache"
+    fi
+    
+    if [[ -f "$AUR_CACHE" ]]; then
+        rm -f "$AUR_CACHE"
+        echo "[+] Removed AUR tool cache"
+    fi
+    
+    if [[ -f "$FAILED_TOOLS_FILE" ]]; then
+        rm -f "$FAILED_TOOLS_FILE"
+        echo "[+] Removed failed tools list"
     fi
     
     if [[ -f /etc/pacman.d/blackarch-mirrorlist ]]; then
@@ -408,7 +626,7 @@ cleanup_kygox() {
         echo "[+] Removed BlackArch mirrorlist"
     fi
     
-    pacman -Sy >> "$LOG_DIR/kygox.log" 2>&1
+    pacman -Sy >> "$LOG_DIR/kyGX.log" 2>&1
     
     echo "[+] Cleanup complete"
 }
@@ -416,15 +634,14 @@ cleanup_kygox() {
 print_banner() {
     cat << 'EOF'
 
- ██╗  ██╗██╗   ██╗ ██████╗  ██████╗ ██╗  ██╗
- ██║ ██╔╝╚██╗ ██╔╝██╔════╝ ██╔═══██╗╚██╗██╔╝
- █████╔╝  ╚████╔╝ ██║  ███╗██║   ██║ ╚███╔╝ 
- ██╔═██╗   ╚██╔╝  ██║   ██║██║   ██║ ██╔██╗ 
- ██║  ██╗   ██║   ╚██████╔╝╚██████╔╝██╔╝ ██╗
- ╚═╝  ╚═╝   ╚═╝    ╚═════╝  ╚═════╝ ╚═╝  ╚═╝
-
-      Arch Security Arsenal Manager
-      By 0xb0rn3 | IG: theehiv3 | X: 0xbv1
+░  ░░░░  ░░  ░░░░  ░░░      ░░░  ░░░░  ░
+▒  ▒▒▒  ▒▒▒▒  ▒▒  ▒▒▒  ▒▒▒▒▒▒▒▒▒  ▒▒  ▒▒
+▓     ▓▓▓▓▓▓▓    ▓▓▓▓  ▓▓▓   ▓▓▓▓    ▓▓▓
+█  ███  ██████  █████  ████  ███  ██  ██
+█  ████  █████  ██████      ███  ████  █
+                                        
+Arch Security Arsenal Manager v0.1 Stable
+ By 0xb0rn3 | IG: theehiv3 | X: 0xbv1
 
 EOF
 }
@@ -435,6 +652,13 @@ display_system_info() {
     echo "  - Kernel: $(uname -r)"
     echo "  - Architecture: $(uname -m)"
     echo "  - User: $ORIGINAL_USER"
+    
+    if command -v yay &>/dev/null; then
+        echo "  - AUR Helper: yay (installed)"
+    else
+        echo "  - AUR Helper: Not installed"
+    fi
+    
     echo ""
 }
 
@@ -456,9 +680,18 @@ show_main_menu() {
     echo "Special Options:"
     echo ""
     echo "  s) Install Slim toolkit (Kali-like/Popular essentials)"
-    echo "  a) Install ALL Security tools (by category)"
-    echo "  u) Update system"
+    echo "  a) Install ALL BlackArch tools (by category)"
+    echo "  u) Update system (pacman + AUR)"
     echo "  r) Refresh tool list"
+    echo ""
+    echo "AUR Options:"
+    echo ""
+    echo "  y) Install tools from AUR only"
+    echo "  z) Search AUR for security tools"
+    echo ""
+    echo "Maintenance:"
+    echo ""
+    echo "  f) Retry failed tool installations"
     echo "  c) Cleanup (restore pacman.conf, remove cache)"
     echo "  q) Quit"
     echo ""
@@ -468,7 +701,7 @@ handle_menu_selection() {
     local choice="$1"
     
     case "$choice" in
-        1) install_category_tools "exploitation" ;;
+        1) install_category_tools "recon" ;;
         2) install_category_tools "scanner" ;;
         3) install_category_tools "webapp" ;;
         4) install_category_tools "cracker" ;;
@@ -479,16 +712,15 @@ handle_menu_selection() {
         9) install_category_tools "backdoor" ;;
         10) install_category_tools "social" ;;
         s|S) install_slim_tools ;;
-        a|A) install_all_Security_tools ;;
-        u|U) 
-            echo "[*] Updating system"
-            pacman -Syu --noconfirm >> "$LOG_DIR/kygox.log" 2>&1
-            echo "[+] System updated"
-            ;;
+        a|A) install_all_blackarch_tools ;;
+        u|U) update_system ;;
         r|R) fetch_blackarch_tools ;;
-        c|C) cleanup_kygox ;;
+        y|Y) install_from_aur_only ;;
+        z|Z) search_aur_tools ;;
+        f|F) retry_failed_tools ;;
+        c|C) cleanup_kyGX ;;
         q|Q) 
-            echo "[*] Exiting"
+            echo "[*] Exiting kyGX"
             exit 0
             ;;
         *) return 1 ;;
@@ -499,19 +731,20 @@ handle_menu_selection() {
 
 show_help() {
     cat << 'HELP'
-kygox - Arch Security Arsenal Manager
+kyGX - Arch Security Arsenal Manager
 
 USAGE:
-    sudo ./kygox [OPTIONS]
+    sudo ./kyGX [OPTIONS]
 
 OPTIONS:
     -h, --help              Show this help message
     -v, --verbose           Enable verbose output
     -n, --dry-run          Preview installations without installing
     -f, --force            Force installation
-    --setup                Setup Security repository only
-    --update               Update system
+    --setup                Setup BlackArch repository + yay + default configs
+    --update               Update system (pacman + AUR)
     --slim                 Install slim toolkit
+    --aur                  AUR-only installation mode
     --cleanup              Cleanup and restore default config
 
 CATEGORIES:
@@ -526,16 +759,24 @@ CATEGORIES:
     9. Post Exploitation
     10. Social Engineering
 
+FEATURES:
+    - Automatic AUR fallback for failed installations
+    - Retry option for failed tools
+    - Auto-installs: blackarch-menus, blackarch-config-gtk, blackarch-config-zsh
+    - Interactive AUR search and installation
+    - Dual-source updates (pacman + AUR)
+
 EXAMPLES:
-    sudo ./kygox                    # Interactive mode
-    sudo ./kygox --setup            # Setup BlackArch only
-    sudo ./kygox --slim             # Install Kali-like toolkit
-    sudo ./kygox --cleanup          # Restore default config
+    sudo ./kyGX                    # Interactive mode
+    sudo ./kyGX --setup            # Complete setup with yay and configs
+    sudo ./kyGX --slim             # Install Kali-like toolkit
+    sudo ./kyGX --aur              # AUR-only installation
+    sudo ./kyGX --cleanup          # Restore default config
 
 SUPPORT:
-    Repository: https://github.com/0xb0rn3/kygox
+    Repository: https://github.com/0xb0rn3/kyGX
     Author: 0xb0rn3
-    Email: 0xbv1@proton.me
+    Email: q4n0@proton.me
 HELP
 }
 
@@ -562,24 +803,31 @@ parse_arguments() {
                 init_dirs
                 validate_system
                 install_dependencies
-                setup_Security_repository
+                check_and_install_yay
+                setup_blackarch_repository
                 exit 0
                 ;;
             --update)
-                echo "[*] Updating system"
-                pacman -Syu --noconfirm
+                update_system
                 exit 0
                 ;;
             --slim)
                 init_dirs
                 validate_system
                 install_dependencies
-                setup_Security_repository
+                check_and_install_yay
+                setup_blackarch_repository
                 install_slim_tools
                 exit 0
                 ;;
+            --aur)
+                init_dirs
+                check_and_install_yay
+                install_from_aur_only
+                exit 0
+                ;;
             --cleanup)
-                cleanup_kygox
+                cleanup_kyGX
                 exit 0
                 ;;
             *)
@@ -599,7 +847,8 @@ main() {
     
     validate_system
     install_dependencies
-    setup_Security_repository
+    check_and_install_yay
+    setup_blackarch_repository
     
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "[!] DRY RUN MODE - No packages will be installed"
@@ -623,4 +872,5 @@ main() {
 
 trap 'echo ""; echo "[*] Interrupted"; exit 130' INT TERM
 
+check_root
 main "$@"
