@@ -10,9 +10,9 @@ readonly CONFIG_DIR="$USER_HOME/.config/kyGX"
 readonly STATE_FILE="$CONFIG_DIR/kyGX_state.json"
 readonly BACKUP_DIR="$CONFIG_DIR/backups"
 readonly TOOLS_CACHE="$CONFIG_DIR/.toollist.json"
+readonly TOOLS_STATS="$CONFIG_DIR/.toolstats.json"
 readonly AUR_CACHE="$CONFIG_DIR/.aur_tools.json"
 readonly FAILED_TOOLS_FILE="$CONFIG_DIR/.failed_tools.txt"
-readonly TOOLS_URL="https://blackarch.org/tools.html"
 
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
@@ -197,29 +197,29 @@ EOF
     fi
 }
 
-setup_blackarch_repository() {
+setup_security_repository() {
     if grep -q "^\[blackarch\]" /etc/pacman.conf 2>/dev/null; then
-        echo "[+] BlackArch repository already configured"
+        echo "[+] Security repository already configured"
     else
-        echo "[*] Setting up BlackArch repository"
+        echo "[*] Setting up security repository"
         backup_pacman_conf
         
         cd /tmp || exit 1
         
         if ! curl -O https://blackarch.org/strap.sh 2>/dev/null; then
-            error_exit "Failed to download BlackArch setup script"
+            error_exit "Failed to download security setup script"
         fi
         
         chmod +x strap.sh
         
         if ! ./strap.sh 2>&1 | grep -v "^$" >> "$LOG_DIR/kyGX.log"; then
             rm -f strap.sh
-            error_exit "Failed to setup BlackArch repository"
+            error_exit "Failed to setup security repository"
         fi
         
         rm -f strap.sh
         
-        echo "[+] BlackArch repository configured"
+        echo "[+] Security repository configured"
         
         pacman -Sy >> "$LOG_DIR/kyGX.log" 2>&1
     fi
@@ -229,7 +229,7 @@ setup_blackarch_repository() {
 }
 
 install_default_configs() {
-    echo "[*] Installing default BlackArch configuration packages"
+    echo "[*] Installing default security configuration packages"
     
     for config in "${DEFAULT_CONFIGS[@]}"; do
         if pacman -Qi "$config" &>/dev/null 2>&1; then
@@ -247,28 +247,28 @@ install_default_configs() {
     done
 }
 
-fetch_blackarch_tools() {
-    echo "[*] Fetching tool list from BlackArch"
+fetch_security_tools() {
+    echo "[*] Fetching tool list from security repository"
     
-    local parser_script="/tmp/blackarch_parser_$$.py"
+    local crawler_script="/tmp/security_crawler_$$.py"
     
-    cat > "$parser_script" << 'PYEOF'
+    cat > "$crawler_script" << 'PYEOF'
 #!/usr/bin/env python3
 import sys
 import json
 from urllib.request import urlopen, Request
 from html.parser import HTMLParser
 
-class BlackArchToolsParser(HTMLParser):
-    """Parse BlackArch tools.html table
+class SecurityToolsParser(HTMLParser):
+    """Parse security tools from repository data
     
     Table structure: Name | Version | Description | Category | Website
-    Example: 0d1n | 263.2d723ae | Web security tool... | blackarch-webapp | link
     """
     
     def __init__(self):
         super().__init__()
         self.tools = {}
+        self.tools_data = []
         self.in_table = False
         self.in_row = False
         self.in_cell = False
@@ -299,16 +299,27 @@ class BlackArchToolsParser(HTMLParser):
                         return
                 
                 tool_name = self.current_row_data[0].strip()
-                category = self.current_row_data[3].strip()
+                version = self.current_row_data[1].strip() if len(self.current_row_data) > 1 else "unknown"
+                description = self.current_row_data[2].strip() if len(self.current_row_data) > 2 else ""
+                category = self.current_row_data[3].strip() if len(self.current_row_data) > 3 else "unknown"
                 
                 if category.startswith('blackarch-'):
                     category = category[10:]
                 
                 if category and tool_name:
+                    # Store in category dict
                     if category not in self.tools:
                         self.tools[category] = []
                     if tool_name not in self.tools[category]:
                         self.tools[category].append(tool_name)
+                    
+                    # Store full data
+                    self.tools_data.append({
+                        'name': tool_name,
+                        'version': version,
+                        'description': description,
+                        'group': category
+                    })
             
             self.current_row_data = []
         elif tag in ('td', 'th'):
@@ -329,33 +340,58 @@ try:
     with urlopen(req, timeout=15) as response:
         html = response.read().decode('utf-8')
     
-    parser = BlackArchToolsParser()
+    parser = SecurityToolsParser()
     parser.feed(html)
     
+    # Calculate statistics
+    stats = {}
+    for category, tools_list in parser.tools.items():
+        if tools_list:
+            stats[category] = len(tools_list)
+    
     tools = {cat: tools_list for cat, tools_list in parser.tools.items() if tools_list}
-    print(json.dumps(tools, indent=2))
+    
+    # Output both tools and stats
+    output = {
+        'tools': tools,
+        'stats': stats,
+        'total_groups': len(stats),
+        'total_tools': sum(stats.values())
+    }
+    
+    print(json.dumps(output, indent=2))
     
 except Exception as e:
     print(f"Error: {e}", file=sys.stderr)
     sys.exit(1)
 PYEOF
     
-    chmod +x "$parser_script"
+    chmod +x "$crawler_script"
     
-    local tools_json
-    if tools_json=$(python3 "$parser_script" "$TOOLS_URL" 2>/dev/null); then
-        echo "$tools_json" > "$TOOLS_CACHE"
+    local tools_output
+    if tools_output=$(python3 "$crawler_script" "https://blackarch.org/tools.html" 2>/dev/null); then
+        # Extract tools and stats
+        echo "$tools_output" | jq '.tools' > "$TOOLS_CACHE"
+        echo "$tools_output" | jq '.stats' > "$TOOLS_STATS"
         
-        local category_count=$(echo "$tools_json" | jq 'length' 2>/dev/null || echo "0")
-        local tool_count=$(echo "$tools_json" | jq '[.[]] | add | length' 2>/dev/null || echo "0")
+        local category_count=$(echo "$tools_output" | jq -r '.total_groups' 2>/dev/null || echo "0")
+        local tool_count=$(echo "$tools_output" | jq -r '.total_tools' 2>/dev/null || echo "0")
         
-        echo "[+] Tool list cached ($category_count categories, $tool_count tools)"
+        echo "[+] Tool list cached ($category_count groups, $tool_count tools)"
         
-        rm -f "$parser_script"
+        # Display group statistics
+        if [[ -f "$TOOLS_STATS" ]]; then
+            echo ""
+            echo "[*] Group Statistics:"
+            jq -r 'to_entries | sort_by(.value) | reverse | .[] | "    \(.key): \(.value) tools"' "$TOOLS_STATS"
+            echo ""
+        fi
+        
+        rm -f "$crawler_script"
         return 0
     else
         echo "[!] Failed to fetch tools list"
-        rm -f "$parser_script"
+        rm -f "$crawler_script"
         return 1
     fi
 }
@@ -364,10 +400,32 @@ get_category_tools() {
     local category="$1"
     
     if [[ ! -f "$TOOLS_CACHE" ]]; then
-        fetch_blackarch_tools || return 1
+        fetch_security_tools || return 1
     fi
     
     jq -r ".[\"$category\"][]?" "$TOOLS_CACHE" 2>/dev/null || echo ""
+}
+
+list_available_groups() {
+    if [[ ! -f "$TOOLS_STATS" ]]; then
+        fetch_security_tools || return 1
+    fi
+    
+    echo "[*] Available tool groups:"
+    echo ""
+    
+    jq -r 'to_entries | sort_by(.key) | .[] | "\(.key): \(.value) tools"' "$TOOLS_STATS" | \
+    while IFS=: read -r group count; do
+        printf "  %-30s %s\n" "$group" "$count"
+    done
+    
+    echo ""
+    
+    local total_groups=$(jq 'length' "$TOOLS_STATS" 2>/dev/null || echo "0")
+    local total_tools=$(jq '[.[]] | add' "$TOOLS_STATS" 2>/dev/null || echo "0")
+    
+    echo "[*] Total: $total_groups groups, $total_tools tools"
+    echo ""
 }
 
 install_tool_with_fallback() {
@@ -381,13 +439,13 @@ install_tool_with_fallback() {
     # Try BlackArch first
     if pacman -S --noconfirm --needed "$tool" >> "$LOG_DIR/kyGX.log" 2>&1; then
         ((BLACKARCH_INSTALL_COUNT++))
-        log_message "BLACKARCH: Successfully installed $tool"
+        log_message "SECURITY: Successfully installed $tool"
         return 0
     fi
     
     # Fallback to AUR with yay
-    echo "[!] $tool failed via BlackArch, trying AUR fallback..."
-    log_message "BLACKARCH: Failed to install $tool, attempting AUR fallback"
+    echo "[!] $tool failed via security repository, trying AUR fallback..."
+    log_message "SECURITY: Failed to install $tool, attempting AUR fallback"
     
     if command -v yay &>/dev/null; then
         if sudo -u "$ORIGINAL_USER" yay -S --noconfirm --needed "$tool" >> "$LOG_DIR/kyGX.log" 2>&1; then
@@ -400,7 +458,7 @@ install_tool_with_fallback() {
     
     # Both failed - record for retry option
     echo "$tool" >> "$FAILED_TOOLS_FILE"
-    log_message "FAILED: $tool failed both BlackArch and AUR installation"
+    log_message "FAILED: $tool failed both security repository and AUR installation"
     return 1
 }
 
@@ -440,7 +498,7 @@ install_tools_direct() {
     
     printf "\n"
     echo "[+] Results:"
-    echo "    - BlackArch: $BLACKARCH_INSTALL_COUNT"
+    echo "    - Security Repository: $BLACKARCH_INSTALL_COUNT"
     echo "    - AUR Fallback: $AUR_FALLBACK_COUNT"
     echo "    - Failed: $failed"
     
@@ -524,7 +582,7 @@ retry_failed_tools_auto() {
     
     printf "\n"
     echo "[+] Retry Results:"
-    echo "    - BlackArch: $BLACKARCH_INSTALL_COUNT"
+    echo "    - Security Repository: $BLACKARCH_INSTALL_COUNT"
     echo "    - AUR Fallback: $AUR_FALLBACK_COUNT"
     echo "    - Failed: $failed"
     
@@ -610,13 +668,13 @@ install_slim_tools() {
 install_category_tools() {
     local category="$1"
     
-    echo "[*] Fetching tools for category: $category"
+    echo "[*] Fetching tools for group: $category"
     
     local tools
     mapfile -t tools < <(get_category_tools "$category")
     
     if [[ ${#tools[@]} -eq 0 ]]; then
-        echo "[!] No tools found for category: $category"
+        echo "[!] No tools found for group: $category"
         return 1
     fi
     
@@ -624,26 +682,26 @@ install_category_tools() {
     install_tools_direct "${tools[@]}"
 }
 
-install_all_blackarch_tools() {
-    echo "[*] Installing ALL BlackArch tools by category"
+install_all_security_tools() {
+    echo "[*] Installing ALL security tools by group"
     
     if [[ ! -f "$TOOLS_CACHE" ]]; then
-        fetch_blackarch_tools || error_exit "Failed to fetch tool list"
+        fetch_security_tools || error_exit "Failed to fetch tool list"
     fi
     
     local categories
     mapfile -t categories < <(jq -r 'keys[]' "$TOOLS_CACHE")
     
-    echo "[*] Found ${#categories[@]} categories"
+    echo "[*] Found ${#categories[@]} groups"
     
     for category in "${categories[@]}"; do
         echo ""
-        echo "[*] Category: $category"
+        echo "[*] Group: $category"
         install_category_tools "$category"
     done
     
     echo ""
-    echo "[+] All categories processed"
+    echo "[+] All groups processed"
 }
 
 update_system() {
@@ -667,7 +725,12 @@ cleanup_kyGX() {
     
     if [[ -f "$TOOLS_CACHE" ]]; then
         rm -f "$TOOLS_CACHE"
-        echo "[+] Removed BlackArch tool cache"
+        echo "[+] Removed security tool cache"
+    fi
+    
+    if [[ -f "$TOOLS_STATS" ]]; then
+        rm -f "$TOOLS_STATS"
+        echo "[+] Removed tool statistics cache"
     fi
     
     if [[ -f "$AUR_CACHE" ]]; then
@@ -682,7 +745,7 @@ cleanup_kyGX() {
     
     if [[ -f /etc/pacman.d/blackarch-mirrorlist ]]; then
         rm -f /etc/pacman.d/blackarch-mirrorlist
-        echo "[+] Removed BlackArch mirrorlist"
+        echo "[+] Removed security repository mirrorlist"
     fi
     
     pacman -Sy >> "$LOG_DIR/kyGX.log" 2>&1
@@ -739,9 +802,10 @@ show_main_menu() {
     echo "Special Options:"
     echo ""
     echo "  s) Install Slim toolkit (Kali-like/Popular essentials)"
-    echo "  a) Install ALL BlackArch tools (by category)"
+    echo "  a) Install ALL security tools (by group)"
     echo "  u) Update system (pacman + AUR)"
     echo "  r) Refresh tool list"
+    echo "  g) Show available groups with statistics"
     echo ""
     echo "AUR Options:"
     echo ""
@@ -771,9 +835,10 @@ handle_menu_selection() {
         9) install_category_tools "backdoor" ;;
         10) install_category_tools "social" ;;
         s|S) install_slim_tools ;;
-        a|A) install_all_blackarch_tools ;;
+        a|A) install_all_security_tools ;;
         u|U) update_system ;;
-        r|R) fetch_blackarch_tools ;;
+        r|R) fetch_security_tools ;;
+        g|G) list_available_groups ;;
         y|Y) install_from_aur_only ;;
         z|Z) search_aur_tools ;;
         f|F) retry_failed_tools ;;
@@ -800,11 +865,12 @@ OPTIONS:
     -v, --verbose           Enable verbose output
     -n, --dry-run          Preview installations without installing
     -f, --force            Force installation
-    --setup                Setup BlackArch repository + yay + default configs
+    --setup                Setup security repository + yay + default configs
     --update               Update system (pacman + AUR)
     --slim                 Install slim toolkit
     --aur                  AUR-only installation mode
     --cleanup              Cleanup and restore default config
+    --groups               List all available tool groups
 
 CATEGORIES:
     1. Information Gathering
@@ -819,6 +885,8 @@ CATEGORIES:
     10. Social Engineering
 
 FEATURES:
+    - Automatic tool detection from security repository
+    - Group statistics and categorization
     - Automatic AUR fallback for failed installations
     - Auto-retry failed tools once, then skip (fully automated)
     - Auto-installs: blackarch-menus, blackarch-config-gtk, blackarch-config-zsh
@@ -832,6 +900,7 @@ EXAMPLES:
     sudo ./kyGX --slim             # Install Kali-like toolkit
     sudo ./kyGX --aur              # AUR-only installation
     sudo ./kyGX --cleanup          # Restore default config
+    sudo ./kyGX --groups           # Show available groups
 
 SUPPORT:
     Repository: https://github.com/0xb0rn3/kyGX
@@ -864,7 +933,8 @@ parse_arguments() {
                 validate_system
                 install_dependencies
                 check_and_install_yay
-                setup_blackarch_repository
+                setup_security_repository
+                fetch_security_tools
                 exit 0
                 ;;
             --update)
@@ -876,7 +946,7 @@ parse_arguments() {
                 validate_system
                 install_dependencies
                 check_and_install_yay
-                setup_blackarch_repository
+                setup_security_repository
                 install_slim_tools
                 exit 0
                 ;;
@@ -888,6 +958,11 @@ parse_arguments() {
                 ;;
             --cleanup)
                 cleanup_kyGX
+                exit 0
+                ;;
+            --groups)
+                init_dirs
+                list_available_groups
                 exit 0
                 ;;
             *)
@@ -908,7 +983,11 @@ main() {
     validate_system
     install_dependencies
     check_and_install_yay
-    setup_blackarch_repository
+    setup_security_repository
+    
+    if [[ ! -f "$TOOLS_CACHE" ]]; then
+        fetch_security_tools
+    fi
     
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "[!] DRY RUN MODE - No packages will be installed"
